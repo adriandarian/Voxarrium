@@ -27,7 +27,7 @@ test('valid reference metadata and bytes pass', () => inTemp((dir) => {
 test('strict mode fails missing reference images', () => inTemp((dir) => {
   assert.equal(verifyReferences(dir, fixture().manifest).ok, false);
 }));
-test('CI mode explicitly reports missing images', () => inTemp((dir) => {
+test('permissive mode explicitly reports missing images', () => inTemp((dir) => {
   const report = verifyReferences(dir, fixture().manifest, { allowMissing: true });
   assert.equal(report.ok, true); assert.deepEqual(report.missing, ['sample.png']);
 }));
