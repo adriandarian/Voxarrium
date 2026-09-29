@@ -3,15 +3,32 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Voxarrium preproduction and local preflight tooling; runtime begins in M1.",
+  "description": "Voxarrium M1: human-scale playable Three.js foundation.",
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
-    "test": "node --test tests/bootstrap.test.mjs",
-    "check": "node tools/check.mjs",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview",
+    "test": "node --test tests/bootstrap.test.mjs && playwright test --project=simulation",
+    "test:browser": "playwright test --project=browser",
+    "capture": "playwright test --project=browser --grep evidence",
+    "check": "node tools/check.mjs && npm run typecheck",
     "doctor": "node tools/doctor.mjs",
     "references:verify": "node tools/references.mjs",
     "blender:fixture": "node tools/blender-fixture.mjs"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "0.21.0",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.6.3",
+    "@types/three": "0.186.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.1"
   }
 }

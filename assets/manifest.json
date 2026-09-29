@@ -1,5 +1,23 @@
 {
   "schemaVersion": 1,
-  "assets": [],
-  "note": "No approved runtime assets yet. Original reference art is documentation only."
+  "assets": [
+    {
+      "id": "diagnostics.scale-cube",
+      "path": "public/assets/diagnostics/scale-fixture.glb",
+      "sha256": "f8d039ca52cb3fef37a92349b19751c5e8c022a320fd81e5b1ada3d392fc4677",
+      "source": "tools/blender/scale_fixture.py",
+      "provenance": "Project-authored diagnostic primitives exported locally in Blender 5.2.1 LTS; no external asset",
+      "license": "Project license unassigned; no third-party source content",
+      "units": "meters",
+      "cubeBounds": { "min": [-0.5, 0, -0.5], "max": [0.5, 1, 0.5] },
+      "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y",
+      "triangles": 48,
+      "materials": 4,
+      "textures": 0,
+      "collision": "Separate 1m cuboid proxy; small axis markers are diagnostic only",
+      "lod": "Single calibration mesh set; no LOD needed for M1",
+      "preview": "artifacts/m1/blender-calibration.png (regenerate with npm run capture)"
+    }
+  ],
+  "note": "Only the M1 calibration asset is vendored. Reference images remain under docs and outside runtime assets."
 }

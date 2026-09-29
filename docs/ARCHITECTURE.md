@@ -1,13 +1,15 @@
-# Proposed architecture
+# Architecture
 
-This is a bounded proposal to verify on the local machine, not implemented infrastructure.
+M1 implements the runtime boundaries and renderer decision below. World growth and simulation expansion remain proposals, not implemented infrastructure.
 
 ## Stack and boundaries
-TypeScript + Vite + vanilla Three.js. DOM HUD/settings first; no React dependency unless later UI complexity warrants it. Rapier for player physics; asset authoring in Blender, runtime GLB/glTF. Choose and pin compatible package versions in M1, produce package-lock.json, then use npm ci. Bootstrap currently has no third-party dependencies.
+TypeScript + Vite + vanilla Three.js, DOM HUD/settings, and Rapier character physics are implemented in M1. Exact dependency versions are pinned in package.json with a real package-lock.json; use npm ci. Blender GLB remains the asset pipeline. No React is needed for this milestone.
 
 `src/simulation/` owns serializable world, clock, schedules and interaction state. `src/render/` adapts that state to Three.js scene/cameras/materials. `src/physics/` bridges Rapier and simulation. `src/input/` maps actions. `src/ui/` owns DOM overlays. `src/assets/` owns manifest/loading/reference counting. `src/diagnostics/` owns capture and timing. Create modules only as needed, not empty engine hierarchies.
 
-Use a capped fixed simulation timestep with render interpolation when gameplay begins; cap catch-up after tab suspension. Stable seeded generation; async work must not make IDs nondeterministic. No save files containing Three.js objects.
+M1 uses a 60 Hz fixed simulation step with interpolated render positions. Catch-up is capped at six steps and pause/blur clears the accumulator. The course is authored deterministic data with stable IDs and seed 104729; the seed identifies this authored fixture and does not randomize its layout. State is plain serializable data, with no Three.js or Rapier objects.
+
+`src/main.ts` owns startup, DOM settings, clock integration and disposal. `src/cameras/` owns gameplay/debug camera transforms. Physics owns one kinematic capsule for both gameplay views. A development-only `?test=1` harness exposes fixed-step actions and bookmarks for reproducible tests; it is not exposed by the production build. See TESTING.md for evidence and lifecycle coverage.
 
 ## Renderer decision gate
 Try WebGPURenderer from `three/webgpu`; await initialization and record its actual backend. Its WebGL 2 fallback is not the same as promising every WebGPU feature runs on WebGL. Feature-gate compute-heavy effects, verify fallback and test material compatibility. Start with simple lit materials, sensible color management, directional shadows and fill light. TSL for needed custom shaders; no blanket demand to implement every advanced effect.

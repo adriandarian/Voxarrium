@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { findBlender, probe } from './local.mjs';
 import { repoRoot, verifyReferences } from './references.mjs';
@@ -12,8 +12,8 @@ const report = {
   node: process.version, nodeSupported: major > 22 || (major === 22 && minor >= 12),
   git: probe('git'), blender: blender?.version ?? null,
   references: verifyReferences(base, manifest),
-  browserGpu: 'NOT TESTED: verify on the target browser during M0/M1',
-  runtime: 'NOT IMPLEMENTED: bootstrap only',
+  browserGpu: 'NOT TESTED by doctor: run npm run test:browser or npm run capture; see STATUS.md for recorded browser evidence',
+  runtime: existsSync(resolve(repoRoot, 'src/main.ts')) ? 'M1 source present; doctor does not launch or validate gameplay' : 'NOT IMPLEMENTED: bootstrap only',
 };
 mkdirSync(resolve(repoRoot, '.local'), { recursive: true });
 writeFileSync(resolve(repoRoot, '.local/doctor.json'), JSON.stringify(report, null, 2) + '\n');
