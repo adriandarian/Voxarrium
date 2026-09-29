@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#142328" />
+    <link rel="icon" href="data:," />
+    <title>Voxarrium · Human-scale foundation</title>
+  </head>
+  <body>
+    <canvas id="world" aria-label="Voxarrium playable graybox course" tabindex="0"></canvas>
+    <header class="identity"><span class="wordmark">VOXARRIUM</span><span class="chapter">M1 / HUMAN SCALE</span></header>
+    <div id="backend-badge" class="backend-badge">Starting renderer…</div>
+    <div class="hud-bottom">
+      <div class="mode-row"><span id="camera-mode">THIRD PERSON</span><span class="separator"></span><span>64 × 64 m / GRAYBOX 01</span></div>
+      <div class="controls"><kbd>W A S D</kbd> move <kbd>Shift</kbd> run <kbd>Space</kbd> jump <kbd>V</kbd> view <kbd>Esc</kbd> pause <kbd>R</kbd> recover</div>
+    </div>
+    <pre id="diagnostics" aria-live="off"></pre>
+    <span id="crosshair" aria-hidden="true">+</span>
+    <div id="menu" class="menu">
+      <section class="menu-card" role="dialog" aria-labelledby="menu-title">
+        <span class="eyebrow">PLAYABLE FOUNDATION · MILESTONE 01</span>
+        <h1 id="menu-title">A sense of scale.</h1>
+        <p class="intro">Walk the course. Find the door, climb the terrace, cross the bridge. One unit is one meter.</p>
+        <div class="course-features"><span>1.75 m player</span><span>11 traversal studies</span><span>4 camera modes</span></div>
+        <button id="start" class="primary" disabled>Preparing the world…</button>
+        <div class="settings">
+          <label>Camera<select id="camera-select"><option value="third-person">Third person · 1</option><option value="first-person">First person · 2</option><option value="free">Free / debug · 3</option><option value="eagle-eye">Eagle-eye / reference · 4</option></select></label>
+          <label>Field of view <output id="fov-value">60°</output><input id="fov" type="range" min="45" max="90" value="60" /></label>
+          <label>Mouse sensitivity<input id="sensitivity" type="range" min="0.4" max="2" step="0.1" value="1" /></label>
+        </div>
+        <p class="menu-note">Click to capture the mouse. Esc releases it.<br>Free camera: WASD + Q/E. Reference camera is fixed.<br>No head bob. This is a scale study; art production comes later.</p>
+        <p id="notice" role="status">Loading physics, renderer and Blender calibration…</p>
+      </section>
+    </div>
+    <div id="fatal" class="fatal" role="alert" hidden></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

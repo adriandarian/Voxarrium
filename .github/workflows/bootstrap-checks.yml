@@ -1,7 +1,7 @@
-name: Bootstrap checks
+name: Foundation checks
 on:
   push:
-    branches: [main, bootstrap/voxarrium-foundation]
+    branches: [main, milestone/m1-human-scale-foundation]
   pull_request:
 permissions:
   contents: read
@@ -17,7 +17,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+      - run: npm ci
       - run: npm test
       - run: npm run check
+      - run: npm run build
       - name: Verify all four original references (strict)
         run: npm run references:verify
