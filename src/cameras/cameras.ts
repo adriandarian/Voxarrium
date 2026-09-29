@@ -37,8 +37,16 @@ export function createCameraRig(state: GameState, physics: Physics) {
       if (mode === 'eagle-eye') {
         // Overview stays deterministic and frames the full authored 64 m bounds.
         const fit = Math.max(1, 1.25 / aspect);
-        camera.position.set(47 * fit, 57 * fit, 61 * fit);
-        camera.lookAt(0, 0, -1);
+        if (state.sceneId === 'm2-rural-96m') {
+          camera.fov = 31;
+          camera.updateProjectionMatrix();
+          const ruralFit = Math.max(1, 0.75 / aspect);
+          camera.position.set(-29 * ruralFit, 60 * ruralFit, 81 * ruralFit);
+          camera.lookAt(1, 3, 1);
+        } else {
+          camera.position.set(47 * fit, 57 * fit, 61 * fit);
+          camera.lookAt(0, 0, -1);
+        }
       } else if (mode === 'free') {
         camera.position.set(state.camera.debugPosition.x, state.camera.debugPosition.y, state.camera.debugPosition.z);
         camera.lookAt(desired.copy(camera.position).add(direction()));

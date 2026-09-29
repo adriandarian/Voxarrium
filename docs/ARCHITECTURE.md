@@ -9,6 +9,10 @@ TypeScript + Vite + vanilla Three.js, DOM HUD/settings, and Rapier character phy
 
 M1 uses a 60 Hz fixed simulation step with interpolated render positions. Catch-up is capped at six steps and pause/blur clears the accumulator. The course is authored deterministic data with stable IDs and seed 104729; the seed identifies this authored fixture and does not randomize its layout. State is plain serializable data, with no Three.js or Rapier objects.
 
+M2 adds `simulation/rural-layout.ts` as the shared meter/palette contract and `simulation/rural.ts` as the authored environment. Optional triangle surfaces in `CourseSpec` drive both visible terrain and static Rapier collision; separate cuboid proxies represent architecture, bridge and significant obstacles. Each course supplies its own recovery bounds. The M1 course and mechanics remain selectable with `?scene=m1`. M2 is the default; `?stage=blockout` exposes structural massing using the same terrain/collision.
+
+`render/rural.ts` owns deterministic environment geometry, vegetation instances and water presentation. `assets/rural.ts` loads the Blender hero GLBs, verifies meter bounds and reports imported material/triangle facts before placement. `render/landscape-materials.ts` creates project-authored pigment textures; it never reads the reference PNGs. Existing renderer initialization, warmup, fallback diagnostics, capture harness and disposal own the new resources. Instance buffers are explicitly disposed as well as shared geometry/material/texture resources.
+
 `src/main.ts` owns startup, DOM settings, clock integration and disposal. `src/cameras/` owns gameplay/debug camera transforms. Physics owns one kinematic capsule for both gameplay views. A development-only `?test=1` harness exposes fixed-step actions and bookmarks for reproducible tests; it is not exposed by the production build. See TESTING.md for evidence and lifecycle coverage.
 
 ## Renderer decision gate

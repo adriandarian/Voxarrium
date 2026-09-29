@@ -44,6 +44,9 @@ export interface CourseSpec {
   boxes: BoxSpec[];
   labels: { text: string; position: Vec3 }[];
   bookmarks: Record<string, Bookmark>;
+  /** Authored static triangle surfaces, shared by render and collision. */
+  surfaces?: { id: string; vertices: number[]; indices: number[]; color: number }[];
+  bounds?: number;
 }
 export const PLAYER = {
   height: 1.75, radius: 0.30, eyeHeight: 1.62,

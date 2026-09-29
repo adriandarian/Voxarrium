@@ -1,5 +1,6 @@
 import './style.css';
 import { createCourse } from './simulation/course';
+import { createRuralCourse } from './simulation/rural';
 import { createState } from './simulation/state';
 import { FixedClock } from './simulation/clock';
 import { FIXED_DT, IDLE_INPUT } from './simulation/types';
@@ -21,11 +22,22 @@ const sensitivity = element<HTMLInputElement>('sensitivity');
 const params = new URLSearchParams(location.search);
 
 async function boot() {
-  const course = createCourse(104729);
+  const rural = params.get('scene') !== 'm1';
+  const course = rural ? createRuralCourse() : createCourse(104729);
+  if (!rural) {
+    document.querySelector('.chapter')!.textContent = 'M1 / HUMAN SCALE';
+    element('scene-label').textContent = '64 × 64 m / GRAYBOX 01';
+    element('menu-title').textContent = 'A sense of scale.';
+    document.querySelector('.intro')!.textContent = 'Walk the course. Find the door, climb the terrace, cross the bridge. One unit is one meter.';
+  }
   const state = createState(course);
+  if (rural && course.bookmarks.spawn) {
+    state.camera.yaw = course.bookmarks.spawn.yaw;
+    state.camera.pitch = course.bookmarks.spawn.pitch;
+  }
   const physics = await createPhysics(course);
   let renderer: Awaited<ReturnType<typeof createGameRenderer>>;
-  try { renderer = await createGameRenderer(canvas, course, params.get('backend') === 'webgl'); }
+  try { renderer = await createGameRenderer(canvas, course, params.get('backend') === 'webgl', params.get('stage') === 'blockout'); }
   catch (error) { physics.dispose(); throw error; }
   const rig = createCameraRig(state, physics);
   const clock = new FixedClock();
@@ -67,6 +79,12 @@ async function boot() {
       state.camera.pitch = Math.max(-1.35, Math.min(1.35, state.camera.pitch + dy * Number(sensitivity.value)));
     },
     onMode: setMode, onPause: setPaused, onReset: () => reset(),
+    onLookControl(control) {
+      element('look-hint').textContent = control === 'drag' ? 'Hold left mouse + drag to look' : 'Mouse to look';
+      notice.textContent = control === 'drag'
+        ? 'Mouse capture is unavailable here. Hold the left mouse button and drag to look; WASD moves as usual.'
+        : 'Ready. Click to capture the mouse; Esc pauses.';
+    },
     isPaused: () => state.paused, getMode: () => state.camera.mode,
   });
 
@@ -125,16 +143,22 @@ async function boot() {
   };
   const onModeSelect = () => setMode(cameraSelect.value as CameraMode);
   const onStart = async () => {
+    startButton.disabled = true;
+    notice.textContent = 'Starting controls…';
     try {
-      await input.requestPointerLock();
+      if (!await input.start()) {
+        if (!disposed) notice.textContent = 'Game paused. Click to resume when the game is focused.';
+        return;
+      }
       manual = false;
       timings.reset();
       setPaused(false);
-      startButton.textContent = 'Return to the course';
+      startButton.textContent = rural ? 'Return to the garden' : 'Return to the course';
     } catch (error) {
       setPaused(true);
-      notice.textContent = `Mouse capture did not start: ${error instanceof Error ? error.message : String(error)}. Click again when the browser is focused.`;
-    }
+      notice.textContent = 'Controls could not start. Focus the game and try again.';
+      console.error('Voxarrium input startup failure', error);
+    } finally { if (!disposed) startButton.disabled = false; }
   };
   startButton.addEventListener('click', onStart);
   cameraSelect.addEventListener('change', onModeSelect);
@@ -169,7 +193,7 @@ async function boot() {
   element('backend-badge').title = renderer.facts.fallbackReason ?? renderer.facts.requestedBackend;
   notice.textContent = 'Ready. Blender meter and axis checks passed.';
   startButton.disabled = false;
-  startButton.textContent = 'Enter the course';
+  startButton.textContent = rural ? 'Explore the garden' : 'Enter the course';
   overlay();
   frameId = requestAnimationFrame(frame);
 

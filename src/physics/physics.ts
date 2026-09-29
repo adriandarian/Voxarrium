@@ -17,6 +17,9 @@ export async function createPhysics(course: CourseSpec): Promise<Physics> {
   initialization ??= RAPIER.init();
   await initialization;
   const world = new RAPIER.World({ x: 0, y: 0, z: 0 });
+  for (const surface of course.surfaces ?? []) {
+    world.createCollider(RAPIER.ColliderDesc.trimesh(new Float32Array(surface.vertices), new Uint32Array(surface.indices)));
+  }
   for (const box of course.boxes) {
     if (!box.collides) continue;
     const sx = Math.sin((box.rotationX ?? 0) / 2), cx = Math.cos((box.rotationX ?? 0) / 2);
@@ -98,7 +101,7 @@ export async function createPhysics(course: CourseSpec): Promise<Physics> {
       if (player.grounded && player.velocity.y < 0) player.velocity.y = 0;
       state.tick++;
       state.elapsed += dt;
-      if (!Number.isFinite(center.x + center.y + center.z) || player.position.y < -6 || Math.abs(center.x) > 40 || Math.abs(center.z) > 40) reset(state);
+      if (!Number.isFinite(center.x + center.y + center.z) || player.position.y < -6 || Math.abs(center.x) > (course.bounds ?? 40) || Math.abs(center.z) > (course.bounds ?? 40)) reset(state);
     },
     reset,
     cameraCast(origin, target, radius) {
