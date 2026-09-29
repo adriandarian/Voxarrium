@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "images": [
+    {
+      "path": "city-master.png",
+      "sha256": "6868b0cbd6a5bcc28a8580ba1b40ff4069f6bb405715fb9ff3a098aaa6abeffd",
+      "bytes": 1020672,
+      "width": 483,
+      "height": 809,
+      "role": "primary city master"
+    },
+    {
+      "path": "experiments/godot-attempt.png",
+      "sha256": "76fc977dea8500ba0afdb6cf93d50206fd27f976c99948432c43ac0eb1c60f5c",
+      "bytes": 1760211,
+      "width": 973,
+      "height": 849,
+      "role": "side-by-side; left rural target, right Godot attempt"
+    },
+    {
+      "path": "experiments/unreal-attempt.png",
+      "sha256": "2301a9e7d5075e308c65307ffd7d65e56d73387106e452133ab495c7690f1300",
+      "bytes": 5529335,
+      "width": 1351,
+      "height": 2048,
+      "role": "earlier Unreal attempt"
+    },
+    {
+      "path": "experiments/blender-attempt.png",
+      "sha256": "724a7e967c44fedd2cc4b2f038877b684f4a135c9ee59703f0802f401c711662",
+      "bytes": 2462715,
+      "width": 1526,
+      "height": 910,
+      "role": "earlier Blender-assisted attempt"
+    }
+  ]
+}
