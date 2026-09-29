@@ -1,14 +1,14 @@
 # Start Voxarrium in Codex
 
-## Bring down the bootstrap
-Use the existing local repository if there is one. Inspect `git status` before switching. Fetch origin, then switch to `bootstrap/voxarrium-foundation` (track the remote branch if needed). Do not overwrite uncommitted work. The bootstrap PR is intentionally not merged automatically.
+## Use the current checkout
+The bootstrap and original reference PNGs have been merged into `main`. Inspect `git status` and the current branch first; preserve unrelated work and use the current setup branch (`setup/local-preflight` for M0). Do not return to the old bootstrap branch. For a fresh checkout, create the setup branch from the pulled `main`.
 
-## Download the reference ZIP
-Save the accompanying `Voxarrium-reference-images.zip` in Downloads. It contains the four original PNGs already named and arranged for the repo. From PowerShell in the repo, run `./tools/import-references.ps1`, or let Codex run it during preflight. It will not search unrelated personal folders. Pass `-ArchivePath` if saved elsewhere. Missing files should block art work, not be replaced with invented references.
+## Verify the committed references
+Run `npm ci`, then `npm run references:verify`. All four original PNGs should already be under `docs/reference/`. Do not replace, regenerate, resize, or rename valid references. Report exact missing-file, size, dimension, signature, or checksum failures; never alter the manifest to make a different image pass. Only consider the supplied ZIP importer if an original is actually missing; see `docs/reference/README.md` for recovery.
 
 ## One prompt to paste
 
-> Read AGENTS.md, STATUS.md and docs/prompts/00-local-preflight.md. Execute M0 on this checkout, preserving unrelated work. Use at most two concurrent native subagents for genuinely independent tasks, with explicit file ownership; work serially if delegation is unavailable. Import and verify Voxarrium-reference-images.zip from my Downloads folder using the supplied importer. Verify local Node, Git, Blender and browser capabilities, run the existing checks and Blender scale fixture, and record actual results. Do not configure Jev, a paid service, external API keys, or global settings. Do not start the city. When M0 is complete, report the remaining blockers and the exact next M1 prompt; stop for review.
+> Read AGENTS.md, STATUS.md and docs/prompts/00-local-preflight.md. Execute M0 only on this checkout, first inspecting git status and the current branch and preserving unrelated work. Use at most two concurrent native subagents for independent read-only environment and reference reviews; the parent owns edits and integration, with no recursive delegation. Run npm ci, npm run references:verify, npm test, npm run check, npm run doctor, and npm run blender:fixture. Verify the four committed PNGs before considering import and preserve the originals and manifest. Record the actual Blender executable, isolated calibration export and output path; distinguish static GLB checks from Three.js runtime validation. Inspect available browser/GPU tools and report unavailable checks as BLOCKED. Make CI reference verification strict after all four pass; update stale setup notes and STATUS.md with PASS, FAIL, or BLOCKED and evidence. Preserve selected model/provider and approval settings. Do not configure Jev, paid services, API keys, image generation, global settings, or deployment. Stop at the M0 review gate; do not start M1 or city content.
 
 The bootstrap already replaces the earlier giant planning prompt: do not regenerate all its documentation from scratch.
 

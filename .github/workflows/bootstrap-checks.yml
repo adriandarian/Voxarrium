@@ -19,5 +19,5 @@ jobs:
           node-version: '22'
       - run: npm test
       - run: npm run check
-      - name: Verify any present originals (M0 may still need local import)
-        run: node tools/references.mjs --allow-missing
+      - name: Verify all four original references (strict)
+        run: npm run references:verify
