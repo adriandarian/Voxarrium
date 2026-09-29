@@ -141,3 +141,16 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Voxarrium local diagnostics, generated outputs, and Blender backups
+.local/
+artifacts/
+playwright-report/
+test-results/
+*.blend1
+*.blend2
+*.blend@
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc

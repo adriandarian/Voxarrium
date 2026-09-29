@@ -1,0 +1,4 @@
+# Inherit the user's model, provider, sandbox and approval choices.
+# Compatibility alias documented in current Codex config reference.
+[agents]
+max_threads = 2

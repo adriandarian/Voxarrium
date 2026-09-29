@@ -1,0 +1,23 @@
+name: Bootstrap checks
+on:
+  push:
+    branches: [main, bootstrap/voxarrium-foundation]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: bootstrap-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - run: npm run check
+      - name: Verify any present originals (M0 may still need local import)
+        run: node tools/references.mjs --allow-missing
