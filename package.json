@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Voxarrium M4: a traversable river-market district in Three.js.",
+  "description": "Voxarrium M5: three connected streamed exploration areas in Three.js.",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -13,7 +13,10 @@
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "test": "node --test tests/bootstrap.test.mjs && playwright test --project=simulation",
-    "test:browser": "playwright test --project=browser --project=rural-browser --project=living-browser --project=district-browser",
+    "test:browser": "playwright test --project=browser --project=rural-browser --project=living-browser --project=district-browser --project=streaming-browser",
+    "capture:m5": "playwright test --project=streaming-browser --grep captures",
+    "measure:tail": "node tools/measure-tail.mjs",
+    "stress:streaming": "node tools/stress-streaming.mjs",
     "capture:m4": "playwright test --project=district-browser --grep evidence",
     "capture:m3": "playwright test --project=living-browser --grep evidence",
     "capture": "playwright test --project=rural-browser --grep evidence",

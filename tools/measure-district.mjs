@@ -17,7 +17,7 @@ page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
 const route = [[89,-12],[89,-28],[112,-28],[130,-28],[129,-6],[129,0],[129,9.9],[129,29],[96,29],[96,9.9],[96,0],[89,-12]];
 let cdp, tracingComplete;
 try {
-  await page.goto('http://127.0.0.1:5173/?test=1');
+  await page.goto('http://127.0.0.1:5173/?scene=m4&test=1');
   await page.waitForFunction(()=>document.documentElement.dataset.ready==='true',undefined,{timeout:60000});
   await page.locator('#start').click();
   await page.waitForFunction(()=>document.pointerLockElement?.id==='world');

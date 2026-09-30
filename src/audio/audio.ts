@@ -1,6 +1,7 @@
 import type { EnvironmentState } from '../simulation/environment';
 import type { Vec3 } from '../simulation/types';
 import { DISTRICT } from '../simulation/district-layout';
+import { tail } from '../diagnostics/tail';
 
 export type AudioCategory = 'ambience' | 'footsteps' | 'locals';
 export interface AudioSettings { master: number; ambience: number; footsteps: number; locals: number }
@@ -36,6 +37,7 @@ function noise(context: BaseAudioContext, seconds = 3): AudioBuffer {
 }
 
 export function createLivingAudio(settings: AudioSettings, district = false) {
+  let districtActive = district;
   let context: AudioContext | null = null;
   let master: GainNode | null = null;
   let analyser: AnalyserNode | null = null;
@@ -108,7 +110,8 @@ export function createLivingAudio(settings: AudioSettings, district = false) {
           for (const category of ['ambience', 'footsteps', 'locals'] as const) {
             const gain = context.createGain(); gain.connect(master); categories.set(category, gain);
           }
-          buffer = noise(context); loop(340); loop(1350, sourcePosition); loop(4200);
+          buffer = tail.span('audio.synthesizeBuffer', () => noise(context!)); loop(340); loop(1350, sourcePosition); loop(4200);
+          tail.event('audio.loopsCreated', { count: district ? 5 : 3, decode: 'none; locally synthesized buffer' });
           if (district) {
             loop(570, { x: DISTRICT.plaza.x - 5, y: 5.4, z: -17 }, 'locals');
             loop(970, { x: DISTRICT.plaza.x + 5, y: 5.4, z: -5 }, 'locals');
@@ -125,6 +128,11 @@ export function createLivingAudio(settings: AudioSettings, district = false) {
       applyVolumes();
     },
     volumes() { applyVolumes(); },
+    districtActive(value: boolean) {
+      districtActive = district && value;
+      if (!districtActive) { levels.market = 0; for (const loop of loops.slice(3)) ramp(loop.gain.gain, 0, .2); }
+      tail.event('audio.districtActivity', { active: districtActive, reusedEmitters: 2 });
+    },
     reset() { previous = null; distance = 0; lastCue = -30; lastWorkshop = -12; },
     update(environment: EnvironmentState, player: Vec3, yaw: number, grounded: boolean, elapsed: number, nearest?: { position: Vec3; id: string } | null) {
       if (!context || disposed) return;
@@ -146,10 +154,10 @@ export function createLivingAudio(settings: AudioSettings, district = false) {
       ramp(loops[0]!.gain.gain, levels.wind); ramp(loops[1]!.gain.gain, levels.river); ramp(loops[2]!.gain.gain, levels.rain);
       if (district) {
         const activity = environment.timeOfDay === 'night' ? 0.08 : environment.timeOfDay === 'dusk' ? 0.45 : 1;
-        levels.market = 0.065 * activity * (1 - environment.rain * 0.78);
+        levels.market = (districtActive ? 0.065 : 0) * activity * (1 - environment.rain * 0.78);
         ramp(loops[3]!.gain.gain, levels.market * (0.76 + Math.sin(environment.time * 0.71) * 0.22));
         ramp(loops[4]!.gain.gain, levels.market * (0.7 + Math.sin(environment.time * 0.43 + 2) * 0.25));
-        if (!paused && environment.timeOfDay === 'day' && environment.rain < 0.2 && elapsed - lastWorkshop > 9.7 &&
+        if (districtActive && !paused && environment.timeOfDay === 'day' && environment.rain < 0.2 && elapsed - lastWorkshop > 9.7 &&
             Math.hypot(player.x - 68, player.z + 16) < 18) {
           lastWorkshop = elapsed;
           pulse('locals', { x: 68, y: 5, z: -16 }, 720, 0.075, 0.12, false);
@@ -178,6 +186,7 @@ export function createLivingAudio(settings: AudioSettings, district = false) {
       if (analyser) { const samples = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(samples); rms = Math.sqrt(samples.reduce((sum, n) => sum + n * n, 0) / samples.length); }
       return { status: disposed ? 'disposed' : context?.state ?? 'awaiting-gesture', error, settings: { ...settings },
         paused, activeLoops: loops.length, activeVoices: voices.size, maxVoices: district ? 10 : 8, stepCount, cueCount, lastSurface,
+        districtEmitters: district ? { allocated: 2, enabled: districtActive ? 2 : 0, ownership: 'one reusable pair per audio context; fades to zero on district deactivation' } : null,
         levels: { ...levels }, listener: { ...listenerPosition }, riverSource: { ...sourcePosition }, outputRms: rms,
         source: 'local deterministic filtered noise and short synthesized cues; no recorded speech' };
     },

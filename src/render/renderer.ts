@@ -17,6 +17,10 @@ import { createNpcPresentation } from './npcs';
 import { createDistrictPresentation } from './district';
 import { createRuralCourse } from '../simulation/rural';
 import { DISTRICT_POPULATION_DEFINITIONS, NPC_DEFINITIONS } from '../simulation/npcs';
+import { tail } from '../diagnostics/tail';
+import { ResourceReferences, AssetReferences } from '../assets/resource-references';
+import { createAreaPresentation, throwIfAborted } from './streaming-areas';
+import type { WorldArea } from '../simulation/streaming-contracts';
 
 // Runtime backends expose these fields in the installed Three.js r186 source;
 // @types/three deliberately omits device/gl internals. Read only for diagnostics.
@@ -28,6 +32,14 @@ interface BackendDiagnostics {
     queue: { onSubmittedWorkDone(): Promise<void> };
   };
   gl?: WebGL2RenderingContext;
+}
+interface BackendCpuHooks {
+  updateTexture(...args: unknown[]): void;
+  createRenderPipeline(...args: unknown[]): void;
+}
+interface TextureInfoHooks {
+  createTexture(texture: Texture): void;
+  destroyTexture(texture: Texture): void;
 }
 
 function backendDetails(renderer: WebGPURenderer) {
@@ -118,7 +130,8 @@ function disposeScene(scene: Scene) {
 }
 
 export async function createGameRenderer(canvas: HTMLCanvasElement, course: CourseSpec, forceWebGL: boolean, blockout = false) {
-  const district = course.id === 'm4-market-district';
+  const streaming = course.id === 'm5-streaming-proof';
+  const district = course.id === 'm4-market-district' || streaming;
   const rural = course.id === 'm2-rural-96m' || district;
   const renderer = new WebGPURenderer({ canvas, antialias: true, alpha: false, forceWebGL, powerPreference: 'high-performance' });
   const scene = new Scene();
@@ -130,10 +143,37 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFShadowMap;
   renderer.info.autoReset = false;
+  // Installed r186 Info exposes these accounting callbacks. Keep metadata only;
+  // this diagnostic inventory never holds the texture or changes its ownership.
+  const textureInventory = new Map<number, { id: number; area: string | null; createdMs: number; name: string; type: string; width: number | null; height: number | null; target: boolean }>();
+  const textureEvents: { id: number; event: string; area: unknown; name: string; time: number; stack?: string }[] = [];
+  const destroyedTextures = new WeakSet<Texture>();
+  if (import.meta.env.DEV && new URLSearchParams(location.search).get('test') === '1') {
+    const info = renderer.info as typeof renderer.info & TextureInfoHooks;
+    const create = info.createTexture.bind(info), destroy = info.destroyTexture.bind(info);
+    info.createTexture = texture => {
+      create(texture);
+      textureEvents.push({ id: texture.id, event: destroyedTextures.has(texture) ? 'recreated' : 'created', area: texture.userData.streamingArea ?? null, name: texture.name, time: performance.now(),
+        ...(destroyedTextures.has(texture) ? { stack: new Error().stack?.slice(0, 2500) } : {}) });
+      if (textureEvents.length > 256) textureEvents.shift();
+      const image = texture.image as { width?: number; height?: number } | undefined;
+      textureInventory.set(texture.id, { id: texture.id, area: typeof texture.userData.streamingArea === 'string' ? texture.userData.streamingArea : null, createdMs: performance.now(), name: texture.name, type: texture.constructor.name,
+        width: image?.width ?? null, height: image?.height ?? null, target: texture.isRenderTargetTexture });
+    };
+    info.destroyTexture = texture => {
+      textureEvents.push({ id: texture.id, event: 'destroyed', area: texture.userData.streamingArea ?? null, name: texture.name, time: performance.now() });
+      if (textureEvents.length > 256) textureEvents.shift();
+      destroyedTextures.add(texture); textureInventory.delete(texture.id); destroy(texture);
+    };
+  }
 
   let primaryStartupError: string | null = null;
   let rendererInitialized = false;
   let livingEnvironment: ReturnType<typeof createEnvironmentPresentation> | null = null;
+  const resourceReferences = new ResourceReferences();
+  const assetReferences = new AssetReferences();
+  const areaPresentations = new Map<string, Awaited<ReturnType<typeof createAreaPresentation>>>();
+  const activeAreas = new Set<string>();
   // Preserve the native fallback, but record the failure that triggered it.
   const primaryBackend = renderer.backend;
   const initializeBackend = primaryBackend.init.bind(primaryBackend);
@@ -143,9 +183,16 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
   };
 
   try {
-    await renderer.init();
+    await tail.asyncSpan('renderer.backendInit', () => renderer.init());
     rendererInitialized = true;
     const initialized = backendDetails(renderer);
+    // CPU entry-point wall durations only. Neither uploads nor queue waits are
+    // GPU timestamps. The wrappers preserve the installed backend's arguments.
+    const activeBackend = renderer.backend as typeof renderer.backend & BackendCpuHooks;
+    const upload = activeBackend.updateTexture.bind(activeBackend);
+    activeBackend.updateTexture = (...args) => tail.span('renderer.textureUploadCpu', () => upload(...args));
+    const pipeline = activeBackend.createRenderPipeline.bind(activeBackend);
+    activeBackend.createRenderPipeline = (...args) => tail.span('renderer.pipelineCreateCpu', () => pipeline(...args));
     const sun = new DirectionalLight(0xffedcc, 3.0);
     sun.name = 'lighting.sun';
     sun.position.set(-24, 38, 16);
@@ -178,7 +225,8 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
 
     const boxGeometry = new BoxGeometry(1, 1, 1);
     const materials = new Map<number, MeshStandardMaterial>();
-    for (const box of course.boxes) {
+    if (streaming) boxGeometry.dispose();
+    for (const box of streaming ? [] : course.boxes) {
       if (box.visible === false) continue;
       if (district && !blockout && box.id.startsWith('district.stairs.')) continue;
       if (rural && !blockout && /^stairs\.(main|crop)\.\d+$/.test(box.id)) continue;
@@ -192,12 +240,12 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       mesh.castShadow = box.collides && Math.max(box.size.x, box.size.z) < 40;
       scene.add(mesh);
     }
-    const landscapeMaterials = rural && !blockout ? createLandscapeMaterials() : null;
+    const landscapeMaterials = rural && !streaming && !blockout ? createLandscapeMaterials() : null;
     if (landscapeMaterials) {
       landscapeMaterials.stone.vertexColors = true;
       landscapeMaterials.soil.vertexColors = true;
     }
-    for (const surface of course.surfaces ?? []) {
+    for (const surface of streaming ? [] : course.surfaces ?? []) {
       let geometry = new BufferGeometry();
       geometry.setAttribute('position', new Float32BufferAttribute(surface.vertices, 3));
       geometry.setIndex(surface.indices); geometry.computeVertexNormals();
@@ -213,10 +261,10 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       if (rural && !blockout && surface.id.endsWith('.shore')) mesh.visible = false;
       scene.add(mesh);
     }
-    const environment = rural ? createRuralEnvironment(district ? createRuralCourse() : course, blockout) : null;
+    const environment = rural && !streaming ? tail.span('world.ruralConstruction', () => createRuralEnvironment(district ? createRuralCourse() : course, blockout)) : null;
     if (environment) scene.add(environment.group);
-    const ruralAssets = environment && !blockout ? await loadRuralAssets(environment.group) : [];
-    const districtPresentation = district && !blockout ? await createDistrictPresentation(course) : null;
+    const ruralAssets = environment && !blockout ? await tail.asyncSpan('assets.ruralLoad', () => loadRuralAssets(environment.group)) : [];
+    const districtPresentation = district && !streaming && !blockout ? await tail.asyncSpan('world.districtLoadAndConstruction', () => createDistrictPresentation(course)) : null;
     if (districtPresentation) scene.add(districtPresentation.group);
     const labels = course.labels.map(label => {
       const sprite = createLabel(label.text);
@@ -226,10 +274,10 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
     });
     const player = createPlayer();
     scene.add(player);
-    const fixture = await loadScaleFixture();
+    const fixture = await tail.asyncSpan('assets.calibrationLoad', loadScaleFixture);
     fixture.object.visible = !rural;
     scene.add(fixture.object);
-    const locals = rural && !blockout ? createNpcPresentation(district ? DISTRICT_POPULATION_DEFINITIONS : NPC_DEFINITIONS) : null;
+    const locals = rural && !streaming && !blockout ? createNpcPresentation(district ? DISTRICT_POPULATION_DEFINITIONS : NPC_DEFINITIONS) : null;
     if (locals) scene.add(locals.group);
     if (rural && !blockout) livingEnvironment = createEnvironmentPresentation(scene, sun, fill, course, districtPresentation?.facts.roofEnvelopes);
     const facts = {
@@ -299,6 +347,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
         locals?.update(state.population, state.environment.time, state.player.position, reduced);
         districtPresentation?.updateEnvironment(state.environment);
       }
+      for (const [id, presentation] of areaPresentations) if (activeAreas.has(id)) presentation.update(state, reduced);
       const waterTime = state.environment?.time ?? state.elapsed;
       const waterUpdate = reduced ? Math.floor(waterTime * 15) / 15 : waterTime;
       if (waterUpdate !== lastWaterUpdate) {
@@ -307,22 +356,83 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
         lastWaterUpdate = waterUpdate;
       }
       renderer.info.reset();
-      renderer.render(scene, camera);
+      tail.span('renderer.submitCpu', () => renderer.render(scene, camera));
     }
     resize();
     return {
       facts,
       render,
       resize,
+      async prepareArea(area: WorldArea, signal: AbortSignal, camera: PerspectiveCamera, state: GameState) {
+        if (!streaming || disposed) throw new Error('Area preparation requires the active M5 renderer.');
+        const presentation = await createAreaPresentation(area, signal, blockout, resourceReferences, assetReferences);
+        let attachedHooks = false, released = false;
+        function unload() {
+          if (released) return; released = true;
+          activeAreas.delete(area.id); areaPresentations.delete(area.id);
+          if (attachedHooks) livingEnvironment?.detachArea(area.id);
+          presentation.dispose(); facts.loadedAssetCount = 1 + assetReferences.snapshot().assets;
+          tail.event('streaming.renderDisposed', { areaId: area.id });
+        }
+        try {
+          throwIfAborted(signal);
+          livingEnvironment?.attachArea(area.id, presentation.group, presentation.roofEnvelopes); attachedHooks = true;
+          // r186's initial cached sampled-texture binding can still point at an
+          // unloaded area's disposed map. The M5 diagnostic captured its later
+          // recreation in Bindings._createBindings. Keep transient mapped
+          // material builder states scoped to their actual texture identity;
+          // native pipelines can still reuse identical generated shader code.
+          const keyedMaterials = new Set<Material>();
+          presentation.group.traverse(object => {
+            if (!(object instanceof Mesh)) return;
+            for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+              const map = (material as Material & { map?: Texture }).map;
+              if (!(map instanceof Texture) || keyedMaterials.has(material)) continue;
+              keyedMaterials.add(material);
+              const existingKey = material.customProgramCacheKey.bind(material);
+              material.customProgramCacheKey = () => `${existingKey()}:streaming-map:${map.uuid}`;
+            }
+          });
+          presentation.update(state, false);
+          const culling = new Map<Mesh, boolean>();
+          presentation.group.traverse(object => { if (object instanceof Mesh) { culling.set(object, object.frustumCulled); object.frustumCulled = false; } });
+          try { await tail.asyncSpan('streaming.compileAsync', () => renderer.compileAsync(presentation.group, camera, scene)); }
+          finally { culling.forEach((value, object) => { object.frustumCulled = value; }); }
+          throwIfAborted(signal);
+          if (disposed) throw new DOMException('Renderer disposed during preparation', 'AbortError');
+          areaPresentations.set(area.id, presentation);
+          facts.loadedAssetCount = 1 + assetReferences.snapshot().assets;
+          return {
+            activate() {
+              if (released) throw new Error('Cannot activate a released area.');
+              scene.add(presentation.group); presentation.group.visible = true;
+              activeAreas.add(area.id); livingEnvironment?.areaActive(area.id, true);
+              tail.event('streaming.renderActivated', { areaId: area.id });
+            },
+            deactivate() {
+              presentation.group.removeFromParent(); activeAreas.delete(area.id);
+              livingEnvironment?.areaActive(area.id, false);
+            }, unload,
+          };
+        } catch (error) { unload(); throw error; }
+      },
       async warmup(camera: PerspectiveCamera, state: GameState) {
         sync(state, camera);
-        await renderer.compileAsync(scene, camera);
-        render(camera, state);
+        // Phase A traced native DXC compilation when previously culled material
+        // variants first entered view. Precompile the full resident set, including
+        // a real shadow submission, before reporting readiness.
+        const culling = new Map<Mesh, boolean>();
+        scene.traverse(object => { if (object instanceof Mesh) { culling.set(object, object.frustumCulled); object.frustumCulled = false; } });
+        try {
+          await tail.asyncSpan('renderer.compileAsync', () => renderer.compileAsync(scene, camera));
+          render(camera, state);
+        } finally { culling.forEach((value, object) => { object.frustumCulled = value; }); }
         const backend = renderer.backend as typeof renderer.backend & BackendDiagnostics;
-        if (backend.device) await backend.device.queue.onSubmittedWorkDone();
-        else backend.gl?.finish();
+        if (backend.device) await tail.asyncSpan('renderer.startupQueueCompletion', () => backend.device!.queue.onSubmittedWorkDone());
+        else tail.span('renderer.startupGlFinish', () => backend.gl?.finish());
         if (fatalError) throw fatalError;
         facts.shadersReady = true;
+        render(camera, state);
       },
       stats() {
         renderer.getDrawingBufferSize(size);
@@ -341,6 +451,8 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
           triangles: renderer.info.render.triangles,
           geometries: renderer.info.memory.geometries,
           textures: renderer.info.memory.textures,
+          textureInventory: [...textureInventory.values()],
+          textureEvents: [...textureEvents],
           visibleMeshes,
           instancedMeshes, instances,
           visibleMaterials: materialSet.size,
@@ -351,12 +463,17 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
           dpr: renderer.getPixelRatio(),
           countScope: 'draw calls and triangles include shadow passes; visibleMeshes counts visible flags, not frustum visibility',
           living: { environment: livingEnvironment?.stats() ?? null, population: locals?.stats() ?? null,
-            activeNpcs: locals ? statePopulationCount : 0 },
+            activeNpcs: streaming ? [...activeAreas].reduce((sum, id) => sum + (areaPresentations.get(id)?.npcStats()?.count ?? 0), 0) : locals ? statePopulationCount : 0 },
+          streamingResources: streaming ? { render: resourceReferences.snapshot(), assets: assetReferences.snapshot(),
+            preparedAreas: [...areaPresentations.keys()], activeAreas: [...activeAreas],
+            npcs: Object.fromEntries([...areaPresentations].map(([id, presentation]) => [id, presentation.npcStats()])) } : null,
         };
       },
       dispose() {
         if (disposed) return;
         disposed = true;
+        for (const [id, presentation] of areaPresentations) { livingEnvironment?.detachArea(id); presentation.dispose(); }
+        areaPresentations.clear(); activeAreas.clear();
         livingEnvironment?.dispose();
         disposeScene(scene);
         void renderer.dispose().catch(error => {

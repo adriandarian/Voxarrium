@@ -35,12 +35,13 @@ function sample(index: number, salt: number) { return fraction(Math.sin(index * 
 /** Presentation only. The approved source positions, indices and instance matrices stay untouched. */
 export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLight, fill: HemisphereLight,
   course: CourseSpec = createRuralCourse(), districtRoofs: { min: number[]; max: number[] }[] = []) {
-  const district = course.id === 'm4-market-district';
+  const streaming = course.id === 'm5-streaming-proof';
+  const district = course.id === 'm4-market-district' || streaming;
   const group = new Group();
   group.name = 'living.environment';
   const lantern = new PointLight(0xffcc83, 0, 11, 2);
   lantern.name = 'living.garden-lantern'; lantern.position.set(15.35, 5.4, -3.8); group.add(lantern);
-  const lanternGlass = scene.getObjectByName('garden.lantern.inferred');
+  let lanternGlass = scene.getObjectByName('garden.lantern.inferred');
   const districtLamps = district ? DISTRICT_LAMPS
     .map(([x, y, z], i) => {
       const light = new PointLight(0xffcb89, 0, 12, 2);
@@ -48,7 +49,7 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
       light.castShadow = false; group.add(light); return light;
     }) : [];
   const time = uniform(0), strength = uniform(0.22), quality = uniform(1);
-  const originals: { mesh: Mesh; material: Material | Material[] }[] = [];
+  const originals: { mesh: Mesh; material: Material | Material[]; owner: string }[] = [];
   const replacements = new Map<string, Replacement>();
   let windBatches = 0, windInstances = 0;
   let disposed = false;
@@ -84,33 +85,60 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
     return material;
   }
 
-  scene.updateMatrixWorld(true);
-  const roofEnvelopes: Box3[] = districtRoofs.map(roof => new Box3(
-    new Vector3().fromArray(roof.min), new Vector3().fromArray(roof.max)));
-  scene.traverse(object => {
-    if (!(object instanceof Mesh)) return;
-    // The modular kit owns its wetness/emissive response and supplies individual
-    // roof bounds; treating its aggregate instance bounds as a roof would hide rain.
-    if (object.name.startsWith('district.') && !windKind(object.name)) return;
-    const sourceMaterials = Array.isArray(object.material) ? object.material : [object.material];
-    // Actual imported roof bounds include the cottage and shed overhangs. A
-    // conservative top envelope prevents rain appearing beneath a sloped roof.
-    if (!object.name.startsWith('district.') && (sourceMaterials.some(material => /^(terracotta|teal_)/.test(material.name)) || /(?:roof|shelter)/i.test(object.name))) {
-      const bounds = new Box3().setFromObject(object, true);
-      if (!bounds.isEmpty()) { bounds.min.x -= 0.25; bounds.max.x += 0.25; bounds.min.z -= 0.25; bounds.max.z += 0.25; roofEnvelopes.push(bounds); }
+  const roofEnvelopes: Box3[] = [];
+  const roofOwners = new Map<string, Box3[]>();
+  const windOwners = new Map<string, { batches: number; instances: number }>();
+  const loadedAreas = new Set<string>();
+  function rebuildRoofs() { roofEnvelopes.splice(0, roofEnvelopes.length, ...[...roofOwners.values()].flat()); }
+  function attachArea(owner: string, root: Object3D, roofs: { min: number[]; max: number[] }[] = []) {
+    if (roofOwners.has(owner)) throw new Error(`Environment hooks already attached: ${owner}`);
+    const beforeBatches = windBatches, beforeInstances = windInstances;
+    root.updateMatrixWorld(true);
+    const ownerRoofs: Box3[] = roofs.map(roof => new Box3(
+      new Vector3().fromArray(roof.min), new Vector3().fromArray(roof.max)));
+    root.traverse(object => {
+      if (!(object instanceof Mesh)) return;
+      // The modular kit owns its wetness/emissive response and supplies individual
+      // roof bounds; treating its aggregate instance bounds as a roof would hide rain.
+      if (object.name.startsWith('district.') && !windKind(object.name)) return;
+      const sourceMaterials = Array.isArray(object.material) ? object.material : [object.material];
+      // Actual imported roof bounds include the cottage and shed overhangs. A
+      // conservative top envelope prevents rain appearing beneath a sloped roof.
+      if (!object.name.startsWith('district.') && (sourceMaterials.some(material => /^(terracotta|teal_)/.test(material.name)) || /(?:roof|shelter)/i.test(object.name))) {
+        const bounds = new Box3().setFromObject(object, true);
+        if (!bounds.isEmpty()) { bounds.min.x -= 0.25; bounds.max.x += 0.25; bounds.min.z -= 0.25; bounds.max.z += 0.25; ownerRoofs.push(bounds); }
+      }
+      if (object.name.startsWith('water.') && !object.name.includes('bank')) return;
+      const kind = windKind(object.name);
+      // Only the accepted rural scene is adapted; diagnostic avatar/labels and
+      // later-created NPC materials remain independently owned by their systems.
+      if (!kind && !/^(terrain\.|path\.|stairs\.|garden\.|crop\.|rural\.|blockout\.)/.test(object.name) &&
+        !sourceMaterials.some(material => /^(plaster|timber|door_oak|bridge_oak|terracotta|teal_|stone)/.test(material.name))) return;
+      const changed = sourceMaterials.map(material => material instanceof MeshStandardMaterial && material.roughness >= 0.4 ? replace(material, kind) : material);
+      if (changed.every((material, i) => material === sourceMaterials[i])) return;
+      originals.push({ mesh: object, material: object.material, owner });
+      object.material = Array.isArray(object.material) ? changed : changed[0]!;
+      if (kind) { windBatches++; windInstances += object instanceof InstancedMesh ? object.count : 1; }
+    });
+
+    roofOwners.set(owner, ownerRoofs);
+    windOwners.set(owner, { batches: windBatches - beforeBatches, instances: windInstances - beforeInstances });
+    rebuildRoofs();
+  }
+  function detachArea(owner: string) {
+    for (let i = originals.length - 1; i >= 0; i--) {
+      const original = originals[i]!;
+      if (original.owner === owner) { original.mesh.material = original.material; originals.splice(i, 1); }
     }
-    if (object.name.startsWith('water.') && !object.name.includes('bank')) return;
-    const kind = windKind(object.name);
-    // Only the accepted rural scene is adapted; diagnostic avatar/labels and
-    // later-created NPC materials remain independently owned by their systems.
-    if (!kind && !/^(terrain\.|path\.|stairs\.|garden\.|crop\.|rural\.|blockout\.)/.test(object.name) &&
-      !sourceMaterials.some(material => /^(plaster|timber|door_oak|bridge_oak|terracotta|teal_|stone)/.test(material.name))) return;
-    const changed = sourceMaterials.map(material => material instanceof MeshStandardMaterial && material.roughness >= 0.4 ? replace(material, kind) : material);
-    if (changed.every((material, i) => material === sourceMaterials[i])) return;
-    originals.push({ mesh: object, material: object.material });
-    object.material = Array.isArray(object.material) ? changed : changed[0]!;
-    if (kind) { windBatches++; windInstances += object instanceof InstancedMesh ? object.count : 1; }
-  });
+    const retained = new Set(originals.flatMap(original => Array.isArray(original.material) ? original.material : [original.material]));
+    for (const [key, replacement] of replacements) if (!retained.has(replacement.source)) {
+      replacement.material.dispose(); replacements.delete(key);
+    }
+    roofOwners.delete(owner); loadedAreas.delete(owner); rebuildRoofs();
+    const wind = windOwners.get(owner);
+    if (wind) { windBatches -= wind.batches; windInstances -= wind.instances; windOwners.delete(owner); }
+  }
+  attachArea('initial', scene, districtRoofs);
 
   // Small distant sky masses, outside the ground area and above roof height.
   // They never cast shadows or add terrain, and do not cover the eagle-eye slice.
@@ -170,8 +198,9 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
     quality.value = reduced ? 0 : 1;
     const lighting = state.lighting;
     const lampStrength = Math.max(0, Math.min(1, (1.85 - lighting.fillIntensity) / 0.67));
-    lantern.intensity = lampStrength * 7;
-    districtLamps.forEach(light => { light.intensity = lampStrength * 10; });
+    lanternGlass = scene.getObjectByName('garden.lantern.inferred');
+    lantern.intensity = lampStrength * 7 * (!streaming || loadedAreas.has('rural') ? 1 : 0);
+    districtLamps.forEach(light => { light.intensity = lampStrength * 10 * (!streaming || loadedAreas.has('river-market') ? 1 : 0); });
     if (lanternGlass instanceof Mesh && lanternGlass.material instanceof MeshStandardMaterial) {
       lanternGlass.material.emissive.setHex(0xffcc83); lanternGlass.material.emissiveIntensity = lampStrength * 0.65;
     }
@@ -208,7 +237,7 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
       if (rain.visible) for (let index = 0; index < limit; index++) {
         const angle = sample(index, 20) * Math.PI * 2, radius = Math.sqrt(sample(index, 21)) * RAIN_RADIUS;
         const x = anchorX + Math.cos(angle) * radius, z = anchorZ + Math.sin(angle) * radius;
-        if (x <= -47.7 || x >= (district ? 145.7 : 47.7) || Math.abs(z) >= 47.7) { outOfBounds++; continue; }
+        if (x <= -47.7 || x >= (streaming ? 217.7 : district ? 145.7 : 47.7) || Math.abs(z) >= 47.7) { outOfBounds++; continue; }
         let bottom = groundHeight(x, z);
         for (const roof of roofEnvelopes) if (x >= roof.min.x && x <= roof.max.x && z >= roof.min.z && z <= roof.max.z) {
           bottom = Math.max(bottom, roof.max.y + 0.12); shelterClipped++; break;
@@ -227,16 +256,18 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
   }
 
   return {
-    update,
+    update, attachArea, detachArea,
+    areaActive(owner: string, active: boolean) { if (active) loadedAreas.add(owner); else loadedAreas.delete(owner); },
     stats() {
       return { weather, timeOfDay, animationTime: environmentTime, reduced, windBatches, windInstances,
         windShader: 'TSL positionNode; local height anchor; one gust in reduced mode, two harmonics at full quality',
         surfaceMaterials: replacements.size, cloudLobes: clouds.count, rainDrops: rainCount,
         rainCapacity: RAIN_DROPS, rainReducedCapacity: REDUCED_RAIN_DROPS,
         rainColumnsClippedByShelter: shelterClipped, rainColumnsSkippedOutsideBounds: outOfBounds,
-        rainGroundBounds: district ? { minX: -48, maxX: 146, minZ: -48, maxZ: 48 } : RURAL.bounds,
+        rainGroundBounds: district ? { minX: -48, maxX: streaming ? 218 : 146, minZ: -48, maxZ: 48 } : RURAL.bounds,
         localLights: 1 + districtLamps.length, shadowCastingLocalLights: 0,
         roofEnvelopes: roofEnvelopes.map(bounds => ({ min: bounds.min.toArray(), max: bounds.max.toArray() })),
+        areaHooks: [...roofOwners.keys()].filter(id => id !== 'initial'), activeAreaHooks: [...loadedAreas],
         ownership: 'source geometry, instance matrices and shared textures unchanged; restores original materials on disposal',
       };
     },
@@ -245,6 +276,7 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
       disposed = true;
       for (const original of originals) original.mesh.material = original.material;
       for (const replacement of replacements.values()) replacement.material.dispose();
+      originals.length = 0; replacements.clear(); roofOwners.clear(); windOwners.clear(); loadedAreas.clear();
       clouds.dispose(); cloudGeometry.dispose(); cloudMaterial.dispose();
       rainGeometry.dispose(); rainMaterial.dispose(); group.removeFromParent(); group.clear();
     },

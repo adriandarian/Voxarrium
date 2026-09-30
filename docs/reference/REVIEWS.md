@@ -1,5 +1,21 @@
 # Visual review log
 
+## 2026-09-30 — M5 bounded streaming review, owner decision pending
+
+Scope: local uncommitted `milestone/m5-streaming-proof`, base `ab6b657125a9ba77fb2e6884b495fee8f5e71a46`; default `m5-streaming-proof`, seed 104729. Existing rural/River Market art is preserved. Exactly one eastern transition shell adds three workshop masses, without new gameplay or locals. Source references and shipped asset hashes pass verification. The original city master was opened as art direction, not traced geometry or an image-similarity target.
+
+Actually captured and opened: `artifacts/m5/browser/shell-eagle-eye.png`, `shell-third-person.png`, `shell-first-person.png`, `route-5-third-person.png`; plus preserved market-review eagle-eye and first/third-person alley captures under `artifacts/m5/market-review/`. Chrome 154.0.8037.92, initialized WebGPU AMD/RDNA2, RX 6950 XT from live Windows inventory. Shell captures are 1440x900/DPR1, rain/dusk, around position (205.98,4.01,-10), facing the eastern workshop. Exact poses/environment/resource state are in `browser/capture-states.json`; manual stepping captures are not performance measurements. The route reaches the shell through physics, rather than a camera-facing facade or setup teleport. Separate actual-keyboard circuits provide moving traversal evidence; no video is claimed.
+
+Three concrete limitations observed:
+
+1. **Shell finish:** eagle-eye exposes the flat rectangular brown ground and three spaced roof/wall masses. Ground views show blank walls, no dimensional doors/windows, foundation treatment, vegetation or trade dressing. These are explicit M5 test assumptions and are not presented as M6 art or a newly polished district.
+2. **Residency/edge presentation:** the far shell capture has only the shell resident, leaving exposed finite edges and sky where the market was unloaded. Whole-area activation/deactivation has no distant impostors, LOD or visual fade. The tested corridor remains navigable, but long-distance continuity and pop-in still require owner review before scaling. No fog or post-processing hides these limits.
+3. **Existing art language:** the preserved market eagle-eye still reads as parallel rows with broad quay shelves; shared glazing/joinery/paving remains recognizable at street distance. Locals remain simplified and the player a capsule. This differs from the master's layered vertical density and bespoke landmark hierarchy; M5 does not change that accepted-input layout.
+
+Observed shell views show complete solid sides and roofs, real player scale, shadows and local rain; the first-person view shares the same grounded controller position. Market alley views retain dimensional openings, backs/sides and existing dressing. Final acceptance depends on lifecycle/resource/collision tests and actual measurements in STATUS, not screenshots alone. Earlier art decisions remain historical; no numerical visual score, human approval or city-scale capability is claimed.
+
+**Decision: bounded technical proof for M5 review only. Owner art/feel acceptance remains pending. Do not expand the map or begin full-city generation automatically.**
+
 ## 2026-09-30 — M4.1 River Market art convergence, human decision pending
 
 The owner accepts M4 technically and requests artistic convergence within the same district. Objective: `../prompts/04-1-urban-art-convergence.md`. Clean preflight on `milestone/m4-first-district`; STATUS.md records the verified full base SHA. M5 remains gated. This is a local art pass, with no new district, dependency or simulation-system redesign.

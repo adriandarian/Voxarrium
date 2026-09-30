@@ -2,6 +2,7 @@ import { Box3, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import type { Object3D } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { enrichRuralHero } from '../render/hero-materials';
+import { loadAbortableGlb } from './abortable-glb';
 
 export const DISTRICT_MODULE_IDS = ['wall', 'stone', 'post', 'beam', 'brace', 'window', 'shop-window',
   'door', 'doorstep', 'stair', 'gable-cap', 'roof-gable', 'roof-hip', 'roof-mansard', 'chimney',
@@ -37,8 +38,9 @@ export function inspectDistrictKit(root: Object3D) {
       min: value.bounds.min.toArray(), max: value.bounds.max.toArray() })) };
 }
 
-export async function loadDistrictKit() {
-  const root = (await new GLTFLoader().loadAsync('/assets/district/district-kit.glb')).scene;
+export async function loadDistrictKit(signal?: AbortSignal) {
+  const url = '/assets/district/district-kit.glb';
+  const root = (signal ? await loadAbortableGlb(url, signal) : await new GLTFLoader().loadAsync(url)).scene;
   const facts = inspectDistrictKit(root);
   enrichRuralHero(root);
   return { root, facts };

@@ -1,6 +1,6 @@
 # Architecture
 
-M1 established the runtime boundaries and renderer decision below. M2–M4 implement the rural/living slice and one authored district; larger-world streaming and residency infrastructure remain proposals.
+M1 established the runtime boundaries and renderer decision below. M2–M4 implement the rural/living slice and one authored district. M5 implements bounded three-area streaming; full-city generation remains a proposal.
 
 ## Stack and boundaries
 TypeScript + Vite + vanilla Three.js, DOM HUD/settings, and Rapier character physics are implemented in M1. Exact dependency versions are pinned in package.json with a real package-lock.json; use npm ci. Blender GLB remains the asset pipeline. No React is needed for this milestone.
@@ -9,7 +9,7 @@ TypeScript + Vite + vanilla Three.js, DOM HUD/settings, and Rapier character phy
 
 M1 uses a 60 Hz fixed simulation step with interpolated render positions. Catch-up is capped at six steps and pause/blur clears the accumulator. The course is authored deterministic data with stable IDs and seed 104729; the seed identifies this authored fixture and does not randomize its layout. State is plain serializable data, with no Three.js or Rapier objects.
 
-M2 adds `simulation/rural-layout.ts` as the shared meter/palette contract and `simulation/rural.ts` as the authored environment. Optional triangle surfaces in `CourseSpec` drive both visible terrain and static Rapier collision; separate cuboid proxies represent architecture, bridge and significant obstacles. Each course supplies its own recovery bounds. The M1 course and mechanics remain selectable with `?scene=m1`; the rural slice remains selectable with `?scene=m2`. M4 is now the default; `?stage=blockout` exposes structural massing using the same terrain/collision.
+M2 adds `simulation/rural-layout.ts` as the shared meter/palette contract and `simulation/rural.ts` as the authored environment. Optional triangle surfaces in `CourseSpec` drive both visible terrain and static Rapier collision; separate cuboid proxies represent architecture, bridge and significant obstacles. Each course supplies its own recovery bounds. The M1 course and mechanics remain selectable with `?scene=m1`; the rural slice remains selectable with `?scene=m2`. M5 is now the default; the resident M4 remains at `?scene=m4`; `?stage=blockout` exposes structural massing using the same terrain/collision.
 
 `render/rural.ts` owns deterministic environment geometry, vegetation instances and water presentation. `assets/rural.ts` loads the Blender hero GLBs, verifies meter bounds and reports imported material/triangle facts before placement. `render/landscape-materials.ts` creates project-authored pigment textures; it never reads the reference PNGs. Existing renderer initialization, warmup, fallback diagnostics, capture harness and disposal own the new resources. Instance buffers are explicitly disposed as well as shared geometry/material/texture resources.
 
@@ -34,9 +34,30 @@ M4 implements one authored district, without streaming or procedural city genera
 
 M4.1 adds `simulation/district-art.ts` as the shared authored facade/stall/furniture/lamp contract. It preserves lots, street widths, bridges and NPC graph/schedules; furniture proxies and resized counter proxies append to the existing collision world. `render/district-ground.ts` batches selective paving, facade aprons, edge/drain strips, quay stains and feathered emissive pavement bounce. The latter is an authored light approximation, not additional dynamic illumination. The same four district PointLights remain, with two moved to primary-street edges and no local shadows. Eight small Blender modules add hinge-origin shutters, four trade displays, baskets, benches and mooring posts. Optional NPC appearance fields vary district bodies/accessories without adding mutable character state or schedule behavior.
 
-The following larger-world infrastructure remains a proposal:
+## M5 bounded streaming ownership
 
-Author a district graph: terrain levels, waterways, paths, bridge connections, lots, navigation and hero landmarks before filling lots. Use a tunable chunk size (initial hypothesis 64 m), hysteresis, prefetch, cancellation and resource release. Separate simulation residency from rendering. Maintain continuity across bridges and terraces; protect active player colliders until replacements are ready.
+`simulation/streaming-world.ts` partitions exactly three lifecycle areas: accepted rural, the existing River Market additions, and an eastern shell with three plain workshop masses. It filters rural data out of the market lease. Two narrow handoff floors remain resident; player, camera, authoritative environment and persistent state also remain resident. The neighboring shell is a testing assumption without new locals, interiors or gameplay. M5 is the default; `?scene=m4` preserves the full resident comparison, `?scene=m2` the rural slice and `?scene=m1` the course.
+
+`streaming-contracts.ts` defines 36 m preload, 44 m deactivation and 52 m unload radii, with a 1.5 s outside delay. `streaming.ts` owns load/activate/deactivate/unload, one transport per area, abort plus epoch checks, obsolete-result disposal, bounded events and errors. Failed loads retry only after a true leave/reentry. The main adapter installs colliders before showing geometry. Inactive geometry is detached and its colliders removed; prepared resources remain until unload. Temporary destination gates clear only after active collision is installed. Normal movement uses the same capsule and no loading screen.
+
+| Owner | State and lifetime |
+| --- | --- |
+| `render/streaming-areas.ts` | Off-scene area construction, original geometry/materials/textures, instance buffers and area NPC figures; cleanup of partial/aborted construction. |
+| `assets/resource-references.ts` | Identity leases; disposal once at the final reference. Stable asset manifest IDs are counted separately. No unbounded asset cache. |
+| `assets/abortable-glb.ts` | Abortable fetch/GLTFLoader parsing and cleanup of late parsed results. Existing shipped GLBs are unchanged. |
+| `physics/physics.ts` | Area collider groups, two resident handoff floors, resident player and destination safety gates; idempotent removal. |
+| `simulation/npc-residency.ts` | Versioned plain data over the same 42 IDs. Nearby active-area updates at fixed ticks, loaded distant updates at 10 Hz; unloaded NPCs observe schedule/weather targets without navigation or animation. Segment, wait and accumulated distance survive reload. Return responds to the current authored environment. |
+| `render/environment.ts` | One global sky/rain/light state, detachable roof/wind/wetness hooks. Unload restores original materials and releases replacements; hook counts decrease. |
+| `audio/audio.ts` | One gesture-started graph: three global loops and two reused market loops ramped down on district deactivation, at most five transient voices. Category settings survive boundaries. |
+| `main.ts` | Integration and serializable persistent-interactable visit/closed state. Identities live independently of render figures; no save UI or disk persistence. |
+
+`renderer.warmup` temporarily disables mesh frustum culling for `compileAsync` and one real resident shadow submission before readiness, then restores flags. Phase A traced native DXC compilation for previously culled variants during traversal. Area preloads compile against the actual target scene. Installed r186 initial cached texture bindings also recreated an unloaded market map during a later compile. Final transient mapped-material keys include map identity while preserving the original TSL key; identical generated native shaders remain reusable. Preparation cost is measured, rather than assumed free.
+
+`diagnostics/tail.ts` is opt-in through `?diagnostics=tail`: bounded CPU spans, browser performance observers and timestamped rAF dispatch/interval evidence. The development `?test=1` inventory retains texture metadata, not Texture objects. These are CPU/browser wall measurements, not GPU timestamps or VRAM. Startup and stream preparation are recorded separately from route intervals.
+
+The following full-city infrastructure remains a proposal:
+
+Author a district graph: terrain levels, waterways, paths, bridge connections, lots, navigation and hero landmarks before filling lots. Choose future chunk granularity from measurements; M5 uses one chunk per bounded area. Preserve its cancellation, residency and safe collision-handoff guarantees when scaling.
 
 A single 2D heightfield is insufficient for stacked bridge surfaces and interiors. Treat those as separate geometry/collider/navigation layers. Navmesh generation is a later measured choice, not an unexplained dependency.
 

@@ -3,6 +3,7 @@ import type { Material, MeshStandardMaterial, Object3D } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RURAL } from '../simulation/rural-layout';
 import { enrichRuralHero } from '../render/hero-materials';
+import { loadAbortableGlb } from './abortable-glb';
 
 export function inspectRuralAsset(root: Object3D, id: string) {
   root.updateMatrixWorld(true);
@@ -32,11 +33,12 @@ export function inspectRuralAsset(root: Object3D, id: string) {
     meshes, triangles, materials: [...materials.values()] };
 }
 
-export async function loadRuralAssets(target: Group) {
+export async function loadRuralAssets(target: Group, signal?: AbortSignal) {
   const facts = [];
   // Add each loaded scene immediately so renderer failure cleanup owns it too.
   for (const name of ['cottage', 'shed', 'bridge'] as const) {
-    const gltf = await new GLTFLoader().loadAsync(`/assets/rural/${name}.glb`);
+    const url = `/assets/rural/${name}.glb`;
+    const gltf = signal ? await loadAbortableGlb(url, signal) : await new GLTFLoader().loadAsync(url);
     target.add(gltf.scene);
     facts.push(inspectRuralAsset(gltf.scene, name));
     enrichRuralHero(gltf.scene);
