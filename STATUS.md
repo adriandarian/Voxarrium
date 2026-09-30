@@ -2,87 +2,101 @@
 
 ## Current milestone
 
-**M1 implementation complete — stopped at the owner review gate.** Executed locally on 2026-09-28 (America/Los_Angeles; artifact timestamps use 2026-09-29 UTC). M2 has not started. The explicit M1 goal superseded the earlier M0 review hold; M0 history remains in commit `3703b7d`.
+**M2.1 art-polish implementation and local evidence are ready for human art review. Artistic acceptance remains pending. Stop here; M3 and city expansion have not started.** Work performed on 2026-09-29, America/Los_Angeles; artifact timestamps use 2026-09-30 UTC. The owner's objective is retained in `docs/prompts/02-1-art-polish.md`.
 
-Initial checkout was clean on `milestone/m1-human-scale-foundation`, HEAD `3703b7d`. Work stayed on that branch. Two bounded native children owned renderer/diagnostics and player/course/cameras; parent owned contracts, dependencies, integration, testing and this report. No recursive delegation.
+The initial checkout was clean on `milestone/m2-reference-art-slice`, HEAD `8f051db`. The objective explicitly accepts the preceding M2 technical implementation. Changes remain local and uncommitted on that branch; no remote CI, push, deployment, paid service, image generation or Blender re-export was performed. The previous M2 status remains in Git history and its reviews remain in `docs/reference/REVIEWS.md`.
 
-## Play locally
+Two bounded native children owned disjoint files: vegetation/ecology (`src/render/rural-ecology.ts`) and paths/cliffs/stairs/banks (`src/render/rural.ts`). The parent owned shared contracts, materials, renderer integration, tests, reference comparison and documentation. No recursive delegation or dependency changes.
 
-```sh
-npm ci
-npm run dev
-```
+## What changed
 
-Open http://127.0.0.1:5173/ and click **Enter the course**. WASD moves, mouse looks, Shift runs, Space jumps, V switches third/first person, R resets, Esc pauses/releases the mouse. Keys 1–4 select third-person, first-person, free/debug and eagle-eye. Free camera uses Q/E vertically. Pause settings expose FOV and sensitivity. `/?backend=webgl` explicitly selects WebGL 2. `npm run build` then `npm run preview` serves the production build on port 4173.
+- Six tree families: oak, hornbeam, orchard, alder, swept ash and irregular pine shelves, with two baked variants per family. Branching, crown topology, proportions, asymmetry and pigment differ. All 24 original tree positions and scales remain; the central trunk matches the original collider. Shrubs include spreading, wiry and upright forms.
+- Authored woodland, meadow, dry-ground, ledge and bank communities combine bowed grass, fern, rosettes, clover, flowers, earth/duff/moss, roots, twigs and stones. Medium shrubs connect plant heights around trunks, cliff bases and terrace corners. Crop-approach patches replace more of the uninterrupted upper lawn. Paths and structure approaches stay clear; wheat/garden rows remain deliberate.
+- Paths vary their width and boundary at low frequency, with broad wear/soil bands, local encroachment and embedded pebbles. Terrace faces retain useful large outcrops and add secondary fractures, soil contacts, discontinuous lips, crevice plants and lower scree. Macro terrain pigment responds to paths, trees, structures and terrace/bank edges.
+- Both stairs display 132 uneven beveled stone slabs over the 44 original collision treads, with restrained seam growth and side shoulders. The reliable invisible step geometry remains authoritative.
+- Riverbanks use sloping earth-to-shallow gradients, localized deposition, reed/plant/stone groups and bridge footings. Existing cheap animated water and moving highlights remain. The 14 m bridge span and comfortable crossing were preserved after visual review.
+- Existing cottage/shed/bridge GLBs receive plaster washes, lengthwise wood grain, clay pigment, stone variation and ground-contact colors. Original position/index data, dimensions, files and collision proxies remain unchanged. The last lighting pass adds slightly warmer neutral fill and modest sunlight adjustment. No fog, bloom or depth of field conceals geometry.
 
-## Implemented scope
+Simulation, physics, controller, camera transforms, input behavior, renderer backend/fallback, capture bookmarks, terrace composition and hero placement remain unchanged. The in-app mouse-capture rejection fallback remains covered by the full browser suite. No current manual in-app verification is claimed for this art pass; the preceding compatibility report is in Git history at the starting commit.
 
-- TypeScript + Vite + vanilla Three.js, DOM UI and Rapier, with exact dependency pins and a real npm lockfile. Serializable simulation state is separate from rendering, physics, input, cameras and diagnostics.
-- Deterministic authored 64 × 64 m course: scene `m1-human-scale-64m`, seed `104729`. Ground, 14° and 53° slopes, eight actual 0.17 m risers/0.30 m treads, 1.10 m doorway, 2.10 m alley, 1.55 m blocked clearance, 2.05 m passable headroom, bridge, wall, 1.36 m terrace, water-height placeholder and recoverable drop.
-- One 1.75 m capsule with radius 0.30 m: walk 2.6 m/s, run 5.4 m/s, acceleration/deceleration, jump/gravity, ground snap, stair autostep, 45° slope threshold, steep-face sliding, collision and recovery. Dimensions are design assumptions, not measurements from concept art.
-- Third-person default with camera sphere casts, immediate inward correction and eased outward recovery. First-person eye at 1.62 m shares the same player/physics. Free/debug and deterministic eagle-eye cameras. Close-wall retraction hides only the obstructing diagnostic avatar.
-- 60 Hz fixed simulation, interpolated rendering, six-step catch-up cap, pause/blur clearing, pointer lock/release, resize and DPR cap 2. No head bob.
-- Awaited renderer initialization, GLB validation and shader warmup; actual backend/fallback reporting and visible startup/runtime errors. Simple sky, sun/fill, shadows and color management. Diagnostic overlay and development-only fixed-step capture harness.
+## Review evidence and remaining differences
 
-## Checks actually run
+Open **http://127.0.0.1:5173/artifacts/m2-1/review.html** while the dev server runs. It presents the original LEFT rural target beside fresh M2 baseline and final M2.1 captures, with twelve selectable views. `artifacts/m2-1/comparison-conditions.json` confirms identical seed, player pose, camera, viewport and DPR for all twelve recorded comparisons.
+
+Actual captures were inspected from eagle-eye, third person and first person, including cottage front/rear/east/west, garden, river/bridge, stairs and both crop-route endpoints. Timed water captures show moving highlights. The parent rejected sparse dagger crowns, spiky dark grass, striped banks, double-darkened stone and repeated moss pads during successive iterations; retained evidence records those corrections.
+
+Compared with the fresh baseline, crown repetition is less conspicuous, populated terraces have more varied plant heights and contextual detail, paths have worn irregular margins, stairs read as individual stone slabs, banks support plant/stone groups, and cottage surfaces retain visible grain and restrained pigment variation at first-person distance. The target composition remains intact. This is a qualitative observation, not a similarity percentage or owner approval.
+
+Three largest remaining visual differences:
+
+1. Small grass and leaf units remain angular at close range; some shrubs still form compact rounded masses. Outer terrace clearings remain quieter than the target's painterly density.
+2. Large cliff outcrops still dominate some player-scale views. Some backing gaps, thin straight soil lips and shallow-bank corners reveal the authored polygonal construction.
+3. Pale path centers and the turquoise river retain broader, calmer negative space than the illustration. Bridge/river proportions remain an authored human-scale interpretation; the existing span was preserved for comfortable navigation.
+
+`docs/reference/REVIEWS.md` records before/after observations, rejected passes and the review decision. The human gate has no recorded owner artistic acceptance. No expansion is authorized by this report.
+
+## Checks actually run on the final source
 
 | Command / check | Result | Scope / evidence |
 | --- | --- | --- |
-| Registry queries, official docs and installed APIs | PASS | Three 0.186.1, Three typings 0.186.0, Rapier compat 0.21.0, TS 7.0.2, Vite 8.3.1, Playwright 1.63.0, Node typings 26.6.3. See docs/SOURCES.md and docs/DECISIONS.md. |
-| `npm ci` | PASS | Clean installation from new lockfile; 31 packages added, 0 reported vulnerabilities. Node 22.16.0, npm 10.9.2. |
-| `npm test` | PASS | 9/9 Node reference/contracts tests + 17/17 simulation/fixture/clock tests. Actual Rapier stepping; GLTFLoader dimensions/axes/colors; suspension cap. |
-| `npm run typecheck` | PASS | Strict runtime, tests and configs; also executed by check/build. |
-| `npm run check` | PASS | Repository contracts, tool syntax, vendored GLB checksum and TypeScript. |
-| `npm run build` | PASS | Real Vite production bundle; chunk-size advisory remains. |
-| `npm run test:browser` | PASS | 10/10 in installed Chrome, both headless and headed runs. Final full headed report: artifacts/m1/browser-suite.json. Unit report: artifacts/m1/simulation-suite.json. |
-| `$env:VOXARRIUM_HEADED='1'; npm run capture` | PASS | Nine deterministic reference/gameplay/calibration views, exact states and headed performance report. |
-| Production preview / headed Chrome smoke | PASS | Built runtime launched at port 4173, walked using W, switched using V; no page/console errors. Development harness absent even with ?test=1. artifacts/m1/production-smoke.json. |
-| `npm run references:verify` | PASS | All four original PNG signatures/bytes/dimensions/hashes match unchanged manifest. |
-| `npm run doctor` | PASS | Local Node/Git/Blender/references. Doctor explicitly does not claim browser validation; now reports runtime source present. |
-| `npm run blender:fixture` | PASS | Blender 5.2.1 LTS, isolated factory background export; current cube/axis GLB vendored and tested in runtime. |
-| `git diff --check` | PASS | Local whitespace/diff audit. Hosted CI has not been run for this local task. |
+| `npm test` | PASS | 9 Node + 27 simulation/asset/clock tests; actual Rapier stepping and GLTFLoader imports. `artifacts/m2-1/simulation-suite.json`. |
+| `npm run check` | PASS | Repository contracts, vendored GLB checksums, tool syntax and strict TypeScript. |
+| `npm run build` | PASS | Vite production bundle. Main JS 5,280.46 kB minified / 1,938.83 kB gzip; existing chunk-size advisory remains. |
+| `$env:VOXARRIUM_HEADED='1'; $env:VOXARRIUM_CAPTURE_DIR='artifacts/m2-1/final'; npm run test:browser` | PASS | Complete 18/18 installed-Chrome tests; zero skipped/flaky/unexpected. Preserved M1 input/camera/backend tests plus rural captures/routes. `artifacts/m2-1/browser-suite.json`. |
+| `$env:VOXARRIUM_CAPTURE_DIR='artifacts/m2-1/final'; node tools/measure-rural.mjs` | PASS | Two bounded 60-second headed 1080p routes; actual W input/waypoint steering; zero errors, unexpected recovery or pause. Long-frame tails reported below. |
+| `$env:VOXARRIUM_CAPTURE_DIR='artifacts/m2-1/final'; node tools/smoke-rural-production.mjs` | PASS | Built preview on 4173: actual W movement 3.125 m, mouse capture, V switch to first person, zero errors, development harness absent even with `?test=1`. |
+| `npm run references:verify` | PASS | All four original PNG bytes/dimensions/SHA-256 hashes unchanged. |
+| `npm run doctor` | PASS | Node 22.16.0, Git 2.39.2, Blender 5.2.1 LTS and reference diagnostics. Doctor does not validate GPU/gameplay. |
+| `git diff --check` | PASS | Final local whitespace audit. No hosted checks claimed. |
 
-Browser tests traverse slopes, stairs, doorway, alley, bridge, wall, low opening and valid headroom in **both** gameplay modes. They check run/jump/fall recovery, unchanged player on view switching, camera obstruction/recovery, actual keyboard/mouse/pointer lock, Escape pause/re-entry, blur input clearing, FOV persistence, free camera, resize and a DPR 3 context capped to 2. Normal runs require zero console/page errors.
+One repeated browser run failed before input assertions: the mouse-capture rejection case exhausted its default five-second readiness wait while the page still showed "Starting renderer". The test now uses the existing 60-second rural renderer readiness budget. All movement/drag/pause assertions remain; no retries/skips were added. The complete suite was rerun and passed 18/18. Earlier failure report/trace: `artifacts/m2-1/browser-suite-startup-timeout.json` and `artifacts/m2-1/startup-timeout/`.
 
-The blur test dispatches a browser blur event; long suspension is also tested with synthetic clock timestamps. This is not an OS sleep/wake soak test. Multiple gameplay screenshots provide traversal evidence; no video was recorded.
+Rural route tests use one setup pose and then continuously cross the bridge, climb the main stairs, walk the cottage front/east/rear and ascend the crop terrace in both gameplay cameras. They do not teleport between obstacles. Simulation also verifies stair descent, the cottage closed-door threshold and all collision elevations. Explicit rural WebGL2 crossing and preserved M1 automatic fallback/startup-failure tests pass separately. Intentional injected failures are not errors in normal rural evidence. No traversal video or OS sleep/wake soak was recorded.
 
-## Renderer and local performance
+## Renderer and measured local performance
 
-Normal initialized backend: **WebGPU**, read from the actual Three r186 backend and GPU device. Device adapter info exposes `amd / rdna-2`, with precise model fields blank. Independent Windows inventory identifies **AMD Radeon RX 6950 XT**, driver `32.0.21045.5002`, status OK. The initialized WebGL2 context also identifies that GPU through ANGLE/D3D11.
+Headed Chrome **154.0.8037.57**, Windows, initialized **WebGPU**, actual adapter **AMD / RDNA2** (precise device/model fields blank). Separate live Windows inventory reports **AMD Radeon RX 6950 XT**, driver **32.0.21045.5002**, status OK. Explicit WebGL2 is separately captured and tested.
 
-Explicit WebGL2 initialization passes readiness and stairs traversal. A separate test masks WebGPU in its own page: native automatic fallback initializes WebGL2 and records `WebGPU initialization failed: TypeError: Cannot read properties of undefined (reading 'requestAdapter')`. Denying both contexts in another test gives a visible startup error with no unhandled rejection. These injections do not alter browser policy or global GPU settings.
+| Idle spawn measurement | Fresh M2 baseline | Final M2.1 |
+| --- | --- | --- |
+| Viewport / DPR | 1440 × 900 / 1 | 1440 × 900 / 1 |
+| Warmed frame samples | 501 | 502 |
+| Mean / approximate FPS | 6.934 ms / 144.21 | 6.935 ms / 144.20 |
+| Median / p95 / maximum | 6.90 / 7.00 / 7.10 ms | 6.90 / 7.10 / 7.20 ms |
+| Submitted draws / triangles | 231 / 7,086,105 | 204 / 7,429,807 |
+| Geometries / textures / visible materials | 95 / 11 / 61 | 124 / 19 / 60 |
+| Visible-flag meshes / top-level objects | 140 / 63 | 126 / 19 |
+| Instanced batches / total instances | 20 / 17,781 | 48 / 29,179 |
 
-Headed baseline: Chrome **154.0.8037.57**, Windows, WebGPU, **1440 × 900**, **DPR 1**. Third-person spawn after warmup, at least 500 frames: approximately **144 FPS**, mean **6.94 ms**, median **6.90 ms**, p95 approximately **7.1 ms**. Exact latest sample: `artifacts/m1/performance-headed.json`; headless results are kept separately. This measures requestAnimationFrame wall-clock intervals with automation/dev server active, **not GPU execution time**, and proves no city-scale performance claim.
+Tree geometry uses fewer triangles than the original library, but added ecological detail means **total submitted scene triangles increase**. There is no overall triangle-reduction claim. `ecology-geometry.json` was an intermediate tree audit; use final live reports for final instance/resource counts.
 
-At that view: **78 draw calls, 1,603 submitted triangles, 9 geometries, 14 textures, 38 meshes with visible flags, 45 top-level scene children**. Draw/triangle counts include shadow passes; mesh counts are not frustum visibility counts.
+| 1920 × 1080 / DPR 1 traversal | First final run | Bounded repeat, review activity paused |
+| --- | --- | --- |
+| Samples / duration | 8,646 / 60.043 s | 8,498 / 60.094 s |
+| Mean / approximate FPS | 6.944 ms / 144.01 | 7.071 ms / 141.42 |
+| Median / p95 / p99 | 6.90 / 7.10 / 13.90 ms | 6.90 / 7.10 / 14.00 ms |
+| Maximum / frames >33.3 ms | 91.60 ms / 10 | 89.70 ms / 17 |
+| Waypoints reached | 14 | 14 |
+| JS heap used / allocated | 124,941,565 / 191,729,773 bytes | 137,729,265 / 183,865,453 bytes |
+| Route-end draws / triangles | 193 / 6,765,521 | 189 / 6,760,941 |
 
-## Blender runtime calibration
+Occasional long frames recur; their cause was not established. Both actual reports are retained: `final/performance-route-60s-run1.json` and `final/performance-route-60s.json`. The provisional local 1080p p95 ≤16.7 ms target passes, but this is not a claim of stall-free performance. An earlier M2.1 iteration run recorded no frames above 33.3 ms; it is retained in `iteration-03/` and does not override the final results.
 
-Vendored `public/assets/diagnostics/scale-fixture.glb`: **7,244 bytes**, SHA-256 `f8d039ca52cb3fef37a92349b19751c5e8c022a320fd81e5b1ada3d392fc4677`. Provenance/counts/collision policy in `assets/manifest.json`. Four materials, no textures, 48 triangles. Normal startup needs no Blender.
+Each minute-long walk reaches the crop terrace and returns to the cottage east side, without completing the whole return to the far bank. There is one intentional starting teleport and no recovery reset/pause. Complete outward traversal is separately covered by route tests.
 
-Actual browser GLTFLoader import before placement: cube bounds `[-0.5,0,-0.5]` to `[0.5,1,0.5]`, dimensions 1 m on all axes (tolerance 0.0001 m). Asymmetric marker centers verify Blender +X → runtime +X `(1.5,0,0)`, Blender +Y → runtime -Z `(0,0,-1.5)`, Blender +Z → runtime +Y `(0,1.5,0)`. Original GLB materials remain in use; RGB dominance and visible colored markers were checked. No extra rotation/scale correction. Cube placed at `(-4,0,10)` with a separate 1 m collision proxy.
+All frame numbers are **requestAnimationFrame wall-clock intervals**, including local automation, not GPU execution time, VRAM or an uncapped throughput guarantee. Shadow passes are included in draw/triangle counts; visible-flag meshes are not frustum counts. No lower-end GPU, city-scale performance, stream-boundary resource soak or hosted CI is claimed.
 
-Browser inspection caught an initial export issue: Blender display colors alone exported gray. The generator now sets Principled Base Color; runtime validation and regression tests reject gray axes. A symmetric cube alone is no longer used as complete orientation evidence.
+## Play and inspect locally
 
-## Captures inspected
+```powershell
+npm ci
+node node_modules/vite/bin/vite.js --host 127.0.0.1
+```
 
-All artifacts remain outside production assets under ignored `artifacts/m1/`:
+Open http://127.0.0.1:5173/ and select **Explore the garden**. WASD moves, mouse looks (left-button drag if capture is unavailable), Shift runs, Space jumps, V switches gameplay cameras, R resets and Esc pauses. Keys 1–4 select third person, first person, free/debug and eagle-eye. Eagle-eye remains an art/debug camera. Pause settings expose FOV and sensitivity. `/?backend=webgl`, `/?scene=m1` and `/?stage=blockout` retain their existing meanings.
 
-- `eagle-eye.png`: whole course, banks, bridge and connected geometry.
-- `third-person.png`: default human-scale player/follow view.
-- `first-person.png`: doorway at eye height, with stairs beyond.
-- `stairs-traversal.png`, `terrace.png`, `alley-traversal.png`, `bridge-traversal.png`: actual stepped gameplay states.
-- `camera-obstruction.png`: camera stays outside wall and close avatar no longer fills the view.
-- `blender-calibration.png`: one-meter cube and imported RGB markers.
-- `webgl-fallback.png`: deliberate fallback rendering.
-- `capture-states.json`, `traversal-third-person.json`, `traversal-first-person.json`: exact states and traversal endpoints.
+For production: `npm run build`, then `node node_modules/vite/bin/vite.js preview --host 127.0.0.1` (port 4173). Direct Vite invocation was used because npm argument forwarding incorrectly supplied the host as a root path in this PowerShell session; the failed service invocation was diagnosed and replaced before evidence collection.
 
-Views were opened and visually inspected. They demonstrate M1 scale/geometry behavior, not an M2 artistic match or owner approval.
+Evidence is ignored local content under `artifacts/m2-1/`: `before/`, `iteration-01/`, `iteration-02/`, `iteration-03/`, `final/`, `comparison-conditions.json`, reports and `review.html`. Final includes clean eagle-eye, both gameplay views, cottage sides/rear, garden, bridge, riverbank, stairs, both crop-route endpoints, timed water pair, explicit WebGL2, benchmark endpoint and production smoke. Exact poses/diagnostics: `final/capture-states.json`. Original reference PNGs remain under docs, outside shipped public assets.
 
-## Limitations and next action
-
-**No M1 completion blocker remains.** Movement feel and scale still require owner review. The avatar and materials are diagnostic. The production JS is about 5.21 MB minified/1.91 MB gzip; Vite's chunk-size advisory remains for future measured loading work. Chrome warns powerPreference is ignored on Windows; actual device reporting is unaffected. Blender 5.2 warns that use_nodes is deprecated for 6.0; the current export succeeds.
-
-No city, cottage, generated buildings, NPCs, vegetation, weather, day/night, audio, paid APIs/services, Jev, image generation, public deployment, model/provider/global Codex changes or source-image mutation was introduced. CI now installs the lockfile and runs unit/check/build/reference validation, but no hosted result is claimed.
-
-**Next action: owner plays/reviews M1 and its three camera captures. Stop here; do not begin M2 automatically.**
+**Next action: human art review of the comparison and playable slice. Stop at this gate.**

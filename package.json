@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Voxarrium M1: human-scale playable Three.js foundation.",
+  "description": "Voxarrium M2: a playable rural reference art slice in Three.js.",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -13,12 +13,14 @@
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "test": "node --test tests/bootstrap.test.mjs && playwright test --project=simulation",
-    "test:browser": "playwright test --project=browser",
-    "capture": "playwright test --project=browser --grep evidence",
+    "test:browser": "playwright test --project=browser --project=rural-browser",
+    "capture": "playwright test --project=rural-browser --grep evidence",
+    "capture:m1": "playwright test --project=browser --grep evidence",
     "check": "node tools/check.mjs && npm run typecheck",
     "doctor": "node tools/doctor.mjs",
     "references:verify": "node tools/references.mjs",
-    "blender:fixture": "node tools/blender-fixture.mjs"
+    "blender:fixture": "node tools/blender-fixture.mjs",
+    "blender:rural": "node tools/blender-rural.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.21.0",

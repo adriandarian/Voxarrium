@@ -9,7 +9,18 @@
       "provenance": "Project-authored diagnostic primitives exported locally in Blender 5.2.1 LTS; no external asset",
       "license": "Project license unassigned; no third-party source content",
       "units": "meters",
-      "cubeBounds": { "min": [-0.5, 0, -0.5], "max": [0.5, 1, 0.5] },
+      "cubeBounds": {
+        "min": [
+          -0.5,
+          0,
+          -0.5
+        ],
+        "max": [
+          0.5,
+          1,
+          0.5
+        ]
+      },
       "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y",
       "triangles": 48,
       "materials": 4,
@@ -17,7 +28,176 @@
       "collision": "Separate 1m cuboid proxy; small axis markers are diagnostic only",
       "lod": "Single calibration mesh set; no LOD needed for M1",
       "preview": "artifacts/m1/blender-calibration.png (regenerate with npm run capture)"
+    },
+    {
+      "id": "rural.cottage",
+      "path": "public/assets/rural/cottage.glb",
+      "sha256": "6d023d4fdef5fe0da2ca20af44bda92fbc76192c84372ace9305e118bd458fd8",
+      "bytes": 1504436,
+      "source": "assets/source/rural-hero.blend",
+      "generator": "tools/blender/rural_hero.py",
+      "provenance": "Original project-authored procedural sculpture, exported in isolated local Blender. No external assets, image textures, services or downloads.",
+      "license": "Project license unassigned; no third-party source content",
+      "units": "meters",
+      "origin": "ground center",
+      "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+      "bounds": {
+        "min": [
+          -4.40442,
+          0,
+          -4.17
+        ],
+        "max": [
+          4.15,
+          7.03,
+          4.5
+        ]
+      },
+      "triangles": 37084,
+      "materials": 23,
+      "materialNames": [
+        "brass_worn",
+        "door_oak",
+        "door_oak_light",
+        "hoop_iron",
+        "iron_aged",
+        "plaster_lime",
+        "plaster_warm",
+        "recess_shadow",
+        "stone_aged",
+        "stone_light",
+        "stone_moss",
+        "stone_shadow",
+        "terracotta_aged",
+        "terracotta_lit",
+        "terracotta_ridge",
+        "terracotta_russet",
+        "terracotta_umber",
+        "terracotta_warm",
+        "timber_endgrain",
+        "timber_structure",
+        "timber_worn",
+        "window_glass",
+        "window_glint"
+      ],
+      "textures": 0,
+      "collision": "Separate runtime authored simplified proxies; visual asset is not used as a triangle-mesh collider",
+      "lod": "Single M2 hero asset; no unmeasured distance LOD",
+      "preview": "artifacts/m2/final/ (eagle-eye, cottage front/rear/east/west, bridge)",
+      "report": "assets/source/rural-hero.report.json"
+    },
+    {
+      "id": "rural.shed",
+      "path": "public/assets/rural/shed.glb",
+      "sha256": "e0bf5155f95132d4920c8479653dccfeb905ccc8a230d20a9d8d241873d4e019",
+      "bytes": 397124,
+      "source": "assets/source/rural-hero.blend",
+      "generator": "tools/blender/rural_hero.py",
+      "provenance": "Original project-authored procedural sculpture, exported in isolated local Blender. No external assets, image textures, services or downloads.",
+      "license": "Project license unassigned; no third-party source content",
+      "units": "meters",
+      "origin": "ground center",
+      "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+      "bounds": {
+        "min": [
+          -1.91,
+          0,
+          -1.98
+        ],
+        "max": [
+          1.91,
+          3.695,
+          2.08
+        ]
+      },
+      "triangles": 10196,
+      "materials": 19,
+      "materialNames": [
+        "brass_worn",
+        "door_oak",
+        "door_oak_light",
+        "iron_aged",
+        "plaster_lime",
+        "plaster_warm",
+        "recess_shadow",
+        "stone_aged",
+        "stone_light",
+        "stone_moss",
+        "stone_shadow",
+        "teal_deep",
+        "teal_faded",
+        "teal_tile",
+        "timber_endgrain",
+        "timber_structure",
+        "timber_worn",
+        "window_glass",
+        "window_glint"
+      ],
+      "textures": 0,
+      "collision": "Separate runtime authored simplified proxies; visual asset is not used as a triangle-mesh collider",
+      "lod": "Single M2 hero asset; no unmeasured distance LOD",
+      "preview": "artifacts/m2/final/ (eagle-eye, cottage front/rear/east/west, bridge)",
+      "report": "assets/source/rural-hero.report.json"
+    },
+    {
+      "id": "rural.bridge",
+      "path": "public/assets/rural/bridge.glb",
+      "sha256": "b63e5d375f3b862251e07dc814fe6aeb9d7fb20ed773078766d6f46d26353111",
+      "bytes": 547680,
+      "source": "assets/source/rural-hero.blend",
+      "generator": "tools/blender/rural_hero.py",
+      "provenance": "Original project-authored procedural sculpture, exported in isolated local Blender. No external assets, image textures, services or downloads.",
+      "license": "Project license unassigned; no third-party source content",
+      "units": "meters",
+      "origin": "deck top center",
+      "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+      "bounds": {
+        "min": [
+          -1.925,
+          -2.1624,
+          -7.12
+        ],
+        "max": [
+          1.925,
+          1.128,
+          7.12
+        ]
+      },
+      "triangles": 13596,
+      "materials": 5,
+      "materialNames": [
+        "bridge_oak",
+        "bridge_oak_dark",
+        "bridge_oak_light",
+        "iron_aged",
+        "timber_structure"
+      ],
+      "textures": 0,
+      "collision": "Separate runtime authored simplified proxies; visual asset is not used as a triangle-mesh collider",
+      "lod": "Single M2 hero asset; no unmeasured distance LOD",
+      "preview": "artifacts/m2/final/ (eagle-eye, cottage front/rear/east/west, bridge)",
+      "report": "assets/source/rural-hero.report.json"
     }
   ],
-  "note": "Only the M1 calibration asset is vendored. Reference images remain under docs and outside runtime assets."
+  "procedural": [
+    {
+      "id": "rural.environment",
+      "sources": ["src/render/rural.ts", "src/render/landscape-materials.ts", "src/simulation/rural.ts", "src/simulation/rural-layout.ts"],
+      "provenance": "Original project-authored runtime geometry and seeded pigment textures; no reference pixels, external assets or downloads",
+      "license": "Project license unassigned; no third-party source content",
+      "units": "meters",
+      "seed": 104729,
+      "sliceExtentMeters": [96, 96],
+      "library": ["forked oak", "upright alder", "spreading orchard tree", "compound shrub", "fern", "short grass", "tall grass", "cattail reed", "white flower", "yellow flower", "weed", "wheat", "two fractured stone faces"],
+      "trees": 24,
+      "instancedMeshes": 20,
+      "instancesIncludingWaterHighlights": 17781,
+      "textures": "Four deterministic 512x512 canvas pigment maps: grass, stone, path, soil; zero shipped image texture files",
+      "collision": "Shared authored triangle terrain and shore, plus separate trunk/fence/raised-bed/architecture proxies. Small plants and stone veneers are noncolliding.",
+      "lod": "Single local slice with instanced reuse; no distance LOD introduced without measurement",
+      "countsReport": "artifacts/m2/final/performance-headed.json records complete scene counts including hero assets and shadow passes",
+      "preview": "artifacts/m2/final/eagle-eye-clean.png; third-person.png; first-person.png; garden.png; riverbank.png"
+    }
+  ],
+  "note": "M1 calibration and M2 original Blender hero assets plus runtime environment. Reference originals remain under docs. Runtime inspection is recorded; human art approval is pending."
 }

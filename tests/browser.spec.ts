@@ -23,7 +23,7 @@ test.afterEach(async ({}, info) => {
 });
 
 async function open(page: Page, suffix = '') {
-  await page.goto(`/?test=1${suffix}`);
+  await page.goto(`/?scene=m1&test=1${suffix}`);
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true', { timeout: 40_000 });
   await page.waitForFunction(() => !!window.__VOXARRIUM__);
 }
@@ -168,6 +168,84 @@ test('pointer lock, keyboard movement/look, pause/blur, settings, free camera an
   const afterFree = await snapshot(page);
   expect(afterFree.camera.position[1]).toBeGreaterThan(beforeFree.camera.position[1] + 2);
   expect(afterFree.state.player.position.x).toBeCloseTo(beforeFree.state.player.position.x, 1);
+});
+
+for (const failure of ['rejected', 'missing', 'resolved-without-lock'] as const) {
+  test(`mouse capture ${failure}: drag look, movement and pause remain usable`, async ({ page }) => {
+    await page.addInitScript(failure => {
+      if (failure === 'missing') {
+        Object.defineProperty(HTMLCanvasElement.prototype, 'requestPointerLock', { value: undefined, configurable: true });
+      } else {
+        HTMLCanvasElement.prototype.requestPointerLock = () => failure === 'rejected'
+          ? Promise.reject(new DOMException('If you see this error we have a bug. Please report this bug to chromium.', 'UnknownError'))
+          : Promise.resolve();
+      }
+    }, failure);
+    // Exercise the reported rural entry flow, not only the M1 course.
+    await page.goto('/?test=1');
+    // Rural shader/asset warmup uses the same readiness budget as the capture suite.
+    await expect(page.locator('html')).toHaveAttribute('data-ready', 'true', { timeout: 60_000 });
+    await page.locator('#start').click();
+    await expect(page.locator('#menu')).toBeHidden();
+    await expect(page.locator('#look-hint')).toHaveText('Hold left mouse + drag to look');
+    expect((await snapshot(page)).pointerLocked).toBe(false);
+    const before = (await snapshot(page)).state.player.position;
+    await page.keyboard.down('KeyW');
+    await expect.poll(async () => before.z - (await snapshot(page)).state.player.position.z).toBeGreaterThan(0.5);
+    await page.keyboard.up('KeyW');
+    for (const mode of ['third-person', 'first-person'] as const) {
+      if (mode === 'first-person') await page.keyboard.press('KeyV');
+      expect((await snapshot(page)).state.camera.mode).toBe(mode);
+      const yaw = (await snapshot(page)).state.camera.yaw;
+      await page.mouse.move(700, 400);
+      expect((await snapshot(page)).state.camera.yaw).toBe(yaw);
+      await page.mouse.down();
+      await page.mouse.move(820, 430, { steps: 6 });
+      await expect.poll(async () => (await snapshot(page)).state.camera.yaw).toBeLessThan(yaw - 0.2);
+      await page.mouse.up();
+      const releasedYaw = (await snapshot(page)).state.camera.yaw;
+      await page.mouse.move(900, 460);
+      expect((await snapshot(page)).state.camera.yaw).toBe(releasedYaw);
+    }
+    await page.mouse.down();
+    await page.keyboard.down('KeyW');
+    await page.keyboard.press('Escape');
+    await page.keyboard.up('KeyW');
+    await page.mouse.up();
+    await expect(page.locator('#menu')).toBeVisible();
+    expect((await snapshot(page)).state.paused).toBe(true);
+    await expect(page.locator('#notice')).not.toContainText('chromium');
+    const pausedYaw = (await snapshot(page)).state.camera.yaw;
+    await page.locator('#start').click();
+    await expect(page.locator('#menu')).toBeHidden();
+    await page.mouse.move(500, 400);
+    expect((await snapshot(page)).state.camera.yaw).toBe(pausedYaw);
+    // Blur still clears movement and drag even without native pointer lock.
+    await page.keyboard.down('KeyW');
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await page.keyboard.up('KeyW');
+    await expect(page.locator('#menu')).toBeVisible();
+    await page.locator('#start').click();
+    await expect.poll(async () => Math.abs((await snapshot(page)).state.player.velocity.z)).toBeLessThan(0.01);
+  });
+}
+
+test('a delayed capture rejection cannot resume after focus was lost', async ({ page }) => {
+  await page.addInitScript(() => {
+    HTMLCanvasElement.prototype.requestPointerLock = () => new Promise((_, reject) => {
+      window.addEventListener('blur', () => reject(new DOMException('Capture unavailable', 'UnknownError')), { once: true });
+    });
+  });
+  await open(page);
+  await page.locator('#start').click();
+  await expect(page.locator('#start')).toBeDisabled();
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expect(page.locator('#start')).toBeEnabled();
+  expect((await snapshot(page)).state.paused).toBe(true);
+  await expect(page.locator('#menu')).toBeVisible();
+  await page.locator('#start').click();
+  await expect(page.locator('#menu')).toBeHidden();
+  await expect(page.locator('#look-hint')).toContainText('drag');
 });
 
 test('explicit WebGL2 fallback initializes the same scene', async ({ page }) => {

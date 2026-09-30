@@ -1,5 +1,5 @@
 import {
-  ACESFilmicToneMapping, BoxGeometry, BufferGeometry, CanvasTexture,
+  ACESFilmicToneMapping, BoxGeometry, BufferGeometry, CanvasTexture, Float32BufferAttribute, InstancedMesh,
   CapsuleGeometry, Color, DirectionalLight, Group, HemisphereLight, Material,
   Mesh, MeshStandardMaterial, PCFShadowMap, Scene, SphereGeometry, Sprite,
   SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, REVISION,
@@ -7,6 +7,9 @@ import {
 import type { PerspectiveCamera } from 'three';
 import { WebGPURenderer } from 'three/webgpu';
 import { loadScaleFixture } from '../assets/fixture';
+import { loadRuralAssets } from '../assets/rural';
+import { createRuralEnvironment, LANES } from './rural';
+import { applyLandscapeUV, applyTerrainPigment, createLandscapeMaterials } from './landscape-materials';
 import { PLAYER } from '../simulation/types';
 import type { CourseSpec, GameState } from '../simulation/types';
 
@@ -94,6 +97,7 @@ function disposeScene(scene: Scene) {
   const textures = new Set<Texture>();
   scene.traverse(object => {
     if (object instanceof DirectionalLight) object.shadow.dispose();
+    if (object instanceof InstancedMesh) object.dispose();
     if (object instanceof Mesh || object instanceof Sprite) {
       if (object instanceof Mesh) geometries.add(object.geometry);
       for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
@@ -108,7 +112,8 @@ function disposeScene(scene: Scene) {
   scene.clear();
 }
 
-export async function createGameRenderer(canvas: HTMLCanvasElement, course: CourseSpec, forceWebGL: boolean) {
+export async function createGameRenderer(canvas: HTMLCanvasElement, course: CourseSpec, forceWebGL: boolean, blockout = false) {
+  const rural = course.id === 'm2-rural-96m';
   const renderer = new WebGPURenderer({ canvas, antialias: true, alpha: false, forceWebGL, powerPreference: 'high-performance' });
   const scene = new Scene();
   scene.name = course.id;
@@ -147,12 +152,21 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
     sun.shadow.camera.far = 100;
     sun.shadow.normalBias = 0.035;
     sun.shadow.bias = -0.00008;
-    scene.add(sun, new HemisphereLight(0xe4f0ff, 0x69745a, 1.65));
+    if (rural) {
+      sun.intensity = 2.75;
+      sun.position.set(-30, 65, 24);
+      sun.shadow.mapSize.set(4096, 4096);
+      sun.shadow.camera.left = -65; sun.shadow.camera.right = 65;
+      sun.shadow.camera.top = 65; sun.shadow.camera.bottom = -65;
+      sun.shadow.camera.far = 160;
+    }
+    scene.add(sun, new HemisphereLight(rural ? 0xf0efe0 : 0xe4f0ff, rural ? 0x797f61 : 0x69745a, rural ? 1.85 : 1.65));
 
     const boxGeometry = new BoxGeometry(1, 1, 1);
     const materials = new Map<number, MeshStandardMaterial>();
     for (const box of course.boxes) {
       if (box.visible === false) continue;
+      if (rural && !blockout && /^stairs\.(main|crop)\.\d+$/.test(box.id)) continue;
       if (!materials.has(box.color)) materials.set(box.color, new MeshStandardMaterial({ color: box.color, roughness: 0.92, metalness: 0 }));
       const mesh = new Mesh(boxGeometry, materials.get(box.color));
       mesh.name = box.id;
@@ -163,6 +177,29 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       mesh.castShadow = box.collides && Math.max(box.size.x, box.size.z) < 40;
       scene.add(mesh);
     }
+    const landscapeMaterials = rural && !blockout ? createLandscapeMaterials() : null;
+    if (landscapeMaterials) {
+      landscapeMaterials.stone.vertexColors = true;
+      landscapeMaterials.soil.vertexColors = true;
+    }
+    for (const surface of course.surfaces ?? []) {
+      let geometry = new BufferGeometry();
+      geometry.setAttribute('position', new Float32BufferAttribute(surface.vertices, 3));
+      geometry.setIndex(surface.indices); geometry.computeVertexNormals();
+      const cliff = surface.id.endsWith('.cliff');
+      if (landscapeMaterials) {
+        geometry = applyTerrainPigment(geometry, course, LANES, cliff, surface.id.endsWith('.shore'));
+        applyLandscapeUV(geometry, cliff ? 'cliff' : 'ground');
+      }
+      const mesh = new Mesh(geometry, landscapeMaterials ? (cliff ? landscapeMaterials.stone : surface.id.endsWith('.shore') ? landscapeMaterials.soil : landscapeMaterials.grass)
+        : new MeshStandardMaterial({ color: surface.color, roughness: 1 }));
+      mesh.name = surface.id; mesh.receiveShadow = true; mesh.castShadow = true;
+      if (rural && !blockout && surface.id.endsWith('.shore')) mesh.visible = false;
+      scene.add(mesh);
+    }
+    const environment = rural ? createRuralEnvironment(course, blockout) : null;
+    if (environment) scene.add(environment.group);
+    const ruralAssets = environment && !blockout ? await loadRuralAssets(environment.group) : [];
     const labels = course.labels.map(label => {
       const sprite = createLabel(label.text);
       sprite.position.set(label.position.x, label.position.y + 0.42, label.position.z);
@@ -172,6 +209,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
     const player = createPlayer();
     scene.add(player);
     const fixture = await loadScaleFixture();
+    fixture.object.visible = !rural;
     scene.add(fixture.object);
     const facts = {
       threeRevision: REVISION,
@@ -185,6 +223,8 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       secureContext: window.isSecureContext,
       browser: navigator.userAgent,
       fixture: fixture.facts,
+      ruralAssets,
+      environment: environment ? structuredClone(environment.group.userData) : null,
       assetReady: true,
       shadersReady: false,
       gpuTiming: 'not measured',
@@ -228,6 +268,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       if (disposed) throw new Error('Cannot render after renderer disposal.');
       if (fatalError) throw fatalError;
       sync(state, camera);
+      environment?.update(state.elapsed);
       renderer.info.reset();
       renderer.render(scene, camera);
     }
@@ -249,13 +290,23 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       stats() {
         renderer.getDrawingBufferSize(size);
         let visibleMeshes = 0;
-        scene.traverseVisible(object => { if (object instanceof Mesh) visibleMeshes++; });
+        let instancedMeshes = 0, instances = 0;
+        const materialSet = new Set<Material>();
+        scene.traverseVisible(object => {
+          if (object instanceof Mesh) {
+            visibleMeshes++;
+            for (const material of Array.isArray(object.material) ? object.material : [object.material]) materialSet.add(material);
+          }
+          if (object instanceof InstancedMesh) { instancedMeshes++; instances += object.count; }
+        });
         return {
           drawCalls: renderer.info.render.drawCalls,
           triangles: renderer.info.render.triangles,
           geometries: renderer.info.memory.geometries,
           textures: renderer.info.memory.textures,
           visibleMeshes,
+          instancedMeshes, instances,
+          visibleMaterials: materialSet.size,
           avatarVisible: player.visible,
           objectCount: scene.children.length,
           drawingBuffer: { width: size.x, height: size.y },

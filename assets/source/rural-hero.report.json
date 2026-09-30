@@ -1,0 +1,1021 @@
+{
+  "schemaVersion": 1,
+  "blenderVersion": "5.2.1 LTS",
+  "seed": 104729,
+  "provenance": "Original project-authored procedural sculpture, exported in isolated local Blender. No external assets, image textures, services or downloads.",
+  "license": "Project license unassigned; no third-party source content",
+  "source": "assets/source/rural-hero.blend",
+  "generator": "tools/blender/rural_hero.py",
+  "assumptions": [
+    "Single supplied rural view cannot establish exact dimensions or unseen sides.",
+    "Rear/side openings, roof construction, chimney flue, bridge trestles and shed shelf are coherent authored interpretations.",
+    "Doors are modeled closed; no full house interior or interaction is included in M2."
+  ],
+  "assets": [
+    {
+      "id": "rural.cottage",
+      "units": "meters",
+      "seed": 104729,
+      "bounds": {
+        "min": [
+          -4.40442,
+          0,
+          -4.17
+        ],
+        "max": [
+          4.15,
+          7.03,
+          4.5
+        ]
+      },
+      "triangles": 37084,
+      "vertices": 20468,
+      "materials": [
+        "brass_worn",
+        "door_oak",
+        "door_oak_light",
+        "hoop_iron",
+        "iron_aged",
+        "plaster_lime",
+        "plaster_warm",
+        "recess_shadow",
+        "stone_aged",
+        "stone_light",
+        "stone_moss",
+        "stone_shadow",
+        "terracotta_aged",
+        "terracotta_lit",
+        "terracotta_ridge",
+        "terracotta_russet",
+        "terracotta_umber",
+        "terracotta_warm",
+        "timber_endgrain",
+        "timber_structure",
+        "timber_worn",
+        "window_glass",
+        "window_glint"
+      ],
+      "materialCount": 23,
+      "meshObjects": 51,
+      "textures": 0,
+      "groups": [
+        "attic_vents",
+        "barrel_hoops",
+        "barrel_lids",
+        "barrel_staves",
+        "chimney_cap",
+        "chimney_flue",
+        "chimney_mortar",
+        "chimney_stones",
+        "clay_roof_courses",
+        "door_ironwork",
+        "doors",
+        "eave_rafters",
+        "foundation_core",
+        "foundation_courses",
+        "gable_frame",
+        "gable_plaster",
+        "joinery_pegs",
+        "opening_frames",
+        "plaster_walls",
+        "porch_brackets",
+        "porch_brow",
+        "porch_steps",
+        "ridge_caps",
+        "roof_fascia",
+        "roof_underlay",
+        "shutters",
+        "stone_sills",
+        "structural_braces",
+        "structural_frame",
+        "window_glazing",
+        "window_mullions",
+        "window_recesses"
+      ],
+      "partBounds": {
+        "foundation_core": {
+          "min": [
+            -3.65,
+            0,
+            -3.15
+          ],
+          "max": [
+            3.65,
+            0.44,
+            3.15
+          ]
+        },
+        "foundation_courses": {
+          "min": [
+            -3.7294,
+            0.01,
+            -3.22915
+          ],
+          "max": [
+            3.72986,
+            0.43,
+            3.22964
+          ]
+        },
+        "plaster_walls": {
+          "min": [
+            -3.62,
+            0.44,
+            -3.12
+          ],
+          "max": [
+            3.62,
+            3.7,
+            3.12
+          ]
+        },
+        "doors": {
+          "min": [
+            -0.6,
+            0.44,
+            -3.0425
+          ],
+          "max": [
+            2.5,
+            2.66,
+            3.0425
+          ]
+        },
+        "opening_frames": {
+          "min": [
+            -3.86,
+            0.36,
+            -3.36
+          ],
+          "max": [
+            3.86,
+            2.89,
+            3.36
+          ]
+        },
+        "stone_sills": {
+          "min": [
+            -3.96,
+            0.345,
+            -3.48
+          ],
+          "max": [
+            3.96,
+            1.28,
+            3.48
+          ]
+        },
+        "door_ironwork": {
+          "min": [
+            -0.528,
+            0.8375,
+            -3.165
+          ],
+          "max": [
+            2.339,
+            2.2225,
+            3.165
+          ]
+        },
+        "window_recesses": {
+          "min": [
+            -3.4175,
+            1.28,
+            -2.9175
+          ],
+          "max": [
+            3.4175,
+            2.63,
+            2.9175
+          ]
+        },
+        "window_glazing": {
+          "min": [
+            -3.4585,
+            1.2925,
+            -2.9585
+          ],
+          "max": [
+            3.4585,
+            2.6175,
+            2.9585
+          ]
+        },
+        "window_mullions": {
+          "min": [
+            -3.565,
+            1.28,
+            -3.065
+          ],
+          "max": [
+            3.565,
+            2.63,
+            3.065
+          ]
+        },
+        "shutters": {
+          "min": [
+            -3.6885,
+            1.3394,
+            -3.1885
+          ],
+          "max": [
+            3.6885,
+            2.5715,
+            3.1885
+          ]
+        },
+        "structural_frame": {
+          "min": [
+            -3.815,
+            0.42,
+            -3.315
+          ],
+          "max": [
+            3.815,
+            3.73,
+            3.315
+          ]
+        },
+        "structural_braces": {
+          "min": [
+            -3.7725,
+            2.79091,
+            -3.29
+          ],
+          "max": [
+            3.7725,
+            3.51909,
+            3.29
+          ]
+        },
+        "joinery_pegs": {
+          "min": [
+            -3.855,
+            3.36959,
+            -3.355
+          ],
+          "max": [
+            3.855,
+            3.43041,
+            3.355
+          ]
+        },
+        "gable_plaster": {
+          "min": [
+            -3.6,
+            3.7,
+            -3.215
+          ],
+          "max": [
+            3.6,
+            5.96,
+            3.215
+          ]
+        },
+        "gable_frame": {
+          "min": [
+            -3.64413,
+            3.64592,
+            -3.2875
+          ],
+          "max": [
+            3.64413,
+            6.05408,
+            3.2875
+          ]
+        },
+        "attic_vents": {
+          "min": [
+            -0.795,
+            4.22,
+            -3.325
+          ],
+          "max": [
+            0.795,
+            4.88,
+            3.325
+          ]
+        },
+        "roof_underlay": {
+          "min": [
+            -4.05,
+            3.5163,
+            -3.67
+          ],
+          "max": [
+            4.05,
+            6.1937,
+            3.67
+          ]
+        },
+        "roof_fascia": {
+          "min": [
+            -4.15,
+            3.49,
+            -3.805
+          ],
+          "max": [
+            4.15,
+            6.21954,
+            3.805
+          ]
+        },
+        "eave_rafters": {
+          "min": [
+            -4.11686,
+            3.40005,
+            -3.595
+          ],
+          "max": [
+            4.11686,
+            3.99378,
+            3.595
+          ]
+        },
+        "clay_roof_courses": {
+          "min": [
+            -4.075,
+            3.64372,
+            -3.67838
+          ],
+          "max": [
+            4.075,
+            6.33632,
+            3.67701
+          ]
+        },
+        "ridge_caps": {
+          "min": [
+            -0.2,
+            6.255,
+            -3.725
+          ],
+          "max": [
+            0.2,
+            6.455,
+            3.725
+          ]
+        },
+        "porch_steps": {
+          "min": [
+            -0.95,
+            0,
+            -4.17
+          ],
+          "max": [
+            2.75,
+            0.34,
+            4.5
+          ]
+        },
+        "porch_brackets": {
+          "min": [
+            -0.995,
+            2.77505,
+            3.26203
+          ],
+          "max": [
+            0.995,
+            3.09495,
+            3.79797
+          ]
+        },
+        "porch_brow": {
+          "min": [
+            -1.125,
+            3.05,
+            3.03
+          ],
+          "max": [
+            1.125,
+            3.19,
+            3.93
+          ]
+        },
+        "chimney_mortar": {
+          "min": [
+            -1.905,
+            5.18,
+            -1.285
+          ],
+          "max": [
+            -1.215,
+            6.72,
+            -0.515
+          ]
+        },
+        "chimney_stones": {
+          "min": [
+            -1.935,
+            5.144,
+            -1.3175
+          ],
+          "max": [
+            -1.185,
+            6.646,
+            -0.4825
+          ]
+        },
+        "chimney_cap": {
+          "min": [
+            -2.005,
+            6.68,
+            -1.39
+          ],
+          "max": [
+            -1.115,
+            6.86,
+            -0.41
+          ]
+        },
+        "chimney_flue": {
+          "min": [
+            -1.975,
+            6.85,
+            -1.305
+          ],
+          "max": [
+            -1.145,
+            7.03,
+            -0.495
+          ]
+        },
+        "barrel_staves": {
+          "min": [
+            -4.38999,
+            0,
+            -1.79056
+          ],
+          "max": [
+            -3.59001,
+            0.88,
+            -0.14779
+          ]
+        },
+        "barrel_lids": {
+          "min": [
+            -4.33,
+            0.675,
+            -1.73148
+          ],
+          "max": [
+            -3.65,
+            0.88,
+            -0.19653
+          ]
+        },
+        "barrel_hoops": {
+          "min": [
+            -4.40442,
+            0.0835,
+            -1.79217
+          ],
+          "max": [
+            -3.57558,
+            0.7094,
+            -0.14471
+          ]
+        }
+      },
+      "origin": "ground center",
+      "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+      "collision": "Separate runtime authored simplified proxies; visual asset is not used as a triangle-mesh collider",
+      "lod": "Single M2 hero asset; no unmeasured distance LOD",
+      "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval",
+      "sha256": "6d023d4fdef5fe0da2ca20af44bda92fbc76192c84372ace9305e118bd458fd8",
+      "bytes": 1504436,
+      "path": "public/assets/rural/cottage.glb",
+      "exportedMeshes": 23,
+      "exportedPrimitives": 23
+    },
+    {
+      "id": "rural.shed",
+      "units": "meters",
+      "seed": 104729,
+      "bounds": {
+        "min": [
+          -1.91,
+          0,
+          -1.98
+        ],
+        "max": [
+          1.91,
+          3.695,
+          2.08
+        ]
+      },
+      "triangles": 10196,
+      "vertices": 5592,
+      "materials": [
+        "brass_worn",
+        "door_oak",
+        "door_oak_light",
+        "iron_aged",
+        "plaster_lime",
+        "plaster_warm",
+        "recess_shadow",
+        "stone_aged",
+        "stone_light",
+        "stone_moss",
+        "stone_shadow",
+        "teal_deep",
+        "teal_faded",
+        "teal_tile",
+        "timber_endgrain",
+        "timber_structure",
+        "timber_worn",
+        "window_glass",
+        "window_glint"
+      ],
+      "materialCount": 19,
+      "meshObjects": 30,
+      "textures": 0,
+      "groups": [
+        "clay_roof_courses",
+        "door_ironwork",
+        "doors",
+        "eave_rafters",
+        "foundation_core",
+        "foundation_courses",
+        "gable_plaster",
+        "opening_frames",
+        "plaster_walls",
+        "ridge_caps",
+        "roof_fascia",
+        "roof_underlay",
+        "shed_frame",
+        "shed_shelf",
+        "shed_step",
+        "stone_sills",
+        "window_glazing",
+        "window_mullions",
+        "window_recesses"
+      ],
+      "partBounds": {
+        "foundation_core": {
+          "min": [
+            -1.54,
+            0,
+            -1.44
+          ],
+          "max": [
+            1.54,
+            0.26,
+            1.44
+          ]
+        },
+        "foundation_courses": {
+          "min": [
+            -1.61662,
+            0.01,
+            -1.51786
+          ],
+          "max": [
+            1.61709,
+            0.25,
+            1.5171
+          ]
+        },
+        "plaster_walls": {
+          "min": [
+            -1.52,
+            0.26,
+            -1.42
+          ],
+          "max": [
+            1.52,
+            2.44,
+            1.42
+          ]
+        },
+        "doors": {
+          "min": [
+            -0.715,
+            0.26,
+            1.195
+          ],
+          "max": [
+            0.315,
+            2.24,
+            1.3425
+          ]
+        },
+        "opening_frames": {
+          "min": [
+            -1.76,
+            0.18,
+            -1.66
+          ],
+          "max": [
+            1.76,
+            2.47,
+            1.64
+          ]
+        },
+        "stone_sills": {
+          "min": [
+            -1.86,
+            0.165,
+            -1.76
+          ],
+          "max": [
+            1.86,
+            1.08,
+            1.78
+          ]
+        },
+        "door_ironwork": {
+          "min": [
+            -0.6702,
+            0.5675,
+            1.353
+          ],
+          "max": [
+            0.1673,
+            1.9225,
+            1.465
+          ]
+        },
+        "window_recesses": {
+          "min": [
+            -1.3175,
+            1.1,
+            -1.2175
+          ],
+          "max": [
+            1.3175,
+            1.91,
+            0.57
+          ]
+        },
+        "window_glazing": {
+          "min": [
+            -1.3585,
+            1.1125,
+            -1.2585
+          ],
+          "max": [
+            1.3585,
+            1.8975,
+            0.5575
+          ]
+        },
+        "window_mullions": {
+          "min": [
+            -1.465,
+            1.1,
+            -1.365
+          ],
+          "max": [
+            1.465,
+            1.91,
+            0.57
+          ]
+        },
+        "shed_frame": {
+          "min": [
+            -1.595,
+            0.24,
+            -1.495
+          ],
+          "max": [
+            1.595,
+            2.54,
+            1.495
+          ]
+        },
+        "gable_plaster": {
+          "min": [
+            -1.5,
+            2.44,
+            -1.49
+          ],
+          "max": [
+            1.5,
+            3.28,
+            1.49
+          ]
+        },
+        "roof_underlay": {
+          "min": [
+            -1.81,
+            2.21448,
+            -1.69
+          ],
+          "max": [
+            1.81,
+            3.43552,
+            1.69
+          ]
+        },
+        "roof_fascia": {
+          "min": [
+            -1.91,
+            2.19,
+            -1.825
+          ],
+          "max": [
+            1.91,
+            3.46289,
+            1.825
+          ]
+        },
+        "eave_rafters": {
+          "min": [
+            -1.87688,
+            2.0973,
+            -1.615
+          ],
+          "max": [
+            1.87688,
+            2.66237,
+            1.615
+          ]
+        },
+        "clay_roof_courses": {
+          "min": [
+            -1.835,
+            2.34646,
+            -1.69854
+          ],
+          "max": [
+            1.835,
+            3.55071,
+            1.69858
+          ]
+        },
+        "ridge_caps": {
+          "min": [
+            -0.2,
+            3.495,
+            -1.745
+          ],
+          "max": [
+            0.2,
+            3.695,
+            1.745
+          ]
+        },
+        "shed_step": {
+          "min": [
+            -0.85,
+            0,
+            1.38
+          ],
+          "max": [
+            0.45,
+            0.16,
+            2.08
+          ]
+        },
+        "shed_shelf": {
+          "min": [
+            -0.885,
+            0.39894,
+            -1.98
+          ],
+          "max": [
+            0.885,
+            0.8575,
+            -1.44331
+          ]
+        }
+      },
+      "origin": "ground center",
+      "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+      "collision": "Separate runtime authored simplified proxies; visual asset is not used as a triangle-mesh collider",
+      "lod": "Single M2 hero asset; no unmeasured distance LOD",
+      "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval",
+      "sha256": "e0bf5155f95132d4920c8479653dccfeb905ccc8a230d20a9d8d241873d4e019",
+      "bytes": 397124,
+      "path": "public/assets/rural/shed.glb",
+      "exportedMeshes": 19,
+      "exportedPrimitives": 19
+    },
+    {
+      "id": "rural.bridge",
+      "units": "meters",
+      "seed": 104729,
+      "bounds": {
+        "min": [
+          -1.925,
+          -2.1624,
+          -7.12
+        ],
+        "max": [
+          1.925,
+          1.128,
+          7.12
+        ]
+      },
+      "triangles": 13596,
+      "vertices": 7224,
+      "materials": [
+        "bridge_oak",
+        "bridge_oak_dark",
+        "bridge_oak_light",
+        "iron_aged",
+        "timber_structure"
+      ],
+      "materialCount": 5,
+      "meshObjects": 15,
+      "textures": 0,
+      "groups": [
+        "deck_pegs",
+        "deck_planks",
+        "end_plates",
+        "handrails",
+        "longitudinal_girders",
+        "lower_rails",
+        "rail_bracing",
+        "rail_caps",
+        "rail_pegs",
+        "rail_posts",
+        "transverse_beams",
+        "trestle_braces",
+        "trestle_piles"
+      ],
+      "partBounds": {
+        "deck_planks": {
+          "min": [
+            -1.83215,
+            -0.18,
+            -6.99301
+          ],
+          "max": [
+            1.83792,
+            0,
+            6.99558
+          ]
+        },
+        "deck_pegs": {
+          "min": [
+            -1.29151,
+            -0.009,
+            -6.83232
+          ],
+          "max": [
+            1.29151,
+            0.004,
+            6.83232
+          ]
+        },
+        "longitudinal_girders": {
+          "min": [
+            -1.455,
+            -0.55,
+            -7.12
+          ],
+          "max": [
+            1.455,
+            -0.17,
+            7.12
+          ]
+        },
+        "rail_posts": {
+          "min": [
+            -1.745,
+            -0.27,
+            -6.825
+          ],
+          "max": [
+            1.745,
+            1.05,
+            6.825
+          ]
+        },
+        "rail_caps": {
+          "min": [
+            -1.775,
+            1.018,
+            -6.855
+          ],
+          "max": [
+            1.775,
+            1.128,
+            6.855
+          ]
+        },
+        "rail_pegs": {
+          "min": [
+            -1.535,
+            0.80187,
+            -6.74813
+          ],
+          "max": [
+            1.535,
+            0.85813,
+            6.74813
+          ]
+        },
+        "handrails": {
+          "min": [
+            -1.71,
+            0.915,
+            -6.82
+          ],
+          "max": [
+            1.71,
+            1.065,
+            6.82
+          ]
+        },
+        "lower_rails": {
+          "min": [
+            -1.6975,
+            0.37,
+            -6.72
+          ],
+          "max": [
+            1.6975,
+            0.49,
+            6.72
+          ]
+        },
+        "rail_bracing": {
+          "min": [
+            -1.6825,
+            0.43575,
+            -6.58522
+          ],
+          "max": [
+            1.6825,
+            0.91425,
+            6.58522
+          ]
+        },
+        "transverse_beams": {
+          "min": [
+            -1.925,
+            -0.71,
+            -5.695
+          ],
+          "max": [
+            1.925,
+            -0.45,
+            5.695
+          ]
+        },
+        "trestle_piles": {
+          "min": [
+            -1.50293,
+            -2.1624,
+            -5.69
+          ],
+          "max": [
+            1.50293,
+            -0.5076,
+            5.69
+          ]
+        },
+        "trestle_braces": {
+          "min": [
+            -1.36868,
+            -1.91491,
+            -5.465
+          ],
+          "max": [
+            1.36868,
+            -0.56509,
+            5.785
+          ]
+        },
+        "end_plates": {
+          "min": [
+            -1.9,
+            -0.31,
+            -7.095
+          ],
+          "max": [
+            1.9,
+            -0.01,
+            7.095
+          ]
+        }
+      },
+      "origin": "deck top center",
+      "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+      "collision": "Separate runtime authored simplified proxies; visual asset is not used as a triangle-mesh collider",
+      "lod": "Single M2 hero asset; no unmeasured distance LOD",
+      "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval",
+      "sha256": "b63e5d375f3b862251e07dc814fe6aeb9d7fb20ed773078766d6f46d26353111",
+      "bytes": 547680,
+      "path": "public/assets/rural/bridge.glb",
+      "exportedMeshes": 5,
+      "exportedPrimitives": 5
+    }
+  ],
+  "sourceHashes": {
+    "tools/blender/rural_hero.py": "09dd73587e0b8b324f98f25c589b9213be751e1bbacc1a4208ca43034cedeea5",
+    "tools/blender-rural.mjs": "c1d0b9b4b5b6a87f796f24f2a485123deb6829efda3271358b4cbdb3b9e3abc7",
+    "assets/source/rural-hero.blend": "6790425af6c76793c80b42ae8b0e4a93b06187e609e2ce881542fe34a31fe6a3"
+  },
+  "referenceHashes": {
+    "city-master.png": "6868b0cbd6a5bcc28a8580ba1b40ff4069f6bb405715fb9ff3a098aaa6abeffd",
+    "experiments/godot-attempt.png": "76fc977dea8500ba0afdb6cf93d50206fd27f976c99948432c43ac0eb1c60f5c",
+    "experiments/unreal-attempt.png": "2301a9e7d5075e308c65307ffd7d65e56d73387106e452133ab495c7690f1300",
+    "experiments/blender-attempt.png": "724a7e967c44fedd2cc4b2f038877b684f4a135c9ee59703f0802f401c711662"
+  },
+  "command": "node tools/blender-rural.mjs"
+}

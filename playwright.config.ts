@@ -16,8 +16,12 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'simulation', testMatch: /(?:simulation|clock|renderer)\.spec\.ts/ },
-    { name: 'browser', testMatch: /browser\.spec\.ts/, use: {
+    { name: 'simulation', testMatch: /(?:simulation|clock|renderer|rural|rural-assets)\.spec\.ts/ },
+    { name: 'browser', testMatch: '**/browser.spec.ts', use: {
+      channel: process.env.VOXARRIUM_BROWSER ?? 'chrome',
+      headless: process.env.VOXARRIUM_HEADED !== '1',
+    } },
+    { name: 'rural-browser', testMatch: '**/rural-browser.spec.ts', use: {
       channel: process.env.VOXARRIUM_BROWSER ?? 'chrome',
       headless: process.env.VOXARRIUM_HEADED !== '1',
     } },
