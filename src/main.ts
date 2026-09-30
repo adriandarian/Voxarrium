@@ -11,6 +11,7 @@ import { createCameraRig } from './cameras/cameras';
 import { createInput } from './input/input';
 import { createGameRenderer } from './render/renderer';
 import { FrameTimings } from './diagnostics/timing';
+import { tail } from './diagnostics/tail';
 import { createEnvironment, setEnvironment, stepEnvironment } from './simulation/environment';
 import type { Weather, TimeOfDay } from './simulation/environment';
 import { createPopulation, stepPopulation, nearestNpc } from './simulation/npcs';
@@ -18,6 +19,10 @@ import { interactionTarget } from './simulation/interaction';
 import { createLivingUi } from './ui/living';
 import { createLivingAudio, DEFAULT_AUDIO } from './audio/audio';
 import type { AudioSettings } from './audio/audio';
+import { createStreamingWorld } from './simulation/streaming-world';
+import { createStreamingController } from './simulation/streaming';
+import { createNpcResidency, stepResidentPopulation, npcTierCounts } from './simulation/npc-residency';
+import { DISTRICT_ENTRANCES } from './simulation/district';
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = element<HTMLCanvasElement>('world');
@@ -35,7 +40,8 @@ const params = new URLSearchParams(location.search);
 async function boot() {
   const rural = params.get('scene') !== 'm1';
   const district = rural && params.get('scene') !== 'm2';
-  const course = district ? createDistrictCourse() : rural ? createRuralCourse() : createCourse(104729);
+  const streamedWorld = district && params.get('scene') !== 'm4' ? createStreamingWorld() : null;
+  const course = streamedWorld?.course ?? (district ? createDistrictCourse() : rural ? createRuralCourse() : createCourse(104729));
   if (district) {
     document.querySelector('.chapter')!.textContent = 'M4 / THE RIVER MARKET';
     element('scene-label').textContent = 'RIVER MARKET / RURAL EDGE';
@@ -44,6 +50,13 @@ async function boot() {
     document.querySelector('.course-features')!.innerHTML = '<span>Market & upper lane</span><span>Two river bridges</span><span>Living neighborhood</span>';
     canvas.setAttribute('aria-label', 'Voxarrium playable river market district');
     document.title = 'Voxarrium · The river market';
+  }
+  if (streamedWorld) {
+    document.querySelector('.chapter')!.textContent = 'M5 / ACROSS THE RIVER';
+    element('scene-label').textContent = 'GARDEN / RIVER MARKET / EAST WORKSHOPS';
+    element('menu-title').textContent = 'Across the river.';
+    document.querySelector('.intro')!.textContent = 'Walk from the garden, follow the market street, and visit the workshops beyond its eastern edge.';
+    document.title = 'Voxarrium · Across the river';
   }
   if (!rural) {
     document.querySelector('.chapter')!.textContent = 'M1 / HUMAN SCALE';
@@ -55,17 +68,41 @@ async function boot() {
   const livingUi = createLivingUi();
   const audioSettings = { ...DEFAULT_AUDIO };
   const audio = createLivingAudio(audioSettings, district);
+  if (streamedWorld) {
+    state.npcResidency = createNpcResidency();
+    state.persistentInteractables = Object.fromEntries(['landmark.herbs', 'landmark.bridge', ...DISTRICT_ENTRANCES.map(entrance => entrance.id)]
+      .map(id => [id, { visits: 0, closed: id.endsWith('.entrance') }]));
+    audio.districtActive(false);
+  }
   let reducedMotion = false;
   element('living-settings').hidden = !rural;
   if (rural && course.bookmarks.spawn) {
     state.camera.yaw = course.bookmarks.spawn.yaw;
     state.camera.pitch = course.bookmarks.spawn.pitch;
   }
-  const physics = await createPhysics(course);
+  const physics = await tail.asyncSpan('physics.initialize', () => createPhysics(streamedWorld?.residentCourse ?? course));
   let renderer: Awaited<ReturnType<typeof createGameRenderer>>;
-  try { renderer = await createGameRenderer(canvas, course, params.get('backend') === 'webgl', params.get('stage') === 'blockout'); }
+  try { renderer = await tail.asyncSpan('renderer.initialize', () => createGameRenderer(canvas, course, params.get('backend') === 'webgl', params.get('stage') === 'blockout')); }
   catch (error) { physics.dispose(); throw error; }
   const rig = createCameraRig(state, physics);
+  const streaming = streamedWorld ? createStreamingController(streamedWorld.areas, {
+    async load(area, signal) {
+      const presentation = await renderer.prepareArea(area, signal, rig.camera, state);
+      return {
+        activate() { physics.loadArea(area.id, area.course); presentation.activate(); },
+        deactivate() { presentation.deactivate(); physics.unloadArea(area.id); },
+        unload() { physics.unloadArea(area.id); presentation.unload(); },
+      };
+    },
+  }) : null;
+  let marketAudioActive = false;
+  function updateStreaming(dt: number) {
+    if (!streaming || disposed) return;
+    streaming.update(state.player.position, dt);
+    physics.streamingGates(streaming.activeIds(), state.player.position);
+    const marketActive = streaming.activeIds().includes('river-market');
+    if (marketActive !== marketAudioActive) { marketAudioActive = marketActive; audio.districtActive(marketActive); }
+  }
   const clock = new FixedClock();
   const timings = new FrameTimings();
   let previousPosition = { ...state.player.position };
@@ -109,7 +146,11 @@ async function boot() {
     if (state.interaction) state.interaction = null;
     else {
       const target = interactionTarget(state.population, state.player.position, state.environment);
-      if (target) { state.interaction = { id: target.id, name: target.name, text: target.text, position: { ...target.position } }; audio.cue(target.position, target.id.endsWith('.entrance')); }
+      if (target) {
+        state.interaction = { id: target.id, name: target.name, text: target.text, position: { ...target.position } };
+        const persistent = state.persistentInteractables?.[target.id]; if (persistent) persistent.visits++;
+        audio.cue(target.position, target.id.endsWith('.entrance'));
+      }
     }
     updateInteractionUi();
   }
@@ -133,12 +174,15 @@ async function boot() {
   });
 
   function tick(frame: InputFrame) {
+    updateStreaming(FIXED_DT);
     previousPosition = { ...state.player.position };
     const debugging = state.camera.mode === 'free' || state.camera.mode === 'eagle-eye';
     physics.step(state, debugging ? IDLE_INPUT : frame, FIXED_DT);
     if (state.environment) {
       stepEnvironment(state.environment, FIXED_DT);
-      stepPopulation(state.population, FIXED_DT, state.environment, state.player.position, state.interaction?.id);
+      if (streaming && state.npcResidency) stepResidentPopulation(state.population, state.npcResidency, FIXED_DT,
+        state.environment, state.player.position, streaming.loadedIds(), streaming.activeIds(), state.interaction?.id ?? null);
+      else stepPopulation(state.population, FIXED_DT, state.environment, state.player.position, state.interaction?.id);
       if (state.interaction) {
         const npc = state.population.find(n => n.id === state.interaction!.id);
         const source = npc?.position ?? state.interaction.position;
@@ -174,21 +218,28 @@ async function boot() {
   }
   function frame(now: number) {
     if (disposed) return;
+    const callbackStart = performance.now();
+    tail.frame(now, callbackStart);
     try {
       const deltaMs = Math.max(0, now - lastFrame);
       lastFrame = now;
       const actions = state.paused || manual ? IDLE_INPUT : input.read();
       pendingJump ||= actions.jump;
       const suspended = state.paused || manual || document.hidden;
-      const alpha = clock.advance(now, suspended, () => {
+      if (suspended) updateStreaming(0);
+      const alpha = tail.span('simulation.fixedSteps', () => clock.advance(now, suspended, () => {
         tick({ ...actions, jump: pendingJump });
         pendingJump = false;
-      });
+      }));
       if (!suspended) timings.record(deltaMs);
-      draw(suspended ? 1 : alpha, Math.min(deltaMs / 1000, 0.1));
-      if (now - lastOverlay > 250) { overlay(); lastOverlay = now; }
+      tail.span('presentation.draw', () => draw(suspended ? 1 : alpha, Math.min(deltaMs / 1000, 0.1)));
+      if (now - lastOverlay > 250) { tail.span('ui.overlay', overlay); lastOverlay = now; }
       frameId = requestAnimationFrame(frame);
     } catch (error) { dispose(); showFailure(error); }
+    finally {
+      const durationMs = performance.now() - callbackStart;
+      if (durationMs > 16) tail.event('frame.callback', { durationMs });
+    }
   }
   const onResize = () => { renderer.resize(); draw(); };
   const onVisibility = () => { if (document.hidden) setPaused(true); clock.reset(); };
@@ -201,7 +252,7 @@ async function boot() {
   const onStart = async () => {
     startButton.disabled = true;
     notice.textContent = 'Starting controls…';
-    const audioStarted = rural ? audio.start() : Promise.resolve(true);
+    const audioStarted = rural ? tail.asyncSpan('audio.start', () => audio.start()) : Promise.resolve(true);
     try {
       if (!await input.start()) {
         if (!disposed) notice.textContent = 'Game paused. Click to resume when the game is focused.';
@@ -253,11 +304,18 @@ async function boot() {
     window.removeEventListener('resize', onResize);
     window.removeEventListener('blur', onBlur);
     document.removeEventListener('visibilitychange', onVisibility);
-    audio.dispose(); input.dispose(); rig.dispose(); physics.dispose(); renderer.dispose();
+    streaming?.dispose(); audio.dispose(); input.dispose(); rig.dispose(); physics.dispose(); renderer.dispose(); tail.dispose();
     delete window.__VOXARRIUM__;
   }
 
   // Settle the capsule before readiness. Physics, fixture and shaders are all real.
+  try {
+    if (streaming) {
+      rig.update(0, canvas.clientWidth / canvas.clientHeight);
+      updateStreaming(0); await streaming.settled(); updateStreaming(0);
+      if (!streaming.ready('rural')) throw new Error(`Initial area failed: ${JSON.stringify(streaming.snapshot().errors)}`);
+    }
+  } catch (error) { dispose(); throw error; }
   for (let i = 0; i < 30; i++) tick(IDLE_INPUT);
   state.tick = 0; state.elapsed = 0;
   if (state.environment) state.environment = createEnvironment();
@@ -271,14 +329,19 @@ async function boot() {
   element('backend-badge').title = renderer.facts.fallbackReason ?? renderer.facts.requestedBackend;
   notice.textContent = 'Ready. Blender meter and axis checks passed.';
   startButton.disabled = false;
-  startButton.textContent = district ? 'Explore the market' : rural ? 'Explore the garden' : 'Enter the course';
+  startButton.textContent = streamedWorld ? 'Explore the garden' : district ? 'Explore the market' : rural ? 'Explore the garden' : 'Enter the course';
   overlay();
   frameId = requestAnimationFrame(frame);
 
   const harness = {
+    position: () => ({ ...state.player.position }),
+    steer(yaw: number, pitch = -0.09) { state.camera.yaw = yaw; state.camera.pitch = pitch; },
     snapshot: () => ({
       state: structuredClone(state), facts: structuredClone(renderer.facts),
       render: renderer.stats(), timing: timings.snapshot(),
+      tail: tail.snapshot(),
+      streaming: streaming?.snapshot() ?? null, physics: physics.stats(),
+      npcTiers: npcTierCounts(state.population, state.npcResidency),
       audio: audio.snapshot(), settings: { reducedMotion, audio: { ...audioSettings } },
       camera: { position: rig.camera.position.toArray(), quaternion: rig.camera.quaternion.toArray(), fov: rig.camera.fov, aspect: rig.camera.aspect },
       bookmarks: structuredClone(course.bookmarks),
@@ -320,6 +383,8 @@ async function boot() {
       return structuredClone(state);
     },
     resetTimings() { timings.reset(); },
+    resetTail() { tail.reset(); },
+    async settleStreaming() { updateStreaming(0); await streaming?.settled(); updateStreaming(0); },
     dispose,
   };
   // Explicit development capture entrypoint; never exposed in the production bundle.

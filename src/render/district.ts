@@ -280,8 +280,8 @@ export function composeDistrictArchitecture(root: Object3D) {
     assumptions: 'Unseen elevations, guild belfry and local trade dressing are authored interpretations; closed doors have future interior hooks.' } };
 }
 
-export async function createDistrictPresentation(_course?: CourseSpec) {
-  const loaded = await loadDistrictKit();
+export async function createDistrictPresentation(_course?: CourseSpec, signal?: AbortSignal) {
+  const loaded = await loadDistrictKit(signal);
   const architecture = composeDistrictArchitecture(loaded.root);
   const group = architecture.group;
   // Plaster spans are partitioned at genuine openings. World-coordinate pigment

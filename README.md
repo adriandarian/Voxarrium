@@ -4,7 +4,7 @@ A living fantasy city for **third-person exploration**, with an optional first-p
 
 ## Start here
 
-**M4 adds the first bounded River Market district beside the approved rural slice.** Twenty-seven buildings use six coherent architectural archetypes, with a guild hall, four market stalls, connected streets/alleys, raised civic apron, quays, two bridges and real stairs. Forty-two locals share the existing weather, time, dialogue and sound systems. The original rural slice remains at `/?scene=m2`, and the M1 test course at `/?scene=m1`. See `STATUS.md` for actual review status, tested scope and measurements. Stop at the M4 human-review gate before further expansion.
+**M5 streams the rural slice, River Market and one modest eastern workshop shell.** The existing market retains 27 buildings, six archetypes, connected streets/alleys, quays, bridges and stairs. Forty-two persistent locals use nearby, loaded and unloaded tiers while weather, time and audio settings continue across boundaries. The shell tests transitions; it is not a finished new district. See `STATUS.md` for results and the M5 review gate before expansion. The resident comparison is `/?scene=m4`, the rural slice `/?scene=m2`, and the M1 course `/?scene=m1`.
 
 The runtime uses TypeScript + Vite + vanilla Three.js and Rapier. Dependencies are pinned in `package.json` and `package-lock.json`. WebGPURenderer reports the backend that actually initialized; `/?backend=webgl` deliberately selects its WebGL 2 backend.
 
@@ -29,7 +29,7 @@ Node.js 22.12+ is the project minimum. Browser tests use installed Google Chrome
 
 Tests and capture states/screenshots live under ignored `artifacts/`. See `docs/TESTING.md` for the exact procedure and evidence limits. `doctor` records local tooling under `.local/`; it does not test gameplay. The committed calibration GLB makes normal startup independent of Blender. `npm run blender:fixture` re-exports to `.local/assets/` for pipeline work; see `docs/ASSET_PIPELINE.md` before replacing the vendored fixture.
 
-`npm run capture:m4` records district streets, alleys, backs/sides, plaza, bridges and weather/light views. `npm run capture:m3` retains rural living-system evidence; `npm run capture` retains the M2 camera procedure, and `npm run capture:m1` preserves M1 evidence. `/?stage=blockout` exposes structural massing. Local Blender generators are `npm run blender:rural` and `npm run blender:district`; editable sources and export metadata are preserved alongside the shipped GLBs. Original reference images stay outside runtime assets.
+`npm run capture:m5` records the shell from eagle-eye, third-person and first-person after traversal. `npm run capture:m4` retains district views, `npm run capture:m3` rural living evidence, `npm run capture` M2, and `npm run capture:m1` M1. `npm run measure:tail` repeats the bounded M4 timing experiment; `npm run stress:streaming` runs three actual-input M5 circuits. See `docs/TESTING.md` for measurement controls and limitations. Local Blender generators remain `npm run blender:rural` and `npm run blender:district`; sources/metadata and reference hashes are preserved.
 
 ## Reference images
 

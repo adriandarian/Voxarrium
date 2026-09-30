@@ -6,6 +6,10 @@ export interface Physics {
   step(state: GameState, input: InputFrame, dt: number): void;
   reset(state: GameState, position?: Vec3): void;
   cameraCast(origin: Vec3, target: Vec3, radius: number): number;
+  loadArea(id: string, course: CourseSpec): void;
+  unloadArea(id: string): void;
+  streamingGates(ready: readonly string[], position: Vec3): void;
+  stats(): { colliders: number; bodies: number; areas: Record<string, number>; safetyGateCount: number };
   dispose(): void;
 }
 
@@ -17,17 +21,33 @@ export async function createPhysics(course: CourseSpec): Promise<Physics> {
   initialization ??= RAPIER.init();
   await initialization;
   const world = new RAPIER.World({ x: 0, y: 0, z: 0 });
-  for (const surface of course.surfaces ?? []) {
-    world.createCollider(RAPIER.ColliderDesc.trimesh(new Float32Array(surface.vertices), new Uint32Array(surface.indices)));
+  const areas = new Map<string, RAPIER.Collider[]>();
+  let disposed = false;
+  let gateKey = '';
+  function unloadArea(id: string) {
+    const colliders = areas.get(id);
+    if (!colliders) return;
+    for (const collider of colliders) world.removeCollider(collider, true);
+    areas.delete(id);
   }
-  for (const box of course.boxes) {
+  function loadArea(id: string, data: CourseSpec) {
+    if (areas.has(id)) return;
+    const colliders: RAPIER.Collider[] = [];
+    for (const surface of data.surfaces ?? []) {
+      colliders.push(world.createCollider(RAPIER.ColliderDesc.trimesh(new Float32Array(surface.vertices), new Uint32Array(surface.indices))));
+    }
+    for (const box of data.boxes) {
     if (!box.collides) continue;
     const sx = Math.sin((box.rotationX ?? 0) / 2), cx = Math.cos((box.rotationX ?? 0) / 2);
     const sy = Math.sin((box.rotationY ?? 0) / 2), cy = Math.cos((box.rotationY ?? 0) / 2);
-    world.createCollider(RAPIER.ColliderDesc.cuboid(box.size.x / 2, box.size.y / 2, box.size.z / 2)
+    colliders.push(world.createCollider(RAPIER.ColliderDesc.cuboid(box.size.x / 2, box.size.y / 2, box.size.z / 2)
       .setTranslation(box.position.x, box.position.y, box.position.z)
-      .setRotation({ x: sx * cy, y: cx * sy, z: sx * sy, w: cx * cy }));
+      .setRotation({ x: sx * cy, y: cx * sy, z: sx * sy, w: cx * cy })));
+    }
+    areas.set(id, colliders);
+    world.step(); // Populate broad phase before handoff camera/player queries.
   }
+  loadArea('resident', course);
   const halfHeight = PLAYER.height / 2;
   const body = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased()
     .setTranslation(course.spawn.x, course.spawn.y + halfHeight, course.spawn.z));
@@ -104,6 +124,25 @@ export async function createPhysics(course: CourseSpec): Promise<Physics> {
       if (!Number.isFinite(center.x + center.y + center.z) || player.position.y < -6 || Math.abs(center.x) > (course.bounds ?? 40) || Math.abs(center.z) > (course.bounds ?? 40)) reset(state);
     },
     reset,
+    loadArea, unloadArea,
+    streamingGates(ready, position) {
+      const xs: number[] = [];
+      if (!ready.includes(position.x < 48 ? 'river-market' : 'rural')) xs.push(position.x < 48 ? 47.55 : 48.45);
+      if (!ready.includes(position.x < 146 ? 'neighbor-shell' : 'river-market')) xs.push(position.x < 146 ? 145.55 : 146.45);
+      const key = xs.join(',');
+      if (key === gateKey) return;
+      gateKey = key; unloadArea('safety-gates');
+      if (xs.length) loadArea('safety-gates', { ...course, surfaces: [], boxes: xs.map((x, i) => ({
+        id: `streaming.guard.${i}`, position: { x, y: 4, z: 0 }, size: { x: .3, y: 16, z: 96 },
+        color: 0, collides: true, visible: false,
+      })) });
+    },
+    stats() {
+      if (disposed) return { colliders: 0, bodies: 0, areas: {}, safetyGateCount: 0 };
+      return { colliders: world.colliders.len(), bodies: world.bodies.len(),
+        areas: Object.fromEntries([...areas].map(([id, colliders]) => [id, colliders.length])),
+        safetyGateCount: areas.get('safety-gates')?.length ?? 0 };
+    },
     cameraCast(origin, target, radius) {
       const delta = { x: target.x - origin.x, y: target.y - origin.y, z: target.z - origin.z };
       const distance = Math.hypot(delta.x, delta.y, delta.z);
@@ -113,6 +152,10 @@ export async function createPhysics(course: CourseSpec): Promise<Physics> {
         new RAPIER.Ball(radius), 0, distance, true, undefined, undefined, collider, body);
       return hit ? Math.max(0, hit.time_of_impact - 0.045) : distance;
     },
-    dispose() { world.removeCharacterController(controller); world.free(); },
+    dispose() {
+      if (disposed) return;
+      disposed = true; areas.clear();
+      world.removeCharacterController(controller); world.free();
+    },
   };
 }

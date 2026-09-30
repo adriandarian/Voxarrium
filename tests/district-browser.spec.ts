@@ -5,7 +5,7 @@ import type { Page } from '@playwright/test';
 const directory = process.env.VOXARRIUM_DISTRICT_CAPTURE_DIR ?? 'artifacts/m4/final';
 mkdirSync(directory, { recursive: true });
 async function ready(page: Page, backend = '') {
-  await page.goto(`/?test=1${backend}`);
+  await page.goto(`/?scene=m4&test=1${backend}`);
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true', { timeout: 60_000 });
 }
 test.beforeEach(async ({ page }) => {

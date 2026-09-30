@@ -4,7 +4,7 @@ import type { CameraMode, GameState, InputFrame, Vec3 } from '../simulation/type
 import type { Physics } from '../physics/physics';
 
 export function createCameraRig(state: GameState, physics: Physics) {
-  const camera = new PerspectiveCamera(60, 1, 0.08, state.sceneId === 'm4-market-district' ? 400 : 220);
+  const camera = new PerspectiveCamera(60, 1, 0.08, /^(m4-market-district|m5-streaming-proof)$/.test(state.sceneId) ? 400 : 220);
   const forward = new Vector3();
   const pivot = new Vector3();
   const desired = new Vector3();
@@ -37,7 +37,14 @@ export function createCameraRig(state: GameState, physics: Physics) {
       if (mode === 'eagle-eye') {
         // Overview stays deterministic and frames the full authored 64 m bounds.
         const fit = Math.max(1, 1.25 / aspect);
-        if (state.sceneId === 'm4-market-district') {
+        if (state.sceneId === 'm5-streaming-proof') {
+          // The debug camera inspects the current residency, not a facade-only
+          // full-city view. Gameplay position still drives streaming ownership.
+          const center = renderPosition.x < 48 ? 0 : renderPosition.x < 146 ? 97 : 182;
+          camera.fov = 42; camera.updateProjectionMatrix();
+          camera.position.set(center - 55, 94 * fit, 105 * fit);
+          camera.lookAt(center, 3, -12);
+        } else if (state.sceneId === 'm4-market-district') {
           camera.fov = 42;
           camera.updateProjectionMatrix();
           const districtFit = Math.max(1, 1.4 / aspect);

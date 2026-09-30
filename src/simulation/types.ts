@@ -1,6 +1,7 @@
 import type { EnvironmentState } from './environment';
 import type { NpcState } from './npcs';
 import type { Interaction } from './interaction';
+import type { NpcResidency } from './npc-residency';
 /** Serializable contracts. Coordinates are meters; player.position is at the feet. */
 export interface Vec3 { x: number; y: number; z: number }
 export type CameraMode = 'third-person' | 'first-person' | 'free' | 'eagle-eye';
@@ -22,6 +23,8 @@ export interface GameState {
   environment: EnvironmentState | null;
   population: NpcState[];
   interaction: Interaction | null;
+  npcResidency?: NpcResidency;
+  persistentInteractables?: Record<string, { visits: number; closed: boolean }>;
 }
 export interface InputFrame {
   forward: number;
