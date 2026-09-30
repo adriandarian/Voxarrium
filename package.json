@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Voxarrium M2: a playable rural reference art slice in Three.js.",
+  "description": "Voxarrium M3: a living rural exploration slice in Three.js.",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -13,7 +13,8 @@
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "test": "node --test tests/bootstrap.test.mjs && playwright test --project=simulation",
-    "test:browser": "playwright test --project=browser --project=rural-browser",
+    "test:browser": "playwright test --project=browser --project=rural-browser --project=living-browser",
+    "capture:m3": "playwright test --project=living-browser --grep evidence",
     "capture": "playwright test --project=rural-browser --grep evidence",
     "capture:m1": "playwright test --project=browser --grep evidence",
     "check": "node tools/check.mjs && npm run typecheck",

@@ -11,7 +11,7 @@ page.on('pageerror', e => errors.push(e.message));
 page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
 try {
   await page.goto('http://127.0.0.1:4173/?test=1');
-  await page.waitForFunction(() => document.documentElement.dataset.ready === 'true');
+  await page.waitForFunction(() => document.documentElement.dataset.ready === 'true', undefined, { timeout: 60_000 });
   const harnessAbsent = await page.evaluate(() => window.__VOXARRIUM__ === undefined);
   assert(harnessAbsent, 'Production must not expose the development harness');
   await page.locator('#start').click();
@@ -32,11 +32,26 @@ try {
   await page.waitForTimeout(400);
   const finalDiagnostics = await page.locator('#diagnostics').innerText();
   assert(finalDiagnostics.includes('m2-rural-96m') && finalDiagnostics.includes('first-person'));
+  await page.waitForFunction(() => !document.getElementById('interact-prompt').hidden, undefined, { timeout: 5000 });
+  await page.keyboard.press('KeyF');
+  await page.waitForFunction(() => !document.getElementById('dialogue').hidden);
+  const dialogue = await page.locator('#dialogue').innerText();
+  assert(dialogue.includes('·') && dialogue.length > 40, 'Actual F should open authored nearby dialogue in production');
+  await page.screenshot({ path: `${directory}/production-interaction.png` });
+  await page.keyboard.press('KeyF');
+  await page.keyboard.press('Escape');
+  await page.locator('#living-settings').evaluate(node => { node.open = true; });
+  await page.locator('#weather-select').selectOption('rain');
+  await page.locator('#time-select').selectOption('dusk');
+  await page.locator('#start').click();
+  await page.waitForTimeout(4500);
+  const rainDiagnostics = await page.locator('#diagnostics').innerText();
+  assert(rainDiagnostics.includes('dusk · rain'));
   assert.deepEqual(errors, []);
   await page.screenshot({ path: `${directory}/production-smoke.png` });
   const report = { measuredAt: new Date().toISOString(), browser: browser.version(), headed: true,
     viewport: { width: 1440, height: 900 }, dpr: 1, harnessAbsent, pointerLocked: true,
-    before, after, traveledMeters, finalDiagnostics, errors };
+    before, after, traveledMeters, finalDiagnostics, dialogue, rainDiagnostics, errors };
   writeFileSync(`${directory}/production-smoke.json`, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } finally { await browser.close(); }

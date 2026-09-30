@@ -12,6 +12,8 @@ import { createRuralEnvironment, LANES } from './rural';
 import { applyLandscapeUV, applyTerrainPigment, createLandscapeMaterials } from './landscape-materials';
 import { PLAYER } from '../simulation/types';
 import type { CourseSpec, GameState } from '../simulation/types';
+import { createEnvironmentPresentation } from './environment';
+import { createNpcPresentation } from './npcs';
 
 // Runtime backends expose these fields in the installed Three.js r186 source;
 // @types/three deliberately omits device/gl internals. Read only for diagnostics.
@@ -127,6 +129,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
 
   let primaryStartupError: string | null = null;
   let rendererInitialized = false;
+  let livingEnvironment: ReturnType<typeof createEnvironmentPresentation> | null = null;
   // Preserve the native fallback, but record the failure that triggered it.
   const primaryBackend = renderer.backend;
   const initializeBackend = primaryBackend.init.bind(primaryBackend);
@@ -160,7 +163,8 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       sun.shadow.camera.top = 65; sun.shadow.camera.bottom = -65;
       sun.shadow.camera.far = 160;
     }
-    scene.add(sun, new HemisphereLight(rural ? 0xf0efe0 : 0xe4f0ff, rural ? 0x797f61 : 0x69745a, rural ? 1.85 : 1.65));
+    const fill = new HemisphereLight(rural ? 0xf0efe0 : 0xe4f0ff, rural ? 0x797f61 : 0x69745a, rural ? 1.85 : 1.65);
+    scene.add(sun, fill);
 
     const boxGeometry = new BoxGeometry(1, 1, 1);
     const materials = new Map<number, MeshStandardMaterial>();
@@ -211,6 +215,9 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
     const fixture = await loadScaleFixture();
     fixture.object.visible = !rural;
     scene.add(fixture.object);
+    const locals = rural && !blockout ? createNpcPresentation() : null;
+    if (locals) scene.add(locals.group);
+    if (rural && !blockout) livingEnvironment = createEnvironmentPresentation(scene, sun, fill);
     const facts = {
       threeRevision: REVISION,
       requestedBackend: forceWebGL ? 'WebGL2 (explicit fallback test)' : 'WebGPU preferred',
@@ -264,11 +271,21 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
         !(state.camera.mode === 'third-person' && cameraPosition.distanceToSquared(avatarEye) < 0.95 ** 2);
       for (const label of labels) label.visible = state.camera.mode === 'eagle-eye' || cameraPosition.distanceToSquared(label.position) < 24 * 24;
     }
-    function render(camera: PerspectiveCamera, state: GameState) {
+    let lastWaterUpdate = -1;
+    function render(camera: PerspectiveCamera, state: GameState, reduced = false) {
       if (disposed) throw new Error('Cannot render after renderer disposal.');
       if (fatalError) throw fatalError;
       sync(state, camera);
-      environment?.update(state.elapsed);
+      if (state.environment) {
+        livingEnvironment?.update(state.environment, state.player.position, reduced);
+        locals?.update(state.population, state.environment.time, state.player.position, reduced);
+      }
+      const waterTime = state.environment?.time ?? state.elapsed;
+      const waterUpdate = reduced ? Math.floor(waterTime * 15) / 15 : waterTime;
+      if (waterUpdate !== lastWaterUpdate) {
+        environment?.update(waterUpdate, state.environment?.wind, state.environment?.rain);
+        lastWaterUpdate = waterUpdate;
+      }
       renderer.info.reset();
       renderer.render(scene, camera);
     }
@@ -313,11 +330,13 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
           viewport: { width: canvas.clientWidth, height: canvas.clientHeight },
           dpr: renderer.getPixelRatio(),
           countScope: 'draw calls and triangles include shadow passes; visibleMeshes counts visible flags, not frustum visibility',
+          living: { environment: livingEnvironment?.stats() ?? null, population: locals?.stats() ?? null },
         };
       },
       dispose() {
         if (disposed) return;
         disposed = true;
+        livingEnvironment?.dispose();
         disposeScene(scene);
         void renderer.dispose().catch(error => {
           facts.errors.push(`Renderer disposal failed: ${String(error)}`);
@@ -326,6 +345,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       },
     };
   } catch (error) {
+    livingEnvironment?.dispose();
     disposeScene(scene);
     const cleanupErrors: string[] = [];
     if (rendererInitialized) {

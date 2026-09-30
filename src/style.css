@@ -34,4 +34,13 @@ output { margin-left: auto; font-size: 11px; }
 #notice { color: #dbcca5; font-size: 11px; line-height: 1.6; margin: 12px 0 0; }
 .fatal { position: fixed; inset: 15%; background: #341e22; color: #fff; border: 1px solid #cf8b79; padding: 35px; font-size: 14px; white-space: pre-wrap; overflow: auto; }
 .fatal[hidden] { display: none; }
+.living-settings { border-top: 1px solid #dde8d021; margin-top: 18px; padding-top: 14px; font-size: 12px; color: #c2ccc4; }
+.living-settings summary { cursor: pointer; }
+.living-settings .settings { border: 0; margin-top: 4px; }
+.interact-prompt { position: fixed; bottom: 130px; left: 50%; transform: translateX(-50%); padding: 10px 17px; background: #14282ded; border: 1px solid #e5d1a266; font-size: 13px; color: #f0dfb7; pointer-events: none; }
+.dialogue { position: fixed; bottom: 115px; left: 50%; transform: translateX(-50%); width: min(450px, 86vw); padding: 20px 24px; background: #14282df5; border: 1px solid #e5d1a266; box-shadow: 0 10px 50px #10242a44; pointer-events: none; }
+.dialogue strong { font-weight: 600; font-size: 14px; color: #e5d1a2; }
+.dialogue p { margin: 9px 0 12px; font-size: 14px; line-height: 1.65; color: #e7ede1; }
+.dialogue span { color: #93a9a3; font-size: 11px; }
+.dialogue[hidden],.interact-prompt[hidden],.living-settings[hidden] { display: none; }
 @media (max-width: 850px) { .identity { left: 16px; top: 18px; }.chapter { display: none; } .backend-badge { right: 14px; top: 14px; } .hud-bottom { left: 16px; bottom: 16px; }.controls { max-width: 400px; line-height: 2.5; } #diagnostics { right: 12px; bottom: 100px; font-size: 9px; min-width: 0; padding: 8px; }.menu-card { padding: 25px; } }

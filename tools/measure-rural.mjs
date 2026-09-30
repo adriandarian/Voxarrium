@@ -3,6 +3,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 
 // Fixed one-minute local benchmark, explicitly invoked; no background monitor.
 const directory = process.env.VOXARRIUM_CAPTURE_DIR ?? 'artifacts/m2/final';
+const weather = process.env.VOXARRIUM_WEATHER ?? 'clear';
+const light = process.env.VOXARRIUM_LIGHT ?? 'day';
+if (!['clear', 'cloudy', 'rain'].includes(weather) || !['day', 'dusk', 'night'].includes(light)) throw new Error('Invalid bounded measurement environment.');
 mkdirSync(directory, { recursive: true });
 const browser = await chromium.launch({ channel: process.env.VOXARRIUM_BROWSER ?? 'chrome', headless: false });
 const context = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
@@ -12,14 +15,15 @@ page.on('pageerror', e => errors.push(e.message));
 page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
 try {
   await page.goto('http://127.0.0.1:5173/?test=1');
-  await page.waitForFunction(() => document.documentElement.dataset.ready === 'true');
+  await page.waitForFunction(() => document.documentElement.dataset.ready === 'true', undefined, { timeout: 60_000 });
   await page.locator('#start').click();
   await page.waitForFunction(() => document.pointerLockElement?.id === 'world');
-  await page.evaluate(() => {
+  await page.evaluate(({ weather, light }) => {
     const h = window.__VOXARRIUM__;
     h.bookmark('bridge'); h.teleport({ x: -2, y: 0.03, z: 29 });
+    h.environment(weather, light, true);
     h.step(30); h.freeze(false);
-  });
+  }, { weather, light });
   await page.waitForTimeout(2500);
   await page.evaluate(() => {
     window.__ruralMeasure = { frames: [], start: performance.now(), last: performance.now(), active: true };
@@ -65,6 +69,7 @@ try {
   });
   await page.screenshot({ path: `${directory}/performance-route-end.png` });
   const report = { measuredAt: new Date().toISOString(), browserVersion: browser.version(), headed: true,
+    environmentPreset: { weather, light },
     scope: '60-second real-time third-person route driven by actual W input and deterministic waypoint steering; rAF wall-clock intervals including automation, not GPU execution. JS heap is not VRAM.',
     route, reachedWaypoint: waypoint, ...measurement, checkpoints: samples, errors };
   writeFileSync(`${directory}/performance-route-60s.json`, JSON.stringify(report,null,2));

@@ -10,6 +10,13 @@ import { createCameraRig } from './cameras/cameras';
 import { createInput } from './input/input';
 import { createGameRenderer } from './render/renderer';
 import { FrameTimings } from './diagnostics/timing';
+import { createEnvironment, setEnvironment, stepEnvironment } from './simulation/environment';
+import type { Weather, TimeOfDay } from './simulation/environment';
+import { createPopulation, stepPopulation, nearestNpc } from './simulation/npcs';
+import { interactionTarget } from './simulation/interaction';
+import { createLivingUi } from './ui/living';
+import { createLivingAudio, DEFAULT_AUDIO } from './audio/audio';
+import type { AudioSettings } from './audio/audio';
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = element<HTMLCanvasElement>('world');
@@ -19,6 +26,9 @@ const startButton = element<HTMLButtonElement>('start');
 const cameraSelect = element<HTMLSelectElement>('camera-select');
 const fov = element<HTMLInputElement>('fov');
 const sensitivity = element<HTMLInputElement>('sensitivity');
+const weatherSelect = element<HTMLSelectElement>('weather-select');
+const timeSelect = element<HTMLSelectElement>('time-select');
+const qualitySelect = element<HTMLSelectElement>('quality-select');
 const params = new URLSearchParams(location.search);
 
 async function boot() {
@@ -31,6 +41,11 @@ async function boot() {
     document.querySelector('.intro')!.textContent = 'Walk the course. Find the door, climb the terrace, cross the bridge. One unit is one meter.';
   }
   const state = createState(course);
+  const livingUi = createLivingUi();
+  const audioSettings = { ...DEFAULT_AUDIO };
+  const audio = createLivingAudio(audioSettings);
+  let reducedMotion = false;
+  element('living-settings').hidden = !rural;
   if (rural && course.bookmarks.spawn) {
     state.camera.yaw = course.bookmarks.spawn.yaw;
     state.camera.pitch = course.bookmarks.spawn.pitch;
@@ -52,14 +67,18 @@ async function boot() {
 
   function setPaused(paused: boolean) {
     state.paused = paused;
+    state.interaction = null;
+    audio.pause(paused);
     menu.hidden = !paused;
     input.clear(); pendingJump = false;
     clock.reset();
     previousPosition = { ...state.player.position };
     if (paused && document.pointerLockElement) document.exitPointerLock();
     lastFrame = performance.now();
+    updateInteractionUi();
   }
   function setMode(mode: CameraMode) {
+    if (mode === 'free' || mode === 'eagle-eye') state.interaction = null;
     rig.setMode(mode);
     cameraSelect.value = mode;
     element('camera-mode').textContent = mode.replace('-', ' ').toUpperCase();
@@ -69,16 +88,30 @@ async function boot() {
   }
   function reset(position?: Vec3) {
     physics.reset(state, position);
+    state.interaction = null; audio.reset();
     previousPosition = { ...state.player.position };
     clock.reset();
     rig.update(0, canvas.clientWidth / canvas.clientHeight);
+  }
+  function interact() {
+    if (!state.environment || state.paused || state.camera.mode === 'free' || state.camera.mode === 'eagle-eye') return;
+    if (state.interaction) state.interaction = null;
+    else {
+      const target = interactionTarget(state.population, state.player.position, state.environment);
+      if (target) { state.interaction = { id: target.id, name: target.name, text: target.text, position: { ...target.position } }; audio.cue(target.position); }
+    }
+    updateInteractionUi();
+  }
+  function updateInteractionUi() {
+    const active = !state.paused && (state.camera.mode === 'first-person' || state.camera.mode === 'third-person');
+    livingUi.update(state.environment ? interactionTarget(state.population, state.player.position, state.environment) : null, state.interaction, active);
   }
   const input = createInput(canvas, {
     onLook(dx, dy) {
       state.camera.yaw += dx * Number(sensitivity.value);
       state.camera.pitch = Math.max(-1.35, Math.min(1.35, state.camera.pitch + dy * Number(sensitivity.value)));
     },
-    onMode: setMode, onPause: setPaused, onReset: () => reset(),
+    onMode: setMode, onPause: setPaused, onReset: () => reset(), onInteract: interact,
     onLookControl(control) {
       element('look-hint').textContent = control === 'drag' ? 'Hold left mouse + drag to look' : 'Mouse to look';
       notice.textContent = control === 'drag'
@@ -92,6 +125,16 @@ async function boot() {
     previousPosition = { ...state.player.position };
     const debugging = state.camera.mode === 'free' || state.camera.mode === 'eagle-eye';
     physics.step(state, debugging ? IDLE_INPUT : frame, FIXED_DT);
+    if (state.environment) {
+      stepEnvironment(state.environment, FIXED_DT);
+      stepPopulation(state.population, FIXED_DT, state.environment, state.player.position, state.interaction?.id);
+      if (state.interaction) {
+        const npc = state.population.find(n => n.id === state.interaction!.id);
+        const source = npc?.position ?? state.interaction.position;
+        if (source && Math.hypot(source.x - state.player.position.x, source.y - state.player.position.y, source.z - state.player.position.z) > 3.3) state.interaction = null;
+      }
+      audio.update(state.environment, state.player.position, state.camera.yaw, state.player.grounded, state.elapsed, nearestNpc(state.population, state.player.position, 7));
+    }
     if (state.camera.mode === 'free') rig.moveFree(frame, FIXED_DT);
   }
   function draw(alpha = 1, delta = 0) {
@@ -102,7 +145,7 @@ async function boot() {
       z: previousPosition.z + (current.z - previousPosition.z) * alpha,
     };
     rig.update(delta, canvas.clientWidth / canvas.clientHeight, position);
-    renderer.render(rig.camera, { ...state, player: { ...state.player, position } });
+    renderer.render(rig.camera, { ...state, player: { ...state.player, position } }, reducedMotion);
   }
   function overlay() {
     const p = state.player.position;
@@ -114,7 +157,9 @@ async function boot() {
       `STATE  ${state.paused ? 'paused' : state.player.grounded ? 'grounded' : 'airborne'} · tick ${state.tick}`,
       `FRAME  ${report.fps.toFixed(1)} FPS · ${report.medianFrameMs.toFixed(2)} ms median`,
       `P95    ${report.p95FrameMs.toFixed(2)} ms · ${renderer.facts.backend}`,
+      ...(state.environment ? [`WORLD  ${state.environment.timeOfDay} · ${state.environment.weather} · ${state.population.length} locals`] : []),
     ].join('\n');
+    updateInteractionUi();
   }
   function frame(now: number) {
     if (disposed) return;
@@ -145,6 +190,7 @@ async function boot() {
   const onStart = async () => {
     startButton.disabled = true;
     notice.textContent = 'Starting controls…';
+    const audioStarted = rural ? audio.start() : Promise.resolve(true);
     try {
       if (!await input.start()) {
         if (!disposed) notice.textContent = 'Game paused. Click to resume when the game is focused.';
@@ -153,6 +199,7 @@ async function boot() {
       manual = false;
       timings.reset();
       setPaused(false);
+      if (!await audioStarted) notice.textContent = 'World ready. Audio is unavailable in this browser session.';
       startButton.textContent = rural ? 'Return to the garden' : 'Return to the course';
     } catch (error) {
       setPaused(true);
@@ -160,7 +207,21 @@ async function boot() {
       console.error('Voxarrium input startup failure', error);
     } finally { if (!disposed) startButton.disabled = false; }
   };
+  const onEnvironment = () => {
+    if (state.environment) setEnvironment(state.environment, weatherSelect.value as Weather, timeSelect.value as TimeOfDay);
+    state.interaction = null; overlay();
+  };
+  const onQuality = () => { reducedMotion = qualitySelect.value === 'reduced'; draw(); };
+  const volumeInputs = (Object.keys(DEFAULT_AUDIO) as (keyof AudioSettings)[]).map(category => {
+    const control = element<HTMLInputElement>(`volume-${category}`);
+    const listener = () => { audioSettings[category] = Number(control.value); audio.volumes(); };
+    control.addEventListener('input', listener);
+    return { control, listener };
+  });
   startButton.addEventListener('click', onStart);
+  weatherSelect.addEventListener('change', onEnvironment);
+  timeSelect.addEventListener('change', onEnvironment);
+  qualitySelect.addEventListener('change', onQuality);
   cameraSelect.addEventListener('change', onModeSelect);
   fov.addEventListener('input', onFov);
   window.addEventListener('resize', onResize);
@@ -172,18 +233,24 @@ async function boot() {
     cancelAnimationFrame(frameId);
     if (document.pointerLockElement === canvas) document.exitPointerLock();
     startButton.removeEventListener('click', onStart);
+    weatherSelect.removeEventListener('change', onEnvironment);
+    timeSelect.removeEventListener('change', onEnvironment);
+    qualitySelect.removeEventListener('change', onQuality);
+    volumeInputs.forEach(({ control, listener }) => control.removeEventListener('input', listener));
     cameraSelect.removeEventListener('change', onModeSelect);
     fov.removeEventListener('input', onFov);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('blur', onBlur);
     document.removeEventListener('visibilitychange', onVisibility);
-    input.dispose(); rig.dispose(); physics.dispose(); renderer.dispose();
+    audio.dispose(); input.dispose(); rig.dispose(); physics.dispose(); renderer.dispose();
     delete window.__VOXARRIUM__;
   }
 
   // Settle the capsule before readiness. Physics, fixture and shaders are all real.
   for (let i = 0; i < 30; i++) tick(IDLE_INPUT);
   state.tick = 0; state.elapsed = 0;
+  if (state.environment) state.environment = createEnvironment();
+  state.population = rural ? createPopulation() : [];
   previousPosition = { ...state.player.position };
   rig.update(0, canvas.clientWidth / canvas.clientHeight);
   try { await renderer.warmup(rig.camera, state); }
@@ -201,12 +268,22 @@ async function boot() {
     snapshot: () => ({
       state: structuredClone(state), facts: structuredClone(renderer.facts),
       render: renderer.stats(), timing: timings.snapshot(),
+      audio: audio.snapshot(), settings: { reducedMotion, audio: { ...audioSettings } },
       camera: { position: rig.camera.position.toArray(), quaternion: rig.camera.quaternion.toArray(), fov: rig.camera.fov, aspect: rig.camera.aspect },
       bookmarks: structuredClone(course.bookmarks),
       pointerLocked: document.pointerLockElement === canvas,
     }),
     freeze(value = true) { manual = value; clock.reset(); previousPosition = { ...state.player.position }; },
     pause: setPaused,
+    environment(weather: Weather, timeOfDay: TimeOfDay, immediate = false) {
+      if (!state.environment) throw new Error('Living environment is unavailable in M1.');
+      setEnvironment(state.environment, weather, timeOfDay, immediate);
+      weatherSelect.value = weather; timeSelect.value = timeOfDay;
+      draw(); overlay();
+    },
+    interact,
+    recordAudio: (seconds: number) => audio.record(seconds),
+    resetPopulation() { state.population = rural ? createPopulation() : []; state.interaction = null; draw(); overlay(); },
     mode: setMode,
     look(yaw: number, pitch: number) { state.camera.yaw = yaw; state.camera.pitch = pitch; draw(1, 0); overlay(); },
     teleport(position: Vec3) { reset(position); draw(); overlay(); },
@@ -218,6 +295,8 @@ async function boot() {
       setMode(mode);
       for (let i = 0; i < 30; i++) tick(IDLE_INPUT);
       state.tick = 0; state.elapsed = 0; state.resets = 0;
+      if (state.environment) state.environment.time = 0;
+      state.population = rural ? createPopulation() : []; state.interaction = null; audio.reset();
       previousPosition = { ...state.player.position };
       draw(1, 0); overlay();
     },

@@ -2,6 +2,11 @@
 
 Reviewed 2026-09-28. Validate installed versions locally. These are upstream capability references, not evidence that Voxarrium has implemented them.
 
+## M3 sources checked 2026-09-29
+
+- [Three.js Shading Language](https://github.com/mrdoob/three.js/wiki/Three.js-Shading-Language): node position expressions and uniforms. Installed r186 `NodeMaterial.setupPosition` and instance transforms were inspected to keep height-anchored wind compatible with WebGPU and WebGL2. Real execution is covered separately by browser evidence.
+- [MDN Web Audio spatialization](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Web_audio_spatialization_basics) and [AudioListener](https://developer.mozilla.org/en-US/docs/Web/API/AudioListener): gesture-started context, spatial sources and listener position/orientation. Local browser tests verify activation, signal, controls and muting; they do not establish physical speaker listening quality.
+
 - Codex AGENTS.md: https://developers.openai.com/codex/guides/agents-md/
 - Codex configuration reference: https://developers.openai.com/codex/config-reference/
 - Codex subagents: https://developers.openai.com/codex/subagents/

@@ -10,6 +10,7 @@ const course = createCourse();
 function initialState(): GameState {
   return {
     sceneId: course.id, seed: course.seed, tick: 0, elapsed: 0, paused: false, resets: 0,
+    environment: null, population: [], interaction: null,
     player: { position: { ...course.spawn }, velocity: { x: 0, y: 0, z: 0 }, grounded: false, heading: 0 },
     camera: { mode: 'third-person', yaw: 0, pitch: -0.16, debugPosition: { x: 0, y: 8, z: 15 } },
   };

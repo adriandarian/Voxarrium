@@ -2,101 +2,88 @@
 
 ## Current milestone
 
-**M2.1 art-polish implementation and local evidence are ready for human art review. Artistic acceptance remains pending. Stop here; M3 and city expansion have not started.** Work performed on 2026-09-29, America/Los_Angeles; artifact timestamps use 2026-09-30 UTC. The owner's objective is retained in `docs/prompts/02-1-art-polish.md`.
+**M3 implementation and local evidence are complete and ready for human review. Stop at this M3 gate; do not begin M4 or expand the city.** Work performed 2026-09-29, America/Los_Angeles; artifact timestamps use 2026-09-30 UTC. The owner's exact objective is retained in `docs/prompts/03-living-slice-objective.md`.
 
-The initial checkout was clean on `milestone/m2-reference-art-slice`, HEAD `8f051db`. The objective explicitly accepts the preceding M2 technical implementation. Changes remain local and uncommitted on that branch; no remote CI, push, deployment, paid service, image generation or Blender re-export was performed. The previous M2 status remains in Git history and its reviews remain in `docs/reference/REVIEWS.md`.
+Preflight: clean working tree on `milestone/m3-living-slice`, HEAD `bbbecaf136e9ba529e86fba99bc434bdda97bb46`. GitHub confirms M2 PR #9 merged at 2026-09-30 03:04:07 UTC. The owner's M3 objective calls the rural slice approved and authorizes using it as the fixed world. This supersedes the old STATUS/review header's pending M2 art gate for M3 scope; no separate earlier owner review is invented. Historical review entries remain intact.
 
-Two bounded native children owned disjoint files: vegetation/ecology (`src/render/rural-ecology.ts`) and paths/cliffs/stairs/banks (`src/render/rural.ts`). The parent owned shared contracts, materials, renderer integration, tests, reference comparison and documentation. No recursive delegation or dependency changes.
+Changes remain local and uncommitted on the M3 branch. No push, new PR, merge, hosted CI, deployment, paid service, image generation, Blender re-export, dependency version change or global configuration change occurred. Two bounded native children owned disjoint environment and NPC modules/tests; the parent owned shared contracts, integration, audio/UI, verification and this status. No recursive delegation.
 
-## What changed
+## Implemented behavior
 
-- Six tree families: oak, hornbeam, orchard, alder, swept ash and irregular pine shelves, with two baked variants per family. Branching, crown topology, proportions, asymmetry and pigment differ. All 24 original tree positions and scales remain; the central trunk matches the original collider. Shrubs include spreading, wiry and upright forms.
-- Authored woodland, meadow, dry-ground, ledge and bank communities combine bowed grass, fern, rosettes, clover, flowers, earth/duff/moss, roots, twigs and stones. Medium shrubs connect plant heights around trunks, cliff bases and terrace corners. Crop-approach patches replace more of the uninterrupted upper lawn. Paths and structure approaches stay clear; wheat/garden rows remain deliberate.
-- Paths vary their width and boundary at low frequency, with broad wear/soil bands, local encroachment and embedded pebbles. Terrace faces retain useful large outcrops and add secondary fractures, soil contacts, discontinuous lips, crevice plants and lower scree. Macro terrain pigment responds to paths, trees, structures and terrace/bank edges.
-- Both stairs display 132 uneven beveled stone slabs over the 44 original collision treads, with restrained seam growth and side shoulders. The reliable invisible step geometry remains authoritative.
-- Riverbanks use sloping earth-to-shallow gradients, localized deposition, reed/plant/stone groups and bridge footings. Existing cheap animated water and moving highlights remain. The 14 m bridge span and comfortable crossing were preserved after visual review.
-- Existing cottage/shed/bridge GLBs receive plaster washes, lengthwise wood grain, clay pigment, stone variation and ground-contact colors. Original position/index data, dimensions, files and collision proxies remain unchanged. The last lighting pass adds slightly warmer neutral fill and modest sunlight adjustment. No fog, bloom or depth of field conceals geometry.
+- One serializable fixed-step environment state supports clear/cloudy/rain and day/dusk/night. Bounded four-second transitions drive directional sun/moon-like light, ambient fill/sky, wind, cloud coverage, rain and gradual wetting/drying. Time presets are authored representative states, not a full astronomical clock. Clear/day lighting matches M2.
+- TSL height-anchored tree/plant/grass/wheat motion retains source geometry, maps and instance transforms. Existing water waves/highlights respond to wind/rain. A small distant cloud batch and roof-clipped rain add visible weather without fog, heavy volumetrics or post-processing. The existing garden lantern lights in low fill.
+- Six stable locals (Mara, Tomas, Iona, Bram, Elin and Orrin) have local authored dialogue, different appearances, deterministic day/dusk walk/idle routes, night rest and rain shelter under existing cottage eaves. Every route/shelter segment clears actual rural Rapier collision at sampled human capsule size. Locals remain on the cottage terrace and are nonblocking, without dynamic colliders or crowd avoidance.
+- F opens/closes nearby local dialogue or text about two existing landmarks. The addressed NPC stops and turns toward the player; walking away, pausing or entering a debug view clears the interaction. Both gameplay views share the same player and interaction state.
+- Web Audio starts only from Explore/Resume's click. Locally synthesized wind/river/rain, spatial surface footsteps and quiet local/interaction tones require no files or service. Master, ambience, footsteps and local-cue controls work; pause/blur and master mute silence output. Three loops plus at most five transient voices are bounded and explicitly disposed. No recorded speech is included.
+- Reduced motion uses one wind harmonic, 24 cloud lobes instead of 48, up to 216 rain drops instead of 720, 15 Hz water, 8 Hz near NPC poses and 4 Hz distant poses. Full nearby poses update at render cadence. No new geometry detail is hidden by this setting.
 
-Simulation, physics, controller, camera transforms, input behavior, renderer backend/fallback, capture bookmarks, terrace composition and hero placement remain unchanged. The in-app mouse-capture rejection fallback remains covered by the full browser suite. No current manual in-app verification is claimed for this art pass; the preceding compatibility report is in Git history at the starting commit.
+The accepted 96 × 96 m composition, cottage/shed/bridge GLBs, all 24 tree placements, terrain/path/stair/bank layouts, collision proxies, player/controller and camera transforms remain M2. The three canonical day comparison conditions match scene/seed/player feet/camera/FOV/aspect/viewport/DPR exactly. The original four reference hashes and shipped GLB checksums remain unchanged. M1 graybox and blockout views remain selectable.
 
-## Review evidence and remaining differences
-
-Open **http://127.0.0.1:5173/artifacts/m2-1/review.html** while the dev server runs. It presents the original LEFT rural target beside fresh M2 baseline and final M2.1 captures, with twelve selectable views. `artifacts/m2-1/comparison-conditions.json` confirms identical seed, player pose, camera, viewport and DPR for all twelve recorded comparisons.
-
-Actual captures were inspected from eagle-eye, third person and first person, including cottage front/rear/east/west, garden, river/bridge, stairs and both crop-route endpoints. Timed water captures show moving highlights. The parent rejected sparse dagger crowns, spiky dark grass, striped banks, double-darkened stone and repeated moss pads during successive iterations; retained evidence records those corrections.
-
-Compared with the fresh baseline, crown repetition is less conspicuous, populated terraces have more varied plant heights and contextual detail, paths have worn irregular margins, stairs read as individual stone slabs, banks support plant/stone groups, and cottage surfaces retain visible grain and restrained pigment variation at first-person distance. The target composition remains intact. This is a qualitative observation, not a similarity percentage or owner approval.
-
-Three largest remaining visual differences:
-
-1. Small grass and leaf units remain angular at close range; some shrubs still form compact rounded masses. Outer terrace clearings remain quieter than the target's painterly density.
-2. Large cliff outcrops still dominate some player-scale views. Some backing gaps, thin straight soil lips and shallow-bank corners reveal the authored polygonal construction.
-3. Pale path centers and the turquoise river retain broader, calmer negative space than the illustration. Bridge/river proportions remain an authored human-scale interpretation; the existing span was preserved for comfortable navigation.
-
-`docs/reference/REVIEWS.md` records before/after observations, rejected passes and the review decision. The human gate has no recorded owner artistic acceptance. No expansion is authorized by this report.
-
-## Checks actually run on the final source
+## Checks actually run
 
 | Command / check | Result | Scope / evidence |
 | --- | --- | --- |
-| `npm test` | PASS | 9 Node + 27 simulation/asset/clock tests; actual Rapier stepping and GLTFLoader imports. `artifacts/m2-1/simulation-suite.json`. |
+| `npm test` | PASS | 9 Node + 45 non-browser simulation/assets/clock tests; real Rapier and GLTFLoader, deterministic environment/NPC continuation, interaction, source ownership and reduced rain. `artifacts/m3/simulation-suite.json`. |
 | `npm run check` | PASS | Repository contracts, vendored GLB checksums, tool syntax and strict TypeScript. |
-| `npm run build` | PASS | Vite production bundle. Main JS 5,280.46 kB minified / 1,938.83 kB gzip; existing chunk-size advisory remains. |
-| `$env:VOXARRIUM_HEADED='1'; $env:VOXARRIUM_CAPTURE_DIR='artifacts/m2-1/final'; npm run test:browser` | PASS | Complete 18/18 installed-Chrome tests; zero skipped/flaky/unexpected. Preserved M1 input/camera/backend tests plus rural captures/routes. `artifacts/m2-1/browser-suite.json`. |
-| `$env:VOXARRIUM_CAPTURE_DIR='artifacts/m2-1/final'; node tools/measure-rural.mjs` | PASS | Two bounded 60-second headed 1080p routes; actual W input/waypoint steering; zero errors, unexpected recovery or pause. Long-frame tails reported below. |
-| `$env:VOXARRIUM_CAPTURE_DIR='artifacts/m2-1/final'; node tools/smoke-rural-production.mjs` | PASS | Built preview on 4173: actual W movement 3.125 m, mouse capture, V switch to first person, zero errors, development harness absent even with `?test=1`. |
-| `npm run references:verify` | PASS | All four original PNG bytes/dimensions/SHA-256 hashes unchanged. |
-| `npm run doctor` | PASS | Node 22.16.0, Git 2.39.2, Blender 5.2.1 LTS and reference diagnostics. Doctor does not validate GPU/gameplay. |
-| `git diff --check` | PASS | Final local whitespace audit. No hosted checks claimed. |
+| `npm run build` | PASS | Production Vite bundle, 5,414.49 kB minified / 1,979.26 kB gzip main JS. Existing large-chunk advisory remains. |
+| `$env:VOXARRIUM_HEADED='1'; $env:VOXARRIUM_CAPTURE_DIR='artifacts/m3/final'; npm run test:browser` | PASS | Full 24/24 installed-Chrome tests, zero skips/flaky/unexpected. Existing input/camera/fallback/failure/rural routes plus new weather, interaction, audio and WebGL2. `artifacts/m3/browser-suite.json`. |
+| `npx playwright test --project=living-browser --grep 'recovery preserves' --reporter=list` with headed/final env | PASS | Subsequent test-only lifecycle addition, 1/1. Real R preserves world identities/weather; idempotent disposal releases audio sources, renderer ownership and harness. `final/lifecycle-verification.json`. Current full suite has 25 tests; the 24 + 1 were separate runs. |
+| `$env:VOXARRIUM_CAPTURE_DIR='artifacts/m3/final'; node tools/measure-rural.mjs` | PASS | Bounded 60-second headed 1080p clear/day actual-W traversal, zero errors/recovery/pause. |
+| `$env:VOXARRIUM_CAPTURE_DIR='artifacts/m3/rain'; $env:VOXARRIUM_WEATHER='rain'; node tools/measure-rural.mjs` | PASS | Separate bounded 60-second rain/day traversal, zero errors/recovery/pause. |
+| `$env:VOXARRIUM_CAPTURE_DIR='artifacts/m3/final'; node tools/smoke-rural-production.mjs` | PASS | Built preview on 4173; actual W moves 3.125 m, mouse capture, V first person, F Orrin dialogue, rain/dusk menu controls, no development harness even with `?test=1`, zero errors. |
+| `npm run references:verify` | PASS | Original bytes/dimensions/SHA-256 for all four PNGs. |
+| `npm run doctor` | PASS | Node 22.16.0, Git 2.39.2, Blender 5.2.1 LTS and references. Doctor does not prove GPU/gameplay. |
+| Canonical pose comparison / `git diff --check` | PASS | Exact recorded conditions match 3/3; local whitespace audit. |
 
-One repeated browser run failed before input assertions: the mouse-capture rejection case exhausted its default five-second readiness wait while the page still showed "Starting renderer". The test now uses the existing 60-second rural renderer readiness budget. All movement/drag/pause assertions remain; no retries/skips were added. The complete suite was rerun and passed 18/18. Earlier failure report/trace: `artifacts/m2-1/browser-suite-startup-timeout.json` and `artifacts/m2-1/startup-timeout/`.
+The first simulation run failed an NPC interaction fixture placed at the last millimeters of a segment: the correct next tick reached its node and idled. The test now selects a genuinely mid-segment local. A separate continuity test spent excessive time on 144,000 individual assertions; that old worker was stopped after diagnosis, and equivalent maximum-step/elevation assertions aggregate the same 12,000 frames. Final combined tests pass all 54. No retries/skips or weakened path/collision assertions were introduced.
 
-Rural route tests use one setup pose and then continuously cross the bridge, climb the main stairs, walk the cottage front/east/rear and ascend the crop terrace in both gameplay cameras. They do not teleport between obstacles. Simulation also verifies stair descent, the cottage closed-door threshold and all collision elevations. Explicit rural WebGL2 crossing and preserved M1 automatic fallback/startup-failure tests pass separately. Intentional injected failures are not errors in normal rural evidence. No traversal video or OS sleep/wake soak was recorded.
+Before integration, fresh M2 `npm run capture` and its 60-second route also passed under `artifacts/m3/baseline/`. A localhost dev server was already running; an attempted second server reported port 5173 in use, so the existing verified Voxarrium server was reused. No repeated startup/export loop was used.
 
-## Renderer and measured local performance
+## Actual renderer and performance
 
-Headed Chrome **154.0.8037.57**, Windows, initialized **WebGPU**, actual adapter **AMD / RDNA2** (precise device/model fields blank). Separate live Windows inventory reports **AMD Radeon RX 6950 XT**, driver **32.0.21045.5002**, status OK. Explicit WebGL2 is separately captured and tested.
+Headed Chrome **154.0.8037.57**, Windows, initialized **WebGPU**, actual adapter **AMD / RDNA2** (precise device fields blank). Separate live Windows inventory: **AMD Radeon RX 6950 XT**, driver **32.0.21045.5002**, status OK. Explicit WebGL2 wind/rain/NPC rendering and river crossing pass separately; preserved M1 capability-masked automatic fallback and visible startup failure also pass. Edge/lower-end devices were not tested.
 
-| Idle spawn measurement | Fresh M2 baseline | Final M2.1 |
+| Matched idle third-person spawn | Fresh M2 | Final M3 clear/day |
 | --- | --- | --- |
 | Viewport / DPR | 1440 × 900 / 1 | 1440 × 900 / 1 |
-| Warmed frame samples | 501 | 502 |
-| Mean / approximate FPS | 6.934 ms / 144.21 | 6.935 ms / 144.20 |
-| Median / p95 / maximum | 6.90 / 7.00 / 7.10 ms | 6.90 / 7.10 / 7.20 ms |
-| Submitted draws / triangles | 231 / 7,086,105 | 204 / 7,429,807 |
-| Geometries / textures / visible materials | 95 / 11 / 61 | 124 / 19 / 60 |
-| Visible-flag meshes / top-level objects | 140 / 63 | 126 / 19 |
-| Instanced batches / total instances | 20 / 17,781 | 48 / 29,179 |
+| Samples | 501 | 503 |
+| Mean / approximate FPS | 5.272 ms / 189.67 | 7.028 ms / 142.29 |
+| Median / p95 / maximum | 5.80 / 7.60 / 9.30 ms | 6.90 / 7.10 / 20.50 ms |
+| Submitted draws / triangles | 204 / 7,429,807 | 255 / 7,454,199 |
+| Geometries / textures / visible materials | 124 / 19 / 60 | 156 / 19 / 65 |
+| Visible-flag meshes / top-level objects | 126 / 19 | 157 / 21 |
+| Instance batches / instances | 48 / 29,179 | 49 / 29,227 |
 
-Tree geometry uses fewer triangles than the original library, but added ecological detail means **total submitted scene triangles increase**. There is no overall triangle-reduction claim. `ecology-geometry.json` was an intermediate tree audit; use final live reports for final instance/resource counts.
+M3 adds 30 NPC meshes with 12,084 unique triangles, a cloud batch and rain buffer. Wind adapts 27 batches / 26,269 existing instances. There is no overall draw/triangle-reduction claim.
 
-| 1920 × 1080 / DPR 1 traversal | First final run | Bounded repeat, review activity paused |
-| --- | --- | --- |
-| Samples / duration | 8,646 / 60.043 s | 8,498 / 60.094 s |
-| Mean / approximate FPS | 6.944 ms / 144.01 | 7.071 ms / 141.42 |
-| Median / p95 / p99 | 6.90 / 7.10 / 13.90 ms | 6.90 / 7.10 / 14.00 ms |
-| Maximum / frames >33.3 ms | 91.60 ms / 10 | 89.70 ms / 17 |
-| Waypoints reached | 14 | 14 |
-| JS heap used / allocated | 124,941,565 / 191,729,773 bytes | 137,729,265 / 183,865,453 bytes |
-| Route-end draws / triangles | 193 / 6,765,521 | 189 / 6,760,941 |
+| 1920 × 1080 / DPR 1 actual-input route | Fresh M2 | M3 clear/day | M3 rain/day |
+| --- | --- | --- | --- |
+| Samples / duration | 10,678 / 60.129 s | 9,050 / 60.019 s | 10,692 / 60.054 s |
+| Mean / approximate FPS | 5.630 ms / 177.61 | 6.631 ms / 150.81 | 5.616 ms / 178.07 |
+| Median / p95 / p99 | 6.60 / 8.10 / 12.00 ms | 6.90 / 7.10 / 8.30 ms | 6.70 / 8.10 / 10.80 ms |
+| Maximum / frames >33.3 ms | 111.20 ms / 9 | 80.00 ms / 3 | 79.80 ms / 8 |
+| Waypoints reached | 14 | 14 | 14 |
+| JS heap used / allocated bytes | 132,902,373 / 194,089,785 | 119,402,791 / 189,507,655 | 122,521,724 / 183,763,316 |
+| Route-end draws / triangles | 208 / 6,770,225 | 233 / 6,784,565 | 240 / 6,784,501 |
 
-Occasional long frames recur; their cause was not established. Both actual reports are retained: `final/performance-route-60s-run1.json` and `final/performance-route-60s.json`. The provisional local 1080p p95 ≤16.7 ms target passes, but this is not a claim of stall-free performance. An earlier M2.1 iteration run recorded no frames above 33.3 ms; it is retained in `iteration-03/` and does not override the final results.
+Clear route mean is 1.001 ms higher than the fresh M2 run; the rain run has a different cadence and a lower mean. **rAF scheduling varied across runs, so these are measured observations, not an isolated causal weather/NPC cost or speedup.** Both M3 p95 results pass the provisional ≤16.7 ms local target. Occasional long frames persist; their cause was not established. No stall-free guarantee.
 
-Each minute-long walk reaches the crop terrace and returns to the cottage east side, without completing the whole return to the far bank. There is one intentional starting teleport and no recovery reset/pause. Complete outward traversal is separately covered by route tests.
+Each route starts with one intentional setup teleport, continuously crosses the bridge, climbs stairs, circles the cottage, reaches the crop terrace and returns as far as cottage east (waypoint 14). It does not finish the whole return within one minute. Full outward traversal in both gameplay cameras is separately tested. Frame numbers are requestAnimationFrame wall-clock intervals including local automation, not GPU execution time/uncapped throughput. Draw/triangle counts include shadows; visible meshes are visibility flags, not frustum counts; JS heap is not VRAM. No city-scale, streaming/resource soak, OS sleep/wake or hosted CI claim.
 
-All frame numbers are **requestAnimationFrame wall-clock intervals**, including local automation, not GPU execution time, VRAM or an uncapped throughput guarantee. Shadow passes are included in draw/triangle counts; visible-flag meshes are not frustum counts. No lower-end GPU, city-scale performance, stream-boundary resource soak or hosted CI is claimed.
+## Visual and audio evidence
 
-## Play and inspect locally
+Review viewer: **http://127.0.0.1:5173/artifacts/m3/review.html** while the dev server runs. It shows fresh M2 beside M3 day/cloudy/dusk/night/rain/interaction/motion views. `artifacts/m3/comparison-conditions.json` proves the three canonical day pose matches; other pairs label context-only differences.
 
-```powershell
-npm ci
-node node_modules/vite/bin/vite.js --host 127.0.0.1
-```
+Actually inspected: original city master/LEFT rural target, fresh M2 eagle-eye, M3 eagle-eye day/dusk/rain, third-person day/dusk/night/rain, first-person day/night/rain, WebGL2 rain, NPC front-facing interaction, and identical-camera motion pair. Both continuous routes pass. The first night doorway capture was too dark; final fill and the existing lantern improve readability. Captures show the cottage/bridge/terrain/vegetation language intact. The player remains the diagnostic capsule. `docs/reference/REVIEWS.md` records three remaining visual/behavior limitations and the review decision.
 
-Open http://127.0.0.1:5173/ and select **Explore the garden**. WASD moves, mouse looks (left-button drag if capture is unavailable), Shift runs, Space jumps, V switches gameplay cameras, R resets and Esc pauses. Keys 1–4 select third person, first person, free/debug and eagle-eye. Eagle-eye remains an art/debug camera. Pause settings expose FOV and sensitivity. `/?backend=webgl`, `/?scene=m1` and `/?stage=blockout` retain their existing meanings.
+`final/audio-verification.json`: audio status is awaiting gesture before click, running afterward, output RMS 0.00515 initially / 0.03820 in rain; pause/master mute RMS 0. Four wood footsteps and bounded voice/listener facts are recorded. `final/rain-river-audio.webm` is a three-second, 48,596-byte **internal live browser audio-graph recording**. It uses no microphone and is not physical speaker/headphone listening evidence. Subjective sound quality remains for owner review.
 
-For production: `npm run build`, then `node node_modules/vite/bin/vite.js preview --host 127.0.0.1` (port 4173). Direct Vite invocation was used because npm argument forwarding incorrectly supplied the host as a root path in this PowerShell session; the failed service invocation was diagnosed and replaced before evidence collection.
+## Limits and review gate
 
-Evidence is ignored local content under `artifacts/m2-1/`: `before/`, `iteration-01/`, `iteration-02/`, `iteration-03/`, `final/`, `comparison-conditions.json`, reports and `review.html`. Final includes clean eagle-eye, both gameplay views, cottage sides/rear, garden, bridge, riverbank, stairs, both crop-route endpoints, timed water pair, explicit WebGL2, benchmark endpoint and production smoke. Exact poses/diagnostics: `final/capture-states.json`. Original reference PNGs remain under docs, outside shipped public assets.
+No known technical blocker remains in the tested local slice. Human acceptance of M3 feel, simplified characters, weather and subjective audio is pending. Locals can pass through each other; they have no crowd avoidance/dynamic collision. Weather uses simple local streaks and conservative roof envelopes, not precise sloped-roof precipitation. Footstep categories use authored region approximations. No recorded voices, interiors/openable doors, quests/economy/combat, multiplayer, city expansion or persistent save/settings UI was added. State serialization and deterministic mid-transition/mid-route continuation are tested; reload intentionally returns to clear/day defaults.
 
-**Next action: human art review of the comparison and playable slice. Stop at this gate.**
+Play at **http://127.0.0.1:5173/**. Explore activates sound; WASD/mouse, Shift, Space, V, F, R and Esc work. Open **Weather, light & sound** in the paused menu for presets, reduced motion and volumes. Keys 1–4 retain gameplay/debug camera selection; eagle-eye remains review/debug. Production preview is **http://127.0.0.1:4173/** while its local server runs.
+
+All evidence is ignored local content under `artifacts/m3/`, outside shipped public assets. References remain under docs. Exact poses, reports, screenshots and audio are factual artifacts, not reconstructed/generated media or numerical visual quality scores.
+
+**Next action: owner review of M3's playable slice, captures and sound. Stop here; M4 is not authorized by this completion report.**

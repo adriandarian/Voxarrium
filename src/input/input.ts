@@ -5,6 +5,7 @@ export interface InputCallbacks {
   onMode(mode: CameraMode): void;
   onPause(paused: boolean): void;
   onReset(): void;
+  onInteract?(): void;
   onLookControl(control: 'captured' | 'drag'): void;
   isPaused(): boolean;
   getMode(): CameraMode;
@@ -89,6 +90,7 @@ export function createInput(canvas: HTMLCanvasElement, callbacks: InputCallbacks
     }
     if (event.code === 'KeyR') { clear(); callbacks.onReset(); return; }
     if (callbacks.isPaused()) return;
+    if (event.code === 'KeyF') { event.preventDefault(); callbacks.onInteract?.(); return; }
     keys.add(event.code);
     if (event.code === 'Space') jumpPending = true;
   }, options);
