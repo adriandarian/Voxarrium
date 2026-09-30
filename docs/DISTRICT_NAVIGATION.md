@@ -1,0 +1,15 @@
+# M4 district navigation
+
+`src/simulation/district-layout.ts` is the shared authored layout. `createDistrictCourse()` in `src/simulation/district.ts` appends collision to fresh, unchanged rural boxes and triangle surfaces. M4 starts at the primary street; the original rural spawn remains the `ruralSpawn` bookmark, and `createRuralCourse()` is unchanged.
+
+The bounded addition occupies x=48..146 m. The city is y=4 m, z=-48..1; the low quay is y=0 m, z=1..12; the south bank is y=0 m, z=26..48. The civic apron is y=5.2 m, x=121..139, z=-46..-32.4. Ground dimensions and unseen entrance/street relationships are authored assumptions rather than recovered measurements from the reference.
+
+Two 24-riser stone stairs descend from the city to the quay. Eight real 15 cm risers climb toward negative Z to the civic apron. Both canal bridges have separate decks and rails. Bank parapets leave each deck's full width plus 40 cm clear at both entries. Architecture, thresholds, bridge and parapet cuboids are collision proxies; visible architecture belongs to the GLB/presentation layer. Ground surfaces and stair blocks remain visible in structural views. There are no hidden stair ramps.
+
+All 27 building bodies retain the shared footprint, yaw and floor height. Their 18 cm external thresholds climb to solid closed doors. `DISTRICT_ENTRANCES` records stable closed future hooks one meter beyond the front wall, with player-capsule clearance on the base ground. It does not open a door or create an interior.
+
+The reproducible circuit is `DISTRICT_ROUTE`: rural edge, market street/plaza, upper lane, narrow weavers passage and rear facades, binders alley, guild stairs/threshold, east stairs/bridge, south quay, market bridge, north quay, market stairs and rural return. The civic waypoint reaches the raised threshold, so its actual feet are about 18 cm above the nominal apron elevation. The full route is walked continuously in both directions with normal walking input, no jumps, and one initial setup placement.
+
+Run `npx playwright test --project=simulation tests/district.spec.ts --reporter=list`. Seven tests verify deterministic serialization, preserved rural collision, grounded review bookmarks, sampled full street widths with the actual 1.75 m × 0.30 m player capsule, follow-camera sphere collision in both travel directions, continuous street-to-door approaches for all buildings, the full two-way circuit, and sideways rail/parapet containment. JSON test attachments retain street sample counts and actual reached route positions.
+
+Rapier's 15 mm controller skin does not produce an exact 15 mm offset on every large triangle. Tests require grounded support, positive separation of less than 25 mm, and actual capsule intersection clearance at circuit endpoints and doors. Camera checks use the existing camera rig and real sphere casts against the same proxies. These simulation checks do not establish GLB visual clearance, browser input behavior, rendered fidelity or frame performance; those require the parent's browser and three-view review evidence.

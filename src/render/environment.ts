@@ -1,15 +1,16 @@
 import {
   Box3, BufferGeometry, Color, DynamicDrawUsage, Float32BufferAttribute, Group,
   InstancedMesh, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial,
-  MeshStandardMaterial, Object3D, SphereGeometry, PointLight,
+  MeshStandardMaterial, Object3D, SphereGeometry, PointLight, Vector3,
 } from 'three';
 import type { DirectionalLight, HemisphereLight, Material, Scene } from 'three';
 import { MeshStandardNodeMaterial } from 'three/webgpu';
 import { Fn, If, instanceIndex, positionGeometry, positionLocal, sin, smoothstep, uniform, vec3 } from 'three/tsl';
 import { RURAL } from '../simulation/rural-layout';
+import { DISTRICT_LAMPS } from '../simulation/district-art';
 import { createRuralCourse } from '../simulation/rural';
 import type { EnvironmentColor, EnvironmentState } from '../simulation/environment';
-import type { Vec3 } from '../simulation/types';
+import type { CourseSpec, Vec3 } from '../simulation/types';
 
 type WindKind = 'tree' | 'plant' | 'shrub';
 type Replacement = { source: MeshStandardMaterial; material: MeshStandardMaterial | MeshStandardNodeMaterial; darkening: number };
@@ -20,8 +21,8 @@ const RAIN_RADIUS = 23;
 const RAIN_CEILING = 27;
 
 function windKind(name: string): WindKind | null {
-  if (!name.startsWith('rural.instances.')) return null;
-  const item = name.slice('rural.instances.'.length);
+  if (!name.startsWith('rural.instances.') && !name.startsWith('district.instances.')) return null;
+  const item = name.replace(/^(?:rural|district)\.instances\./, '');
   if (item.startsWith('tree-')) return 'tree';
   if (item.startsWith('shrub')) return 'shrub';
   return /^(short|tall|reed|wheat|white|yellow|weed|dry|fern|ecology-groundcover|ecology-clover)$/.test(item) ? 'plant' : null;
@@ -32,12 +33,20 @@ function fraction(value: number) { return value - Math.floor(value); }
 function sample(index: number, salt: number) { return fraction(Math.sin(index * 127.1 + salt * 311.7) * 43758.5453); }
 
 /** Presentation only. The approved source positions, indices and instance matrices stay untouched. */
-export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLight, fill: HemisphereLight) {
+export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLight, fill: HemisphereLight,
+  course: CourseSpec = createRuralCourse(), districtRoofs: { min: number[]; max: number[] }[] = []) {
+  const district = course.id === 'm4-market-district';
   const group = new Group();
   group.name = 'living.environment';
   const lantern = new PointLight(0xffcc83, 0, 11, 2);
   lantern.name = 'living.garden-lantern'; lantern.position.set(15.35, 5.4, -3.8); group.add(lantern);
   const lanternGlass = scene.getObjectByName('garden.lantern.inferred');
+  const districtLamps = district ? DISTRICT_LAMPS
+    .map(([x, y, z], i) => {
+      const light = new PointLight(0xffcb89, 0, 12, 2);
+      light.name = `living.district-lamp.${i}`; light.position.set(x!, y!, z!);
+      light.castShadow = false; group.add(light); return light;
+    }) : [];
   const time = uniform(0), strength = uniform(0.22), quality = uniform(1);
   const originals: { mesh: Mesh; material: Material | Material[] }[] = [];
   const replacements = new Map<string, Replacement>();
@@ -76,13 +85,17 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
   }
 
   scene.updateMatrixWorld(true);
-  const roofEnvelopes: Box3[] = [];
+  const roofEnvelopes: Box3[] = districtRoofs.map(roof => new Box3(
+    new Vector3().fromArray(roof.min), new Vector3().fromArray(roof.max)));
   scene.traverse(object => {
     if (!(object instanceof Mesh)) return;
+    // The modular kit owns its wetness/emissive response and supplies individual
+    // roof bounds; treating its aggregate instance bounds as a roof would hide rain.
+    if (object.name.startsWith('district.') && !windKind(object.name)) return;
     const sourceMaterials = Array.isArray(object.material) ? object.material : [object.material];
     // Actual imported roof bounds include the cottage and shed overhangs. A
     // conservative top envelope prevents rain appearing beneath a sloped roof.
-    if (sourceMaterials.some(material => /^(terracotta|teal_)/.test(material.name)) || /(?:roof|shelter)/i.test(object.name)) {
+    if (!object.name.startsWith('district.') && (sourceMaterials.some(material => /^(terracotta|teal_)/.test(material.name)) || /(?:roof|shelter)/i.test(object.name))) {
       const bounds = new Box3().setFromObject(object, true);
       if (!bounds.isEmpty()) { bounds.min.x -= 0.25; bounds.max.x += 0.25; bounds.min.z -= 0.25; bounds.max.z += 0.25; roofEnvelopes.push(bounds); }
     }
@@ -124,9 +137,8 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
   rain.name = 'living.rain'; rain.frustumCulled = false; rain.visible = false;
   group.add(rain); scene.add(group);
 
-  const course = createRuralCourse();
   const ground = course.surfaces!.filter(surface => surface.id.endsWith('.top'));
-  const rainObstacles = course.boxes.filter(box => /^stairs\.|bridge\.deck\.|garden\.bed\./.test(box.id));
+  const rainObstacles = course.boxes.filter(box => /^(?:district\.)?(?:stairs\.|bridge\..*deck\.|garden\.bed\.)/.test(box.id));
   function groundHeight(x: number, z: number) {
     let height = -1.1;
     for (const surface of ground) {
@@ -159,10 +171,11 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
     const lighting = state.lighting;
     const lampStrength = Math.max(0, Math.min(1, (1.85 - lighting.fillIntensity) / 0.67));
     lantern.intensity = lampStrength * 7;
+    districtLamps.forEach(light => { light.intensity = lampStrength * 10; });
     if (lanternGlass instanceof Mesh && lanternGlass.material instanceof MeshStandardMaterial) {
       lanternGlass.material.emissive.setHex(0xffcc83); lanternGlass.material.emissiveIntensity = lampStrength * 0.65;
     }
-    sun.position.set(lighting.sunPosition.x, lighting.sunPosition.y, lighting.sunPosition.z);
+    sun.position.set(lighting.sunPosition.x + (district ? 50 : 0), lighting.sunPosition.y, lighting.sunPosition.z);
     sun.intensity = lighting.sunIntensity; applyColor(sun.color, lighting.sunColor);
     fill.intensity = lighting.fillIntensity; applyColor(fill.color, lighting.fillColor); applyColor(fill.groundColor, lighting.groundColor);
     applyColor(background, lighting.skyColor);
@@ -176,7 +189,7 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
     const cloudTime = reduced ? Math.floor(state.time * 5) / 5 : state.time;
     if (cloudTime !== lastCloudTime) {
       for (const [index, cloud] of cloudCenters.entries()) {
-        transform.position.set(cloud.x + Math.sin(cloudTime * 0.035 + cloud.phase) * (2 + state.wind * 3), cloud.y, cloud.z);
+        transform.position.set(cloud.x + (district ? 50 : 0) + Math.sin(cloudTime * 0.035 + cloud.phase) * (2 + state.wind * 3), cloud.y, cloud.z);
         transform.rotation.set(0, 0, 0); transform.scale.set(cloud.sx, cloud.sy, cloud.sz); transform.updateMatrix();
         clouds.setMatrixAt(index, transform.matrix);
       }
@@ -195,12 +208,13 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
       if (rain.visible) for (let index = 0; index < limit; index++) {
         const angle = sample(index, 20) * Math.PI * 2, radius = Math.sqrt(sample(index, 21)) * RAIN_RADIUS;
         const x = anchorX + Math.cos(angle) * radius, z = anchorZ + Math.sin(angle) * radius;
-        if (Math.abs(x) >= RURAL.bounds - 0.3 || Math.abs(z) >= RURAL.bounds - 0.3) { outOfBounds++; continue; }
+        if (x <= -47.7 || x >= (district ? 145.7 : 47.7) || Math.abs(z) >= 47.7) { outOfBounds++; continue; }
         let bottom = groundHeight(x, z);
         for (const roof of roofEnvelopes) if (x >= roof.min.x && x <= roof.max.x && z >= roof.min.z && z <= roof.max.z) {
           bottom = Math.max(bottom, roof.max.y + 0.12); shelterClipped++; break;
         }
         const height = RAIN_CEILING - bottom;
+        if (height <= 0.5) { shelterClipped++; continue; }
         const y = bottom + fraction(sample(index, 22) - rainTime * (7.2 + sample(index, 23) * 2) / height) * height;
         const length = Math.min(0.38 + sample(index, 24) * 0.25, y - bottom);
         const tilt = state.wind * length * 0.25;
@@ -220,7 +234,9 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
         surfaceMaterials: replacements.size, cloudLobes: clouds.count, rainDrops: rainCount,
         rainCapacity: RAIN_DROPS, rainReducedCapacity: REDUCED_RAIN_DROPS,
         rainColumnsClippedByShelter: shelterClipped, rainColumnsSkippedOutsideBounds: outOfBounds,
-        rainGroundBounds: RURAL.bounds, roofEnvelopes: roofEnvelopes.map(bounds => ({ min: bounds.min.toArray(), max: bounds.max.toArray() })),
+        rainGroundBounds: district ? { minX: -48, maxX: 146, minZ: -48, maxZ: 48 } : RURAL.bounds,
+        localLights: 1 + districtLamps.length, shadowCastingLocalLights: 0,
+        roofEnvelopes: roofEnvelopes.map(bounds => ({ min: bounds.min.toArray(), max: bounds.max.toArray() })),
         ownership: 'source geometry, instance matrices and shared textures unchanged; restores original materials on disposal',
       };
     },

@@ -1,6 +1,44 @@
 # Visual review log
 
-Historical M2/M2.1 reviews below retain their original pending decisions. The owner's M3 objective now explicitly uses the approved rural slice as the fixed world and authorizes the living-slice work; M2 was verified merged as PR #9. M3 itself is ready for human review and does not authorize M4/city expansion.
+## 2026-09-30 — M4.1 River Market art convergence, human decision pending
+
+The owner accepts M4 technically and requests artistic convergence within the same district. Objective: `../prompts/04-1-urban-art-convergence.md`. Clean preflight on `milestone/m4-first-district`; STATUS.md records the verified full base SHA. M5 remains gated. This is a local art pass, with no new district, dependency or simulation-system redesign.
+
+Reduced repetition: six authored facade profiles over the original six archetypes, narrow/tall/wide/paired openings, independently folded/angled/closed shutter leaves, utility-wall omissions and varied awning/sign/balcony relationships. The four existing stall sites now read as bakery, pottery, produce and textiles, with grouped stock, baskets and nearby benches. Worn stone ribbons/aprons, low edge courses and drains replace broad undifferentiated walking surfaces. Alley service props, high hoods and repairs form shadow pockets. Quay loading groups, mooring collars, repair courses and waterline patina enrich the original canal. District locals vary body width, coat hem, caps/brims, apron colors, shawls and satchels. Two existing district lamps move to street edges; five total local lights and zero local shadows remain. Feathered pavement warmth is an authored emissive approximation, not a new light per shop.
+
+Actually inspected: the original master; M4 baseline eagle-eye, market, alley and night; M4.1 whole district, third-person street/market/guild/bridge/alley, first-person alley/goods/quay/service, night and rain. Exact states and camera poses live under `../../artifacts/m4-1/final/capture-states.json`; the final gallery compares the retained M4 views where available. The master has a different scope/camera and is not a pixel-diff target. All screenshots are actual runtime output. Full district circuits and every authored walking/door/NPC clearance remain tested. Human acceptance is not inferred from passing tests or screenshots.
+
+Three remaining concrete mismatches against the master:
+
+1. Parallel rows, regular setbacks and broad quay shelves still read as the bounded M4 layout; the new service pockets improve occupation without changing circulation. Evidence: `eagle-eye.png` and `canal-waterline.png`.
+2. Shared carpentry, six-pane glazing, striped canvas and coursed paving remain recognizable at close range. Individual opening/group/shutter rhythms reduce the earlier repetition, but they do not provide bespoke architectural character for every lot. Evidence: `market.png`, `first-person-alley.png` and `guild-hall.png`.
+3. Locals still use simplified solid figures with no crowd avoidance, and the player remains a diagnostic capsule. Body/garment/accessory variation improves role reads; this is not final character art. Evidence: `primary-street.png`, `market-goods.png` and `night.png`.
+
+The first paving capture had overly bright regular joints; the final low-contrast chipped stones, staggered courses and authored wear patches were inspected after correction. Actual collision tests also exposed a stock crate on an NPC exit, a bench on the market-link/tea-house approach and quay furniture touching the full walking width. Furniture was relocated; assertions were retained. Performance and recurrent-tail findings are recorded in STATUS.md and the measured reports. Stop at the M4.1 human-review gate.
+
+Historical M2/M2.1/M3 entries below retain their original decisions. The subsequent explicit M4 objective establishes the accepted M2/M3 quality bar and authorizes one bounded district; M3 was verified merged as PR #10. M4 stops at its own human-review gate.
+
+## 2026-09-30 — M4 first district, human decision pending
+
+Scope: clean preflight on `milestone/m4-first-district`, base `c639a93f5c33e1cb994afb3b3f5ec1a99eb75401`, verified merge of [M3 PR #10](https://github.com/adriandarian/Voxarrium/pull/10) at 2026-09-30 04:10:35 UTC. Exact objective: `../prompts/04-first-district-objective.md`. Current work remains local/uncommitted. Two bounded native children supported navigation and the actual Blender kit; parent owned shared composition/integration/review. No image generation, paid service, deployment or city streaming.
+
+Scene `m4-market-district`, seed 104729. Twenty-seven full buildings, six archetypes, five primary/lane/alley/passage paths, plaza with four merchant stalls, raised guild hall, two timber bridges, real stone stairs and two quays connect to the rural edge. Thirty-six district locals join the original six. All-side architecture, recessed doors/windows, plinths, roof ends/eaves, signs/balconies/awnings and selected yards are real geometry. Details and unseen dimensions are authored interpretations. The cottage palette anchors the 24-module local Blender kit; no source-image sampling. Three roof types, one to three floors, meaningful footprint/material/yaw/attachment differences reduce macro repetition; the small window vocabulary remains visible.
+
+Actual inspection: original master/LEFT target, final eagle-eye (1600×1100), third-person street/plaza/bridge/guild approach, first-person alley/doorway/backs/side/south quay/rural connection, dusk/night/rain and explicit WebGL2 (1440×900, DPR 1). Chrome 154.0.8037.92, initialized WebGPU AMD/RDNA2; Windows inventory RX 6950 XT driver 32.0.21045.5002. Exact poses/states/counts in `../../artifacts/m4/final/capture-states.json`; gallery `../../artifacts/m4/review.html`. These are real runtime captures. The master differs in camera/scope; no calibrated image-score or matched-diff claim.
+
+Review iterations: initial aerial ground was broadly brown and setbacks were too regular. Stone perimeters, selected lot offsets/yaws, nine yard/garden pockets and planted window boxes improve context while preserving tested lanes. World-coordinate plaster pigment removes repeating partition-panel UV boundaries. Civic/rear/side capture poses were subsequently moved outward for useful street context; the capture-only rerun passed. Figures still use the accepted simplified M3 presentation and the player capsule remains.
+
+Three largest remaining differences/risks:
+
+1. Similar windows/shutters and some regular setbacks recur; paving and quays retain broader negative space and rectangular finite boundaries than the master's richer city fabric.
+2. Simplified locals have no crowd avoidance or dynamic collisions and can pass through each other. Closed doors have future hooks rather than interiors. Rain/shelter uses conservative envelopes and simple streaks; vegetation remains angular at close range. Physical audio listening and subjective timbre are pending.
+3. Long frame gaps reproduce despite local p95 meeting the target. No streaming, distance LOD, lower-end device or city-scale result is established.
+
+Verification: actual Blender export PASS (24 modules/111 primitives/94,244 triangles/28 materials); `npm test` PASS 9 Node + 59 simulation; strict checks/build/references/doctor PASS; full headed browser suite PASS 30/30, then capture-only rerun PASS 1/1. Both complete gameplay circuits return to the rural edge without recovery; Rapier tests also reverse the circuit and reach every doorway with camera clearance. Production moves 3.160 m with real W, switches with V, selects rain/night through menu, reports 42 locals, no test harness and zero errors. District browser verifies digital audio signal/pause and all 42 reaching rain/night shelter.
+
+Three separate headed 1080p/DPR1 minute-long actual-W routes: clear, traced clear, rain p95 **13.8/13.9/13.8 ms**; maxima **652.8/882.0/881.8 ms**, **2/2/4** frames >33.3 ms. They cross east stairs/bridge and approach the market bridge along south quay, without finishing the full circuit in one minute. The actual trace shows no single JS/GC duration explaining the long gaps: maximum game callback 16.146 ms, main-thread GC 5.591 ms; async frames show 359/877 ms with zero blocking duration. Background GC overlaps part of the gaps. GPU/OS scheduler time is absent, so cause remains unresolved and no speculative optimization was applied. Counts/heap/limitations are recorded in STATUS; rAF is wall-clock, not GPU time or a causal weather-cost comparison.
+
+**Decision: M4 implementation and evidence are ready for owner review; artistic/feel/audio acceptance is pending. Stop at M4. Do not begin M5 or full-city generation.** The performance tail is explicitly retained as a review risk. No push/PR/merge or hosted CI claim.
 
 ## 2026-09-29 — M3 living-slice implementation and local review
 

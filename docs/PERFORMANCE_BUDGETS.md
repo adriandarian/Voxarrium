@@ -9,3 +9,7 @@ Measure a fixed 60-second route after warmup: frame-duration distribution, long 
 At scaling gates, walk across a stream boundary repeatedly, return to the starting position, then check for increasing resources or NPC duplication. Prioritize shared assets, instancing, LOD, spatial culling and fewer shadow-casting lights before removing the art direction's density. Screen-space effects, transparent vegetation and dynamic lights need individual timing.
 
 No benchmark claim from headless software rendering. No quality percentage derived from an uncalibrated image-similarity number.
+
+## M4 measured gate
+
+See `../STATUS.md` for actual Chrome/RX 6950 XT/WebGPU 1080p route data and resource counts. Clear/traced-clear/rain p95 is 13.8/13.9/13.8 ms, while maxima reach 652.8/882.0/881.8 ms. The local p95 target passes; stall-free behavior does not. The actual browser trace finds no single synchronous JavaScript/GC duration explaining the gaps; GPU/OS scheduling is unmeasured and cause remains unresolved. No speculative optimization, streaming or distance LOD is introduced. The five GLBs total 7,130,880 bytes; first-playable network transfer is not measured.

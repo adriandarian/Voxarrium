@@ -177,6 +177,37 @@
       "lod": "Single M2 hero asset; no unmeasured distance LOD",
       "preview": "artifacts/m2/final/ (eagle-eye, cottage front/rear/east/west, bridge)",
       "report": "assets/source/rural-hero.report.json"
+    },
+    {
+      "id": "district.kit",
+      "path": "public/assets/district/district-kit.glb",
+      "sha256": "e9fda0056a6ad27c6cad83ff5b980d431dcc6e186c6ba2a98463ab4f4b71449d",
+      "bytes": 4925292,
+      "source": "assets/source/district-kit.blend",
+      "generator": "tools/blender/district_kit.py",
+      "provenance": "Original local project-authored geometry; accepted rural helper construction; no downloaded/paid assets or image sampling",
+      "license": "Project license unassigned; no third-party source content",
+      "units": "meters",
+      "axisConvention": "Blender X/Y/Z -> glTF X/-Z/Y; front +Z; no runtime correction",
+      "bounds": {
+        "min": [
+          -4.75288,
+          -0.92,
+          -4.635
+        ],
+        "max": [
+          4.75288,
+          8.17,
+          4.635
+        ]
+      },
+      "moduleCount": 32,
+      "triangles": 99192,
+      "materials": 28,
+      "textures": 0,
+      "collision": "Simplified shared district building, threshold, stair, bridge, canal, counter, trunk and street-furniture proxies in simulation/district.ts",
+      "lod": "131 shared module/material instance batches; no distance LOD or streaming",
+      "preview": "artifacts/m4-1/final eagle-eye, primary-street, first-person-doorway, building-backs, building-side, canal-bridge and night captures; artistic acceptance pending"
     }
   ],
   "procedural": [
@@ -199,5 +230,5 @@
       "preview": "artifacts/m2/final/eagle-eye-clean.png; third-person.png; first-person.png; garden.png; riverbank.png"
     }
   ],
-  "note": "M1 calibration and M2 original Blender hero assets plus runtime environment. Reference originals remain under docs. Runtime inspection is recorded; human art approval is pending."
+  "note": "M1 calibration, original M2 hero assets/runtime environment and M4 authored Blender district kit. Reference originals remain under docs. Runtime inspection is recorded; M4 human art approval is pending."
 }

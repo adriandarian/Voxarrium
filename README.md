@@ -4,7 +4,7 @@ A living fantasy city for **third-person exploration**, with an optional first-p
 
 ## Start here
 
-**M3 brings the approved 96 × 96 meter rural art slice to life.** Clear/cloudy/rain and day/dusk/night presets drive lighting, wind, wetness and sound. Six local inhabitants follow authored routines and shelter under existing cottage eaves. The cottage, garden, elevated wheat field, stairs and river crossing retain the M2 layout and M1 player/physics/cameras. The M1 64 × 64 meter test course remains at `/?scene=m1`. See `STATUS.md` for actual review status, tested scope and measurements.
+**M4 adds the first bounded River Market district beside the approved rural slice.** Twenty-seven buildings use six coherent architectural archetypes, with a guild hall, four market stalls, connected streets/alleys, raised civic apron, quays, two bridges and real stairs. Forty-two locals share the existing weather, time, dialogue and sound systems. The original rural slice remains at `/?scene=m2`, and the M1 test course at `/?scene=m1`. See `STATUS.md` for actual review status, tested scope and measurements. Stop at the M4 human-review gate before further expansion.
 
 The runtime uses TypeScript + Vite + vanilla Three.js and Rapier. Dependencies are pinned in `package.json` and `package-lock.json`. WebGPURenderer reports the backend that actually initialized; `/?backend=webgl` deliberately selects its WebGL 2 backend.
 
@@ -13,7 +13,7 @@ npm ci
 npm run dev
 ```
 
-Open http://127.0.0.1:5173/ and click **Explore the garden** to activate controls and local audio. Mouse capture is used when available; if the browser refuses it, hold the left mouse button and drag to look. WASD moves, Shift runs, Space jumps, V switches third/first person, F opens/closes nearby dialogue or landmark text, R recovers to spawn, and Esc pauses/releases the mouse. Keys 1–4 select third person, first person, free/debug and eagle-eye. In free camera, Q/E moves down/up. Pause settings expose FOV, sensitivity, and “Weather, light & sound”: weather/lighting presets, reduced motion and master/category volume. Reload starts the same clear/day slice; settings/saves are not persisted.
+Open http://127.0.0.1:5173/ and click **Explore the market** to activate controls and local audio. Mouse capture is used when available; if the browser refuses it, hold the left mouse button and drag to look. WASD moves, Shift runs, Space jumps, V switches third/first person, F opens/closes nearby dialogue or landmark text, R recovers to spawn, and Esc pauses/releases the mouse. Keys 1–4 select third person, first person, free/debug and eagle-eye. In free camera, Q/E moves down/up. Pause settings expose FOV, sensitivity, and “Weather, light & sound”: weather/lighting presets, reduced motion and master/category volume. Reload starts the same clear/day district; settings/saves are not persisted. Building doors have reachable thresholds and future interior hooks; they currently remain closed.
 
 ```sh
 npm test
@@ -29,7 +29,7 @@ Node.js 22.12+ is the project minimum. Browser tests use installed Google Chrome
 
 Tests and capture states/screenshots live under ignored `artifacts/`. See `docs/TESTING.md` for the exact procedure and evidence limits. `doctor` records local tooling under `.local/`; it does not test gameplay. The committed calibration GLB makes normal startup independent of Blender. `npm run blender:fixture` re-exports to `.local/assets/` for pipeline work; see `docs/ASSET_PIPELINE.md` before replacing the vendored fixture.
 
-`npm run capture:m3` records M3 weather/light/motion/interaction views; `npm run capture` retains the M2 camera procedure, and `npm run capture:m1` preserves M1 evidence. `/?stage=blockout` exposes the structural massing for comparison. The local Blender hero generator is `npm run blender:rural`; sources and export metadata are preserved alongside the shipped GLBs. Original reference images stay outside runtime assets.
+`npm run capture:m4` records district streets, alleys, backs/sides, plaza, bridges and weather/light views. `npm run capture:m3` retains rural living-system evidence; `npm run capture` retains the M2 camera procedure, and `npm run capture:m1` preserves M1 evidence. `/?stage=blockout` exposes structural massing. Local Blender generators are `npm run blender:rural` and `npm run blender:district`; editable sources and export metadata are preserved alongside the shipped GLBs. Original reference images stay outside runtime assets.
 
 ## Reference images
 

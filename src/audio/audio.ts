@@ -1,5 +1,6 @@
 import type { EnvironmentState } from '../simulation/environment';
 import type { Vec3 } from '../simulation/types';
+import { DISTRICT } from '../simulation/district-layout';
 
 export type AudioCategory = 'ambience' | 'footsteps' | 'locals';
 export interface AudioSettings { master: number; ambience: number; footsteps: number; locals: number }
@@ -8,6 +9,8 @@ export type Surface = 'earth' | 'stone' | 'wood' | 'grass';
 
 /** Authored surfaces in the existing slice, in meters. No material raycasts per step. */
 export function footstepSurface(p: Vec3): Surface {
+  if (p.z >= 12 && p.z <= 26 && DISTRICT.bridges.some(b => Math.abs(p.x - b.x) < b.width / 2)) return 'wood';
+  if (p.x >= 48 && p.x <= 146 && p.z >= -48 && p.z <= 48) return 'stone';
   if (Math.abs(p.x + 2) < 1.8 && p.z >= 12 && p.z <= 26) return 'wood';
   if ((Math.abs(p.x + 7) < 1.8 && p.z > 2.9 && p.z < 10.5) ||
       (Math.abs(p.x + 14) < 1.6 && p.z < -14.2 && p.z > -20.4) ||
@@ -32,7 +35,7 @@ function noise(context: BaseAudioContext, seconds = 3): AudioBuffer {
   return buffer;
 }
 
-export function createLivingAudio(settings: AudioSettings) {
+export function createLivingAudio(settings: AudioSettings, district = false) {
   let context: AudioContext | null = null;
   let master: GainNode | null = null;
   let analyser: AnalyserNode | null = null;
@@ -42,9 +45,9 @@ export function createLivingAudio(settings: AudioSettings) {
   let buffer: AudioBuffer | null = null;
   let disposed = false, paused = true, error: string | null = null;
   let stepCount = 0, cueCount = 0, lastSurface: Surface | null = null;
-  let distance = 0, lastCue = -30;
+  let distance = 0, lastCue = -30, lastWorkshop = -12;
   let previous: Vec3 | null = null;
-  const levels = { wind: 0, river: 0, rain: 0 };
+  const levels = { wind: 0, river: 0, rain: 0, market: 0 };
   const listenerPosition = { x: 0, y: 0, z: 0 };
   const sourcePosition = { x: 0, y: -0.8, z: 19 };
 
@@ -64,14 +67,14 @@ export function createLivingAudio(settings: AudioSettings) {
     ramp(master.gain, paused ? 0 : settings.master, 0.025);
     for (const [category, gain] of categories) ramp(gain.gain, settings[category], 0.025);
   }
-  function loop(frequency: number, position?: Vec3) {
+  function loop(frequency: number, position?: Vec3, category: AudioCategory = 'ambience') {
     const source = context!.createBufferSource(); source.buffer = buffer; source.loop = true;
     const filter = context!.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = frequency; filter.Q.value = 0.4;
     const gain = context!.createGain(); gain.gain.value = 0;
     source.connect(filter).connect(gain);
     const panner = position ? spatial(position) : undefined;
-    if (panner) gain.connect(panner).connect(categories.get('ambience')!);
-    else gain.connect(categories.get('ambience')!);
+    if (panner) gain.connect(panner).connect(categories.get(category)!);
+    else gain.connect(categories.get(category)!);
     source.start(); loops.push({ source, gain, filter, panner });
   }
   function release(voice: { source: AudioScheduledSourceNode; nodes: AudioNode[] }) {
@@ -106,6 +109,10 @@ export function createLivingAudio(settings: AudioSettings) {
             const gain = context.createGain(); gain.connect(master); categories.set(category, gain);
           }
           buffer = noise(context); loop(340); loop(1350, sourcePosition); loop(4200);
+          if (district) {
+            loop(570, { x: DISTRICT.plaza.x - 5, y: 5.4, z: -17 }, 'locals');
+            loop(970, { x: DISTRICT.plaza.x + 5, y: 5.4, z: -5 }, 'locals');
+          }
           applyVolumes();
         }
         await context.resume();
@@ -118,7 +125,7 @@ export function createLivingAudio(settings: AudioSettings) {
       applyVolumes();
     },
     volumes() { applyVolumes(); },
-    reset() { previous = null; distance = 0; lastCue = -30; },
+    reset() { previous = null; distance = 0; lastCue = -30; lastWorkshop = -12; },
     update(environment: EnvironmentState, player: Vec3, yaw: number, grounded: boolean, elapsed: number, nearest?: { position: Vec3; id: string } | null) {
       if (!context || disposed) return;
       const listener = context.listener, now = context.currentTime;
@@ -130,13 +137,25 @@ export function createLivingAudio(settings: AudioSettings) {
       listener.forwardY.value = 0; listener.forwardZ.setTargetAtTime(-Math.cos(yaw), now, 0.04);
       listener.upX.value = 0; listener.upY.value = 1; listener.upZ.value = 0;
       // A long river uses its closest local point rather than one distant emitter.
-      sourcePosition.x = Math.max(-44, Math.min(44, player.x));
+      sourcePosition.x = Math.max(-44, Math.min(district ? 144 : 44, player.x));
       const river = loops[1]?.panner;
       if (river) { ramp(river.positionX, sourcePosition.x); ramp(river.positionZ, 19); }
       levels.wind = 0.045 + environment.wind * 0.055;
       levels.river = 0.18;
       levels.rain = environment.rain * 0.17;
       ramp(loops[0]!.gain.gain, levels.wind); ramp(loops[1]!.gain.gain, levels.river); ramp(loops[2]!.gain.gain, levels.rain);
+      if (district) {
+        const activity = environment.timeOfDay === 'night' ? 0.08 : environment.timeOfDay === 'dusk' ? 0.45 : 1;
+        levels.market = 0.065 * activity * (1 - environment.rain * 0.78);
+        ramp(loops[3]!.gain.gain, levels.market * (0.76 + Math.sin(environment.time * 0.71) * 0.22));
+        ramp(loops[4]!.gain.gain, levels.market * (0.7 + Math.sin(environment.time * 0.43 + 2) * 0.25));
+        if (!paused && environment.timeOfDay === 'day' && environment.rain < 0.2 && elapsed - lastWorkshop > 9.7 &&
+            Math.hypot(player.x - 68, player.z + 16) < 18) {
+          lastWorkshop = elapsed;
+          pulse('locals', { x: 68, y: 5, z: -16 }, 720, 0.075, 0.12, false);
+          pulse('locals', { x: 68, y: 5, z: -16 }, 185, 0.035, 0.2, true);
+        }
+      }
       if (paused) return;
       const traveled = previous ? Math.hypot(player.x - previous.x, player.z - previous.z) : 0;
       previous = { ...player };
@@ -153,12 +172,12 @@ export function createLivingAudio(settings: AudioSettings) {
         lastCue = elapsed; cueCount++; pulse('locals', nearest.position, 330, 0.045, 0.38, true);
       }
     },
-    cue(position: Vec3) { cueCount++; pulse('locals', position, 440, 0.11, 0.27, true); },
+    cue(position: Vec3, door = false) { cueCount++; pulse('locals', position, door ? 320 : 440, door ? 0.13 : 0.11, 0.27, !door); },
     snapshot() {
       let rms = 0;
       if (analyser) { const samples = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(samples); rms = Math.sqrt(samples.reduce((sum, n) => sum + n * n, 0) / samples.length); }
       return { status: disposed ? 'disposed' : context?.state ?? 'awaiting-gesture', error, settings: { ...settings },
-        paused, activeLoops: loops.length, activeVoices: voices.size, maxVoices: 8, stepCount, cueCount, lastSurface,
+        paused, activeLoops: loops.length, activeVoices: voices.size, maxVoices: district ? 10 : 8, stepCount, cueCount, lastSurface,
         levels: { ...levels }, listener: { ...listenerPosition }, riverSource: { ...sourcePosition }, outputRms: rms,
         source: 'local deterministic filtered noise and short synthesized cues; no recorded speech' };
     },

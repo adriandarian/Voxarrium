@@ -7,7 +7,7 @@ mkdirSync(directory, { recursive: true });
 
 for (const mode of ['third-person', 'first-person'] as const) {
   test(`M2 continuous route from river crossing to cottage and crop terrace: ${mode}`, async ({ page }) => {
-    await page.goto(`/?test=1${blockout ? '&stage=blockout' : ''}`);
+    await page.goto(`/?scene=m2&test=1${blockout ? '&stage=blockout' : ''}`);
     await expect(page.locator('html')).toHaveAttribute('data-ready', 'true', { timeout: 60_000 });
     await page.evaluate(mode => {
       const h = window.__VOXARRIUM__!;
@@ -48,7 +48,7 @@ test('evidence: M2 three-camera captures and initialized performance', async ({ 
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto(`/?test=1${blockout ? '&stage=blockout' : ''}`);
+  await page.goto(`/?scene=m2&test=1${blockout ? '&stage=blockout' : ''}`);
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true', { timeout: 60_000 });
   const states: Record<string, unknown> = {};
   for (const [name, point, mode] of [
@@ -103,7 +103,7 @@ test('M2 explicit WebGL fallback renders the art and crosses the bridge', async 
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto(`/?test=1&backend=webgl${blockout ? '&stage=blockout' : ''}`);
+  await page.goto(`/?scene=m2&test=1&backend=webgl${blockout ? '&stage=blockout' : ''}`);
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true', { timeout: 60_000 });
   const result = await page.evaluate(() => {
     const h = window.__VOXARRIUM__!; h.bookmark('bridge', 'first-person');

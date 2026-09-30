@@ -16,7 +16,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'simulation', testMatch: /(?:simulation|clock|renderer|rural|rural-assets|environment|npcs|living)\.spec\.ts/ },
+    { name: 'simulation', testMatch: /(?:simulation|clock|renderer|rural|rural-assets|environment|npcs|living|district|district-assets|district-npcs)\.spec\.ts/ },
     { name: 'browser', testMatch: '**/browser.spec.ts', use: {
       channel: process.env.VOXARRIUM_BROWSER ?? 'chrome',
       headless: process.env.VOXARRIUM_HEADED !== '1',
@@ -26,6 +26,10 @@ export default defineConfig({
       headless: process.env.VOXARRIUM_HEADED !== '1',
     } },
     { name: 'living-browser', testMatch: '**/living-browser.spec.ts', use: {
+      channel: process.env.VOXARRIUM_BROWSER ?? 'chrome',
+      headless: process.env.VOXARRIUM_HEADED !== '1',
+    } },
+    { name: 'district-browser', testMatch: '**/district-browser.spec.ts', use: {
       channel: process.env.VOXARRIUM_BROWSER ?? 'chrome',
       headless: process.env.VOXARRIUM_HEADED !== '1',
     } },

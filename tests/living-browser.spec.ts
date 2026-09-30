@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 const directory = process.env.VOXARRIUM_CAPTURE_DIR ?? 'artifacts/m3/final';
 mkdirSync(directory, { recursive: true });
 async function ready(page: import('@playwright/test').Page, backend = '') {
-  await page.goto(`/?test=1${backend}`);
+  await page.goto(`/?scene=m2&test=1${backend}`);
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true', { timeout: 60_000 });
 }
 
