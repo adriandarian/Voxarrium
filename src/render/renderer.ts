@@ -8,8 +8,8 @@ import type { PerspectiveCamera } from 'three';
 import { WebGPURenderer } from 'three/webgpu';
 import { loadScaleFixture } from '../assets/fixture';
 import { loadRuralAssets } from '../assets/rural';
-import { createRuralEnvironment } from './rural';
-import { applyLandscapeUV, createLandscapeMaterials } from './landscape-materials';
+import { createRuralEnvironment, LANES } from './rural';
+import { applyLandscapeUV, applyTerrainPigment, createLandscapeMaterials } from './landscape-materials';
 import { PLAYER } from '../simulation/types';
 import type { CourseSpec, GameState } from '../simulation/types';
 
@@ -153,19 +153,20 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
     sun.shadow.normalBias = 0.035;
     sun.shadow.bias = -0.00008;
     if (rural) {
-      sun.intensity = 2.7;
+      sun.intensity = 2.75;
       sun.position.set(-30, 65, 24);
       sun.shadow.mapSize.set(4096, 4096);
       sun.shadow.camera.left = -65; sun.shadow.camera.right = 65;
       sun.shadow.camera.top = 65; sun.shadow.camera.bottom = -65;
       sun.shadow.camera.far = 160;
     }
-    scene.add(sun, new HemisphereLight(0xe4f0ff, 0x69745a, 1.65));
+    scene.add(sun, new HemisphereLight(rural ? 0xf0efe0 : 0xe4f0ff, rural ? 0x797f61 : 0x69745a, rural ? 1.85 : 1.65));
 
     const boxGeometry = new BoxGeometry(1, 1, 1);
     const materials = new Map<number, MeshStandardMaterial>();
     for (const box of course.boxes) {
       if (box.visible === false) continue;
+      if (rural && !blockout && /^stairs\.(main|crop)\.\d+$/.test(box.id)) continue;
       if (!materials.has(box.color)) materials.set(box.color, new MeshStandardMaterial({ color: box.color, roughness: 0.92, metalness: 0 }));
       const mesh = new Mesh(boxGeometry, materials.get(box.color));
       mesh.name = box.id;
@@ -177,15 +178,23 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       scene.add(mesh);
     }
     const landscapeMaterials = rural && !blockout ? createLandscapeMaterials() : null;
+    if (landscapeMaterials) {
+      landscapeMaterials.stone.vertexColors = true;
+      landscapeMaterials.soil.vertexColors = true;
+    }
     for (const surface of course.surfaces ?? []) {
-      const geometry = new BufferGeometry();
+      let geometry = new BufferGeometry();
       geometry.setAttribute('position', new Float32BufferAttribute(surface.vertices, 3));
       geometry.setIndex(surface.indices); geometry.computeVertexNormals();
       const cliff = surface.id.endsWith('.cliff');
-      if (landscapeMaterials) applyLandscapeUV(geometry, cliff ? 'cliff' : 'ground');
+      if (landscapeMaterials) {
+        geometry = applyTerrainPigment(geometry, course, LANES, cliff, surface.id.endsWith('.shore'));
+        applyLandscapeUV(geometry, cliff ? 'cliff' : 'ground');
+      }
       const mesh = new Mesh(geometry, landscapeMaterials ? (cliff ? landscapeMaterials.stone : surface.id.endsWith('.shore') ? landscapeMaterials.soil : landscapeMaterials.grass)
         : new MeshStandardMaterial({ color: surface.color, roughness: 1 }));
       mesh.name = surface.id; mesh.receiveShadow = true; mesh.castShadow = true;
+      if (rural && !blockout && surface.id.endsWith('.shore')) mesh.visible = false;
       scene.add(mesh);
     }
     const environment = rural ? createRuralEnvironment(course, blockout) : null;

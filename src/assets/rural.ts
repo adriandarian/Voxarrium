@@ -2,6 +2,7 @@ import { Box3, Group, Mesh, Vector3 } from 'three';
 import type { Material, MeshStandardMaterial, Object3D } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RURAL } from '../simulation/rural-layout';
+import { enrichRuralHero } from '../render/hero-materials';
 
 export function inspectRuralAsset(root: Object3D, id: string) {
   root.updateMatrixWorld(true);
@@ -38,6 +39,7 @@ export async function loadRuralAssets(target: Group) {
     const gltf = await new GLTFLoader().loadAsync(`/assets/rural/${name}.glb`);
     target.add(gltf.scene);
     facts.push(inspectRuralAsset(gltf.scene, name));
+    enrichRuralHero(gltf.scene);
     const p = RURAL[name];
     gltf.scene.name = `rural.${name}`;
     gltf.scene.position.set(p.x, p.y + (name === 'bridge' ? 0.08 : 0), p.z);

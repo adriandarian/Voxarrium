@@ -183,7 +183,8 @@ for (const failure of ['rejected', 'missing', 'resolved-without-lock'] as const)
     }, failure);
     // Exercise the reported rural entry flow, not only the M1 course.
     await page.goto('/?test=1');
-    await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+    // Rural shader/asset warmup uses the same readiness budget as the capture suite.
+    await expect(page.locator('html')).toHaveAttribute('data-ready', 'true', { timeout: 60_000 });
     await page.locator('#start').click();
     await expect(page.locator('#menu')).toBeHidden();
     await expect(page.locator('#look-hint')).toHaveText('Hold left mouse + drag to look');

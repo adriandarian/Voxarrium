@@ -1,18 +1,19 @@
 import {
-  BoxGeometry, BufferGeometry, CatmullRomCurve3, Color, CylinderGeometry,
-  Float32BufferAttribute, Group, IcosahedronGeometry, InstancedMesh, Mesh,
-  MeshStandardMaterial, Object3D, PlaneGeometry, Quaternion, SphereGeometry, Vector3,
+  BoxGeometry, BufferGeometry, CatmullRomCurve3, Color,
+  Float32BufferAttribute, Group, InstancedMesh, Mesh,
+  MeshStandardMaterial, Object3D, PlaneGeometry, SphereGeometry, Vector3,
 } from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RURAL } from '../simulation/rural-layout';
-import { RURAL_FENCES, RURAL_TREES } from '../simulation/rural';
+import { RURAL_FENCES } from '../simulation/rural';
 import type { CourseSpec } from '../simulation/types';
 import { applyLandscapeUV, createLandscapeMaterials } from './landscape-materials';
+import { blade, combined, lobe, pigment, randomSequence } from './rural-geometry';
+import { addGroundEcology, placeTrees, registerEcology } from './rural-ecology';
 
 type PathPoint = readonly [number, number];
 type Lane = { points: PathPoint[]; width: number; y: number; name: string };
 
-const LANES: Lane[] = [
+export const LANES: Lane[] = [
   { points: [[-28, -48], [-25, -39], [-27, -31], [-25, -23], [-20, -17], [-16, -10], [-17, -5], [-17, -1], [-15, 2.4], [-12, 3.2], [-9.5, 1.6], [-7, 1.2], [-7, 3]], width: 3.4, y: 4.028, name: 'main-cottage' },
   { points: [[-7, 10.2], [-6.7, 11], [-4.5, 10.5], [RURAL.bridge.x, 10.5], [RURAL.bridge.x, 12]], width: 3.0, y: 0.028, name: 'bank-bridge' },
   { points: [[RURAL.bridge.x, 26], [RURAL.bridge.x, 28], [5, 31], [9, 35], [8, 40], [3, 45], [2, 48]], width: 3.8, y: 0.03, name: 'south' },
@@ -21,31 +22,65 @@ const LANES: Lane[] = [
   { points: [[-14, -20.3], [-14, -23], [-9, -24], [-5, -25], [2, -25]], width: 2.8, y: 7.428, name: 'crop-upper' },
 ];
 
-function randomSequence(seed: number) {
-  let state = seed >>> 0;
-  return () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; return state / 4294967296; };
-}
-
 function sampledLane(points: readonly PathPoint[]) {
   return new CatmullRomCurve3(points.map(point => new Vector3(point[0], 0, point[1])), false, 'catmullrom', 0.25)
     .getPoints(points.length * 14).map(point => [point.x, point.z] as const);
 }
 
-/** Wide authored ribbon, with softened bends and no terrain tile grid. */
+function laneProfile(distance: number, width: number, phase: number) {
+  const common = Math.sin(distance * 0.34 + phase) * 0.044 + Math.sin(distance * 0.79 - phase) * 0.025;
+  return {
+    left: width * (0.5 + common + Math.sin(distance * 0.53 + phase * 1.7) * 0.046),
+    right: width * (0.5 + common + Math.sin(distance * 0.41 - phase * 1.3) * 0.041),
+  };
+}
+
+/** Unequal soft margins and broad worn bands preserve a continuous readable walking core. */
 function pathMesh(points: readonly PathPoint[], width: number, y: number, material: MeshStandardMaterial, name: string) {
   const samples = sampledLane(points);
   const vertices: number[] = [];
+  const colors: number[] = [];
   const indices: number[] = [];
+  const bands = [-1, -0.78, -0.46, 0, 0.46, 0.78, 1];
+  const phase = points[0]![0] * 0.61 + points[0]![1] * 0.27;
+  let distance = 0;
   for (let i = 0; i < samples.length; i++) {
     const p = samples[i]!;
     const a = samples[Math.max(0, i - 1)]!;
     const b = samples[Math.min(samples.length - 1, i + 1)]!;
     const dx = b[0] - a[0], dz = b[1] - a[1];
     const length = Math.hypot(dx, dz);
-    const edge = width * (0.5 + 0.028 * Math.sin(i * 0.83) + 0.018 * Math.sin(i * 1.61));
-    const ox = dz / length * edge, oz = -dx / length * edge;
-    vertices.push(p[0] + ox, y, p[1] + oz, p[0] - ox, y, p[1] - oz);
-    if (i) { const k = i * 2; indices.push(k - 2, k - 1, k, k - 1, k + 1, k); }
+    if (i) distance += Math.hypot(p[0] - samples[i - 1]![0], p[1] - samples[i - 1]![1]);
+    const edge = laneProfile(distance, width, phase);
+    const wear = 0.93 + Math.sin(distance * 0.42 + phase) * 0.055 + Math.sin(distance * 0.17 - phase) * 0.035;
+    for (const band of bands) {
+      const offset = band * (band > 0 ? edge.left : edge.right);
+      vertices.push(p[0] + dz / length * offset, y, p[1] - dx / length * offset);
+      const margin = Math.max(0, (Math.abs(band) - 0.42) / 0.58);
+      const color = new Color(0xf2e8ca).lerp(new Color(0x849153), margin * (0.44 + Math.sin(distance * 0.6 + band * 2 + phase) * 0.10));
+      color.multiplyScalar(wear * (1 - margin * 0.12));
+      colors.push(color.r, color.g, color.b);
+    }
+    if (i) for (let band = 0; band < bands.length - 1; band++) {
+      const k = i * bands.length + band, a = k - bands.length;
+      indices.push(a, a + 1, k, a + 1, k + 1, k);
+    }
+  }
+  // The field footpath peters out in an irregular rounded worn patch instead of a square cut.
+  if (name === 'path.crop-upper') {
+    const p = samples.at(-1)!, before = samples.at(-2)!;
+    const dx = p[0] - before[0], dz = p[1] - before[1], length = Math.hypot(dx, dz);
+    const center = vertices.length / 3;
+    vertices.push(p[0], y, p[1]);
+    const color = new Color(0xe4dcba); colors.push(color.r, color.g, color.b);
+    for (let segment = 0; segment <= 12; segment++) {
+      const angle = -Math.PI / 2 + segment / 12 * Math.PI;
+      const radius = width * (0.49 + Math.sin(segment * 0.85 + phase) * 0.036);
+      vertices.push(p[0] + (dx * Math.cos(angle) + dz * Math.sin(angle)) / length * radius,
+        y, p[1] + (dz * Math.cos(angle) - dx * Math.sin(angle)) / length * radius);
+      const edgeColor = color.clone().lerp(new Color(0x849153), 0.47); colors.push(edgeColor.r, edgeColor.g, edgeColor.b);
+      if (segment) indices.push(center, center + segment, center + segment + 1);
+    }
   }
   const geometry = new BufferGeometry();
   // Tight curved joins may invert a ribbon triangle; all lane faces must stay +Y.
@@ -56,6 +91,7 @@ function pathMesh(points: readonly PathPoint[], width: number, y: number, materi
     if (normalY < 0) [indices[i + 1], indices[i + 2]] = [indices[i + 2]!, indices[i + 1]!];
   }
   geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3));
+  geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   applyLandscapeUV(geometry, 'ground');
@@ -73,6 +109,7 @@ export function createRuralEnvironment(course: CourseSpec, blockout: boolean) {
   const material = (color: number) => new MeshStandardMaterial({ color, roughness: 0.95 });
   const landscape = createLandscapeMaterials();
   const path = landscape.path;
+  path.vertexColors = true;
   path.polygonOffset = true;
   path.polygonOffsetFactor = -1;
   path.polygonOffsetUnits = -2;
@@ -132,124 +169,6 @@ export function createRuralEnvironment(course: CourseSpec, blockout: boolean) {
   return addDetailedEnvironment(group, course, landscape);
 }
 
-function pigment(source: BufferGeometry, hex: number, variation = 0.1) {
-  const geometry = source.index ? source.toNonIndexed() : source.clone();
-  geometry.deleteAttribute('uv');
-  const position = geometry.getAttribute('position');
-  const base = new Color(hex);
-  const colors: number[] = [];
-  for (let i = 0; i < position.count; i++) {
-    const value = 1 + variation * Math.sin(position.getX(i) * 7.3 + position.getY(i) * 11.9 + position.getZ(i) * 4.7);
-    colors.push(base.r * value, base.g * value, base.b * value);
-  }
-  geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
-  return geometry;
-}
-
-function combined(parts: BufferGeometry[]) {
-  const geometry = mergeGeometries(parts, false);
-  if (!geometry) throw new Error('Rural geometry library failed to merge.');
-  for (const part of parts) part.dispose();
-  return geometry;
-}
-
-function branch(a: Vector3, b: Vector3, bottom: number, top: number, color: number, sides = 7) {
-  const direction = b.clone().sub(a);
-  const geometry = new CylinderGeometry(top, bottom, direction.length(), sides, 1);
-  geometry.applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), direction.normalize()));
-  geometry.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-  const result = pigment(geometry, color, 0.13);
-  geometry.dispose();
-  return result;
-}
-
-/** A thick creased leaf: a small solid blade with six faces, never a billboard. */
-function blade(height: number, width: number, bend: number, color: number) {
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new Float32BufferAttribute([
-    0, 0, 0, -width / 2, height * 0.47, bend * 0.35, 0, height, bend,
-    width / 2, height * 0.47, bend * 0.35, 0, height * 0.47, bend * 0.35 + width * 0.20,
-    0, height * 0.47, bend * 0.35 - width * 0.09,
-  ], 3));
-  geometry.setIndex([0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4, 0, 5, 1, 1, 5, 2, 2, 5, 3, 3, 5, 0]);
-  geometry.computeVertexNormals();
-  return pigment(geometry, color, 0.18);
-}
-
-function lobe(x: number, y: number, z: number, sx: number, sy: number, sz: number, color: number, detail = 1, smooth = false) {
-  const geometry = new IcosahedronGeometry(1, detail);
-  const positions = geometry.getAttribute('position');
-  const normals: number[] = [];
-  for (let i = 0; i < positions.count; i++) {
-    const px = positions.getX(i), py = positions.getY(i), pz = positions.getZ(i);
-    const irregularity = 1 + 0.10 * Math.sin(px * 7 + py * 3) * Math.cos(pz * 9 - py * 4);
-    positions.setXYZ(i, x + px * sx * irregularity, y + py * sy * irregularity, z + pz * sz * irregularity);
-    const normal = new Vector3(px / sx, py / sy, pz / sz).normalize();
-    normals.push(normal.x, normal.y, normal.z);
-  }
-  if (smooth) geometry.setAttribute('normal', new Float32BufferAttribute(normals, 3));
-  else geometry.computeVertexNormals();
-  const result = pigment(geometry, color, 0.14);
-  geometry.dispose();
-  return result;
-}
-
-function treeGeometry(species: number) {
-  const random = randomSequence(783 + species * 351);
-  const parts: BufferGeometry[] = [];
-  const height = species === 1 ? 9.3 : species === 2 ? 6.5 : 7.8;
-  const lean = species === 2 ? 0.65 : 0.18;
-  const trunkTop = new Vector3(lean, height * 0.61, 0.12);
-  parts.push(branch(new Vector3(0, 0, 0), new Vector3(0.11, 2.4, -0.05), 0.37, 0.24, 0x63503a));
-  parts.push(branch(new Vector3(0.11, 2.4, -0.05), trunkTop, 0.24, 0.10, 0x68543b));
-  for (let root = 0; root < 5; root++) {
-    const angle = root * Math.PI * 2 / 5 + 0.3;
-    parts.push(branch(new Vector3(Math.cos(angle) * 0.72, 0.035, Math.sin(angle) * 0.72), new Vector3(0, 0.7, 0), 0.12, 0.16, 0x655139));
-  }
-  const crowns = species === 1 ? 9 : 10;
-  const colors = [0x40582b, 0x4c632d, 0x5f7235, 0x6d7c3b, 0x50652d];
-  for (let i = 0; i < crowns; i++) {
-    const angle = i * 2.399 + random() * 0.25;
-    const width = species === 1 ? 1.35 : species === 2 ? 2.65 : 2.0;
-    const distance = (0.6 + random() * 0.6) * width;
-    const cy = species === 1 ? height * (0.50 + i / crowns * 0.39) : height * (0.56 + 0.25 * random());
-    const target = new Vector3(lean + Math.cos(angle) * distance, cy, Math.sin(angle) * distance);
-    const from = new Vector3(0.05, 2.4 + i % 3 * 0.5, 0);
-    parts.push(branch(from, target, 0.13, 0.045, i % 2 ? 0x725a3e : 0x5e4c36));
-    const sx = species === 1 ? 1.10 - i / crowns * 0.30 : species === 2 ? 1.65 : 1.45;
-    const sy = species === 1 ? 1.65 : species === 2 ? 0.95 : 1.18;
-    parts.push(lobe(target.x, target.y, target.z, sx * 0.57, sy * 0.62, sx * 0.57, 0x354f29, 1, true));
-    // Overlapping small solid leaf bunches conceal the core. No fine blade spikes.
-    const sprays = species === 1 ? 98 : 84;
-    for (let spray = 0; spray < sprays; spray++) {
-      const a = spray * 2.399963 + (random() - 0.5) * 0.45;
-      const vertical = 0.985 - (spray + 0.5) / sprays * 1.97;
-      const ring = Math.sqrt(1 - vertical * vertical);
-      const direction = new Vector3(Math.cos(a) * ring, vertical, Math.sin(a) * ring);
-      const size = 0.25 + random() * 0.15;
-      const color = vertical > 0.25 ? [0x647a39, 0x748340, 0x5d7537][spray % 3]!
-        : vertical < -0.25 ? [0x3d592c, 0x49622e, 0x506c31][spray % 3]! : colors[(i + spray) % colors.length]!;
-      const radius = 0.81 + random() * 0.08;
-      parts.push(lobe(target.x + direction.x * sx * radius, target.y + direction.y * sy * radius,
-        target.z + direction.z * sx * radius, size * 1.08, size * (0.68 + random() * 0.34), size,
-        color, 1, true));
-    }
-  }
-  return combined(parts);
-}
-
-function shrubGeometry() {
-  const random = randomSequence(17131);
-  const parts = [lobe(0, 0.35, 0, 0.45, 0.27, 0.40, 0x38552b, 1, true)];
-  for (let i = 0; i < 56; i++) {
-    const azimuth = i * 2.399963, vertical = 0.98 - i / 56 * 1.64;
-    const ring = Math.sqrt(1 - vertical * vertical), size = 0.15 + random() * 0.10;
-    parts.push(lobe(Math.cos(azimuth) * ring * 0.68, 0.42 + vertical * 0.39, Math.sin(azimuth) * ring * 0.61,
-      size * 1.15, size * 0.80, size, vertical > 0.3 ? 0x73813e : i % 2 ? 0x526a30 : 0x607634, 0, true));
-  }
-  return combined(parts);
-}
-
 function fracturedRockGeometry(variant: number) {
   const geometry = new BufferGeometry();
   const outline = variant === 0 ? [
@@ -271,67 +190,45 @@ function fracturedRockGeometry(variant: number) {
   return pigment(geometry, variant ? 0x7f7b61 : 0x777660, 0.085);
 }
 
-function fernGeometry() {
-  const parts: BufferGeometry[] = [];
-  for (let frond = 0; frond < 7; frond++) {
-    const angle = frond * 2.399;
-    const length = 0.65 + frond % 3 * 0.13;
-    for (let leaflet = 0; leaflet < 7; leaflet++) {
-      const t = (leaflet + 1) / 8, radius = t * length;
-      for (const sign of [-1, 1]) {
-        const leaf = blade(0.23 * (1 - t * 0.65), 0.09 * (1 - t * 0.55), 0.025, frond % 2 ? 0x647b39 : 0x466431);
-        leaf.rotateZ(sign * -Math.PI / 2.8); leaf.rotateY(angle); leaf.translate(Math.sin(angle) * radius, Math.sin(t * Math.PI * 0.8) * length * 0.65, Math.cos(angle) * radius);
-        parts.push(leaf);
-      }
-    }
+function wornStepGeometry(variant: number) {
+  const outline = variant ? [
+    [-0.47, -0.43], [-0.35, -0.5], [0.38, -0.49], [0.5, -0.37],
+    [0.48, 0.39], [0.35, 0.48], [-0.40, 0.5], [-0.5, 0.36],
+  ] : [
+    [-0.5, -0.38], [-0.40, -0.49], [0.35, -0.5], [0.48, -0.39],
+    [0.5, 0.36], [0.39, 0.5], [-0.37, 0.48], [-0.49, 0.38],
+  ];
+  const positions: number[] = [], indices: number[] = [];
+  for (const [ring, height] of [-0.5, 0.28, 0.5].entries()) for (const p of outline) {
+    const inset = ring === 2 ? 0.91 : ring === 0 ? 0.98 : 1;
+    positions.push(p[0]! * inset, height, p[1]! * inset);
   }
-  return combined(parts);
+  positions.push(0, 0.5, 0, 0, -0.5, 0);
+  for (let side = 0; side < 8; side++) {
+    const next = (side + 1) % 8;
+    for (let ring = 0; ring < 2; ring++) {
+      const a = ring * 8 + side, b = ring * 8 + next;
+      indices.push(a, a + 8, b, b, a + 8, b + 8);
+    }
+    indices.push(24, 16 + next, 16 + side);
+    indices.push(25, side, next);
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3)); geometry.setIndex(indices); geometry.computeVertexNormals();
+  return pigment(geometry, variant ? 0x8e8f73 : 0xa2a084, 0.045);
 }
 
-function plantGeometry(kind: 'short' | 'tall' | 'reed' | 'wheat' | 'white' | 'yellow' | 'weed') {
-  const parts: BufferGeometry[] = [];
-  const random = randomSequence(kind.charCodeAt(0) * 8191 + kind.length * 131);
-  if (kind === 'white' || kind === 'yellow') {
-    for (let stalk = 0; stalk < 3; stalk++) {
-      const x = (random() - 0.5) * 0.26, z = (random() - 0.5) * 0.26, h = 0.30 + random() * 0.25;
-      parts.push(branch(new Vector3(x, 0, z), new Vector3(x + 0.03, h, z), 0.009, 0.005, 0x52692d, 4));
-      for (let petal = 0; petal < 6; petal++) {
-        const leaf = blade(0.10, 0.075, 0.015, kind === 'white' ? 0xe5dfbd : 0xd5b449);
-        leaf.rotateZ(-Math.PI / 2); leaf.rotateY(petal * Math.PI / 3); leaf.translate(x + 0.03, h, z);
-        parts.push(leaf);
-      }
-      parts.push(lobe(x + 0.03, h + 0.016, z, 0.033, 0.028, 0.033, 0xc39734, 0));
-      const leaf = blade(0.20, 0.052, 0.11, 0x536b30); leaf.rotateY(stalk * 2); leaf.translate(x, 0.04, z); parts.push(leaf);
-    }
-  } else if (kind === 'reed' || kind === 'wheat') {
-    for (let stalk = 0; stalk < (kind === 'reed' ? 4 : 3); stalk++) {
-      const x = (random() - 0.5) * 0.27, z = (random() - 0.5) * 0.27;
-      const h = kind === 'reed' ? 1.2 + random() * 0.55 : 0.88 + random() * 0.27;
-      const lean = 0.035 + random() * 0.08;
-      const stem = kind === 'reed' ? 0x67764a : 0xb8a14e;
-      parts.push(branch(new Vector3(x, 0, z), new Vector3(x + lean, h, z), 0.012, 0.007, stem, 4));
-      for (let leafIndex = 0; leafIndex < 2; leafIndex++) {
-        const leaf = blade(kind === 'reed' ? 0.82 : 0.42, kind === 'reed' ? 0.085 : 0.046, 0.26, stem);
-        leaf.rotateY(stalk * 2.3 + leafIndex * 2.7); leaf.translate(x, h * (0.18 + leafIndex * 0.21), z); parts.push(leaf);
-      }
-      if (kind === 'wheat') {
-        parts.push(lobe(x + lean, h + 0.09, z, 0.052, 0.17, 0.052, stalk % 2 ? 0xc4aa51 : 0xab9142, 1));
-        for (let awn = 0; awn < 3; awn++) {
-          const leaf = blade(0.21, 0.012, 0.06, 0xc8b266); leaf.rotateY(awn * 2.1); leaf.translate(x + lean, h + 0.1, z); parts.push(leaf);
-        }
-      } else if (stalk % 2 === 0) {
-        parts.push(branch(new Vector3(x + lean, h - 0.03, z), new Vector3(x + lean, h + 0.16, z), 0.032, 0.027, 0x6b5738, 6));
-      }
-    }
-  } else {
-    const h = kind === 'short' ? 0.27 : kind === 'weed' ? 0.53 : 0.65;
-    for (let i = 0; i < 7; i++) {
-      const leaf = blade(h * (0.65 + random() * 0.65), kind === 'weed' ? 0.115 : 0.045, h * 0.28,
-        [0x596f32, 0x748443, 0x627639, 0x85904b][i % 4]!);
-      leaf.rotateY(i * 2.399); leaf.translate((random() - 0.5) * 0.21, 0, (random() - 0.5) * 0.21); parts.push(leaf);
-    }
-  }
-  return combined(parts);
+/** A thin asymmetric soil/moss island, anchored to a real supporting surface. */
+function groundPatch(color: number) {
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute([
+    0, 0.009, 0, -0.87, 0, -0.18, -0.51, 0, -0.70, 0.17, 0, -0.77,
+    0.79, 0, -0.44, 1, 0, 0.14, 0.36, 0, 0.77, -0.36, 0, 0.64, -0.89, 0, 0.35,
+  ], 3));
+  const indices: number[] = [];
+  for (let i = 1; i <= 8; i++) indices.push(0, i === 8 ? 1 : i + 1, i);
+  geometry.setIndex(indices); geometry.computeVertexNormals();
+  return pigment(geometry, color, 0.055);
 }
 
 type Placement = { x: number; y: number; z: number; sx: number; sy: number; sz: number; yaw: number; tint: number };
@@ -363,10 +260,9 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
     }
     return nearest;
   }
-  function reserved(x: number, z: number, y: number, extra = 0) {
+  function occupied(x: number, z: number, y: number, extra = 0) {
     if (Math.abs(x) > 46 || Math.abs(z) > 46 || y < -0.1) return true;
     if (Math.hypot(x - course.spawn.x, z - course.spawn.z) < 1.2 + extra) return true;
-    if (pathDistance(x, z, y) < extra) return true;
     if (Math.abs(x) < 4.3 + extra && Math.abs(z + 7) < 3.9 + extra) return true;
     if (Math.abs(x + 10) < 2.1 + extra && Math.abs(z + 1) < 2.0 + extra) return true;
     if (x > 4.9 - extra && x < 15 + extra && z > -7 - extra && z < 2.7 + extra) return true;
@@ -375,26 +271,36 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
     if (Math.abs(x + 14) < 2.1 + extra && z > -21.1 && z < -12.4) return true;
     return false;
   }
+  function reserved(x: number, z: number, y: number, extra = 0) {
+    return occupied(x, z, y, extra) || pathDistance(x, z, y) < extra;
+  }
   const library = new Map<string, Batch>();
   function register(name: string, geometry: BufferGeometry, shadows = false) { library.set(name, { geometry, shadows, positions: [] }); }
   function put(name: string, x: number, y: number, z: number, sx = 1, sy = sx, sz = sx, yaw = random() * Math.PI * 2, tint = 0.91 + random() * 0.18) {
     library.get(name)!.positions.push({ x, y, z, sx, sy, sz, yaw, tint });
   }
-  for (let species = 0; species < 3; species++) register(`tree-${species}`, treeGeometry(species), true);
-  for (const kind of ['short', 'tall', 'reed', 'wheat', 'white', 'yellow', 'weed'] as const) register(kind, plantGeometry(kind), kind === 'wheat');
-  register('shrub', shrubGeometry(), true);
-  register('fern', fernGeometry());
+  registerEcology(register);
   register('rock', lobe(0, 0, 0, 1, 0.8, 0.75, 0x7d7c61), true);
   register('fracture-0', fracturedRockGeometry(0), true);
   register('fracture-1', fracturedRockGeometry(1), true);
+  register('fracture-slate', fracturedRockGeometry(0).rotateZ(0.31), true);
+  register('fracture-chip', fracturedRockGeometry(1).rotateZ(-0.39), true);
   register('small-stone', lobe(0, 0.05, 0, 0.26, 0.13, 0.20, 0x989176), false);
   register('moss', lobe(0, 0, 0, 1, 0.13, 0.8, 0x667338), false);
+  register('soil-island', groundPatch(0x827043));
+  register('moss-island', groundPatch(0x68793e));
+  register('cliff-soil-streak', groundPatch(0x757654).rotateX(Math.PI / 2));
+  register('crevice-trailer', combined(Array.from({ length: 7 }, (_, leaf) => {
+    const geometry = blade(-(0.22 + leaf % 3 * 0.09), 0.052 + leaf % 2 * 0.025, 0.09, leaf % 2 ? 0x607440 : 0x6b7b42);
+    geometry.rotateZ((leaf - 3) * 0.095); geometry.translate((leaf - 3) * 0.024, -leaf % 2 * 0.028, 0.03);
+    return geometry;
+  })));
+  register('step-stone-0', wornStepGeometry(0), true);
+  register('step-stone-1', wornStepGeometry(1), true);
   register('wood', pigment(new BoxGeometry(1, 1, 1), 0x715437, 0.15), true);
   register('edging', pigment(new BoxGeometry(1, 1, 1), 0x76684b, 0.13), true);
 
-  for (const [index, [x, y, z, scale, species]] of RURAL_TREES.entries()) {
-    put(`tree-${species}`, x, y, z, scale, scale, scale, index * 1.718, 0.92 + (index % 4) * 0.045);
-  }
+  placeTrees(put);
 
   // Rows are purposeful agriculture; the heads and stalks vary within each row.
   const cropSurface = surfaces.find(surface => surface.id === 'terrain.crop-terrace.top')!;
@@ -457,68 +363,142 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
   const lanternGlass = new Mesh(new BoxGeometry(0.34, 0.30, 0.34), new MeshStandardMaterial({ color: 0xc0a561, roughness: 0.45 }));
   lanternGlass.name = 'garden.lantern.inferred'; lanternGlass.position.set(15.35, 5.4, -3.8); group.add(lanternGlass);
 
-  // Authored ecological patches: paths, roots, ledges and a few open grass clearings.
-  const patches: [number, number, number, number][] = [
-    [-34, -15, 6, 4], [-27, -23, 4, 5], [-36, -31, 6, 6], [-22, -32, 3, 6],
-    [-11, -30, 5, 4], [-3, -31, 5, 4], [2, -40, 6, 4], [30, -34, 5, 6],
-    [29, -22, 4, 3], [34, -11, 7, 6], [20, -11, 4, 5], [15, -13, 3, 3],
-    [-7, -14, 4, 2.4], [-8, -7, 1.8, 4], [-21, -6, 4, 6], [-29, -1, 6, 3],
-    [-4, 1.1, 2.4, 1.4], [18, 1, 3.5, 3], [25, 3, 6, 2.5], [35, 2, 6, 2],
-    [-19, 6, 5, 1.7], [-13, 9, 2, 1.2], [2, 7, 4, 1.3], [9, 6.6, 4, 1.5],
-    [23, 7, 7, 1.4], [-28, 6, 7, 1], [-38, 6.2, 6, 1.8],
-    [-22, 29.3, 5, 1.6], [-11, 30.7, 3, 2], [8, 29.7, 5, 1.8], [23, 29.5, 5, 2],
-    [-20, 37, 8, 6], [-7, 42, 5, 5], [18, 39, 6, 7], [32, 37, 7, 6],
-  ];
-  for (const [patchIndex, [cx, cz, rx, rz]] of patches.entries()) {
-    for (let plant = 0; plant < 450; plant++) {
-      const angle = random() * Math.PI * 2;
-      const radius = Math.sqrt(random()) * (0.75 + random() * 0.3);
-      const x = cx + Math.cos(angle) * radius * rx, z = cz + Math.sin(angle) * radius * rz;
-      const y = groundHeight(x, z);
-      if (reserved(x, z, y, 0.28)) continue;
-      const patchNoise = Math.sin(x * 1.5 + Math.sin(z)) * Math.cos(z * 1.8);
-      if (patchNoise < -0.45) continue;
-      const kind = patchIndex % 4 === 0 && plant % 5 === 0 ? 'tall' : 'short';
-      const scale = 0.7 + random() * 0.8;
-      put(kind, x, y + 0.005, z, scale, scale, scale);
-      if (plant % 19 === 0) put(patchIndex % 3 ? 'white' : 'yellow', x + 0.1, y, z, 0.72 + random() * 0.45);
-      if (plant % 61 === 0 && pathDistance(x, z, y) > 0.7) put('weed', x, y, z, 0.8 + random() * 0.3);
-    }
-    for (let shrub = 0; shrub < (patchIndex % 3 === 0 ? 12 : 6); shrub++) {
-      const x = cx + (random() - 0.5) * rx * 1.4, z = cz + (random() - 0.5) * rz * 1.4, y = groundHeight(x, z);
-      if (!reserved(x, z, y, 1.0)) {
-        put(shrub % 3 ? 'shrub' : 'fern', x, y, z, 0.5 + random() * 0.8);
-        for (let pocket = 0; pocket < 4; pocket++) {
-          const px = x + (random() - 0.5) * 1.4, pz = z + (random() - 0.5) * 1.4;
-          if (!reserved(px, pz, y, 0.3)) put(pocket % 2 ? 'tall' : 'fern', px, y, pz, 0.45 + random() * 0.5);
+  addGroundEcology({ random, groundHeight, pathDistance, reserved, put });
+
+  // Verge growth follows long unequal patches; isolated inset pebbles stay flush with the soil.
+  for (const lane of laneSamples) {
+    const phase = lane.points[0]![0] * 0.61 + lane.points[0]![1] * 0.27;
+    let distance = 0;
+    for (let i = 1; i < lane.samples.length - 1; i++) {
+      const p = lane.samples[i]!, before = lane.samples[i - 1]!, after = lane.samples[i + 1]!;
+      distance += Math.hypot(p[0] - before[0], p[1] - before[1]);
+      if (random() < 0.42) continue;
+      const dx = after[0] - before[0], dz = after[1] - before[1], length = Math.hypot(dx, dz);
+      const edge = laneProfile(distance, lane.width, phase);
+      for (const sign of [-1, 1]) {
+        const patch = Math.sin(distance * 0.74 + phase + sign * 2.4) + Math.sin(distance * 0.29 - sign);
+        if (patch < -0.55) continue;
+        const verge = sign > 0 ? edge.left : edge.right;
+        for (let tuft = 0; tuft < 1 + Math.floor((patch + 2) * 1.5); tuft++) {
+          const offset = verge + (random() - 0.42) * 0.8;
+          const along = (random() - 0.5) * 0.75;
+          const x = p[0] + sign * dz / length * offset + dx / length * along;
+          const z = p[1] - sign * dx / length * offset + dz / length * along;
+          const y = groundHeight(x, z);
+          if (Math.abs(y - lane.y) > 0.1 || occupied(x, z, y, 0.08) || pathDistance(x, z, y) < -lane.width * 0.20) continue;
+          put(tuft % 5 === 0 ? 'weed' : 'short', x, y + 0.013, z, 0.50 + random() * 0.58, 0.5 + random() * 0.48);
+          if (tuft === 0 && patch > 0.15) put('moss-island', x, lane.y + 0.006, z, 0.3 + random() * 0.45, 1, 0.15 + random() * 0.23);
+        }
+        if (random() > 0.52) {
+          const offset = verge * (0.50 + random() * 0.63);
+          const x = p[0] + sign * dz / length * offset, z = p[1] - sign * dx / length * offset;
+          if (Math.abs(groundHeight(x, z) - lane.y) < 0.1 && !occupied(x, z, lane.y, 0.04)) {
+            const pebbles = patch > 0.85 ? 2 + Math.floor(random() * 3) : 1;
+            for (let pebble = 0; pebble < pebbles; pebble++) {
+              const px = x + (random() - 0.5) * 0.65, pz = z + (random() - 0.5) * 0.65;
+              if (Math.abs(groundHeight(px, pz) - lane.y) > 0.1 || occupied(px, pz, lane.y, 0.04)) continue;
+              put('small-stone', px, lane.y - 0.008, pz, 0.32 + random() * 0.62, 0.24 + random() * 0.27, 0.40 + random() * 0.66, random() * Math.PI * 2, 0.78 + random() * 0.24);
+            }
+          }
         }
       }
     }
   }
 
-  // Broken lane margins use thin stones and grass tufts, leaving the full walking core clear.
-  for (const lane of laneSamples) for (let i = 2; i < lane.samples.length - 2; i += 2) {
-    const p = lane.samples[i]!, before = lane.samples[i - 1]!, after = lane.samples[i + 1]!;
-    const dx = after[0] - before[0], dz = after[1] - before[1], length = Math.hypot(dx, dz);
-    for (const sign of [-1, 1]) {
-      const x = p[0] + sign * dz / length * (lane.width / 2 + random() * 0.6);
-      const z = p[1] - sign * dx / length * (lane.width / 2 + random() * 0.6);
+  // The reliable M2 cuboids remain collision-only. All worn slab tops are within 2 cm of them.
+  for (const run of ['main', 'crop']) {
+    const steps = course.boxes.filter(box => box.id.startsWith(`stairs.${run}.`));
+    const base = run === 'main' ? 0 : 4;
+    const supportVertices: number[] = [], supportIndices: number[] = [];
+    for (const step of steps) {
+      const top = step.position.y + step.size.y / 2;
+      const height = run === 'main' ? 0.205 : 0.208;
+      const widths = [step.size.x * (0.26 + random() * 0.10), step.size.x * (0.30 + random() * 0.09)];
+      widths.push(step.size.x - widths[0]! - widths[1]!);
+      let left = step.position.x - step.size.x / 2;
+      for (const [stone, width] of widths.entries()) {
+        const center = left + width / 2;
+        put(`step-stone-${(stone + Number(step.id.split('.').at(-1))) % 2}`, center,
+          top + 0.010 - height / 2, step.position.z + (random() - 0.5) * 0.018,
+          width + 0.015, height, step.size.z + 0.04 + random() * 0.028, (random() - 0.5) * 0.018, 0.83 + random() * 0.25);
+        left += width;
+        if (stone < widths.length - 1 && random() > 0.85) {
+          put('moss-island', left, top + 0.012, step.position.z + (random() - 0.5) * 0.10, 0.018 + random() * 0.023, 0.10, 0.075 + random() * 0.035, 0, 0.8 + random() * 0.15);
+          if (random() > 0.68) put('short', left, top + 0.006, step.position.z + 0.04, 0.17 + random() * 0.09, 0.20, 0.23);
+        }
+      }
+      // A continuous earth/stone core grounds the visible stair sides rather than leaving a hollow shell.
+      for (const sign of [-1, 1]) {
+        const x = step.position.x + sign * (step.size.x / 2 + 0.31 + random() * 0.04);
+        const innerX = step.position.x + sign * (step.size.x / 2 - 0.075);
+        const z0 = step.position.z - step.size.z / 2, z1 = step.position.z + step.size.z / 2;
+        const k = supportVertices.length / 3;
+        supportVertices.push(x, base, z0, x, top - 0.03, z0, x, top - 0.03, z1, x, base, z1);
+        supportIndices.push(k, k + (sign > 0 ? 1 : 2), k + (sign > 0 ? 2 : 1), k, k + (sign > 0 ? 2 : 3), k + (sign > 0 ? 3 : 2));
+        const ledge = supportVertices.length / 3;
+        supportVertices.push(innerX, top - 0.03, z0, x, top - 0.03, z0, innerX, top - 0.03, z1, x, top - 0.03, z1);
+        supportIndices.push(ledge, ledge + (sign > 0 ? 2 : 1), ledge + (sign > 0 ? 1 : 2), ledge + 1, ledge + (sign > 0 ? 2 : 3), ledge + (sign > 0 ? 3 : 2));
+        const shoulderX = step.position.x + sign * (step.size.x / 2 + 0.10 + random() * 0.17);
+        if (random() > 0.40) put('fracture-1', shoulderX, top - 0.12, step.position.z, 0.20 + random() * 0.20, 0.16 + random() * 0.15, 0.22 + random() * 0.10, sign * Math.PI / 2);
+        if (random() > 0.81 && Math.sin(top * 2.1 + sign) > -0.3) {
+          put('moss-island', shoulderX, top - 0.026, step.position.z, 0.095 + random() * 0.04, 0.12, 0.09 + random() * 0.035, 0, 0.78 + random() * 0.15);
+          if (random() > 0.45) put('short', shoulderX, top - 0.025, step.position.z, 0.24 + random() * 0.13, 0.29, 0.27);
+        }
+      }
+    }
+    const supportGeometry = new BufferGeometry();
+    supportGeometry.setAttribute('position', new Float32BufferAttribute(supportVertices, 3)); supportGeometry.setIndex(supportIndices); supportGeometry.computeVertexNormals(); applyLandscapeUV(supportGeometry, 'cliff');
+    const support = new Mesh(supportGeometry, landscape.stone); support.name = `stairs.${run}.aged-side-core`; support.castShadow = true; support.receiveShadow = true; group.add(support);
+    for (const step of [steps[0]!, steps.at(-1)!]) for (const sign of [-1, 1]) {
+      const top = step.position.y + step.size.y / 2;
+      const x = step.position.x + sign * (step.size.x / 2 + 0.48), z = step.position.z;
       const y = groundHeight(x, z);
-      if (Math.abs(y - lane.y) > 0.1 || reserved(x, z, y, 0.06)) continue;
-      if (random() > 0.18) put('short', x, y, z, 0.8 + random() * 0.6);
-      if (random() > 0.66) put('small-stone', x, y, z, 0.35 + random() * 0.65);
+      if (Math.abs(y - top) < 0.4) {
+        put('soil-island', x, y + 0.011, z, 0.6 + random() * 0.4, 1, 0.6 + random() * 0.25);
+        put('fern', x, y, z + 0.15, 0.44 + random() * 0.23);
+        put('fracture-0', x, y + 0.17, z - 0.20, 0.42, 0.18, 0.34);
+      }
     }
   }
 
-  // Weathered natural outcrops overlap the textured collision cliffs without a block grid.
+  const soilLipVertices: number[] = [], soilLipColors: number[] = [], soilLipIndices: number[] = [];
+  const creviceRandom = randomSequence(RURAL.seed + 27431);
+  const stairOpening = (x: number, z: number) => Math.abs(x + 7) < 2.35 && z > 2 && z < 11.5 || Math.abs(x + 14) < 2.05 && z > -21 && z < -12;
+  // Soil hangs beneath the real grass edge, then breaks into asymmetrical bedrock and lower scree.
   for (const surface of surfaces.filter(item => item.id.endsWith('.cliff'))) {
     for (let edge = 0; edge < surface.vertices.length; edge += 12) {
       const ax = surface.vertices[edge]!, top = surface.vertices[edge + 1]!, az = surface.vertices[edge + 2]!;
       const bx = surface.vertices[edge + 3]!, bz = surface.vertices[edge + 5]!, bottom = surface.vertices[edge + 7]!;
       const length = Math.hypot(bx - ax, bz - az);
       const nx = (bz - az) / length, nz = -(bx - ax) / length;
+      const faceRocks: { distance: number; y: number; width: number; halfHeight: number }[] = [];
       if (Math.max(Math.abs(ax), Math.abs(bx)) > 47.9 && Math.abs(ax - bx) < 0.01) continue;
       if (az < -44 && bz < -44 || az > 43 && bz > 43) continue;
+      if (top > 0) {
+        const sections = Math.ceil(length / 0.8);
+        for (let section = 0; section < sections; section++) {
+          const d0 = section / sections * length, d1 = (section + 1) / sections * length;
+          const mx = ax + (bx - ax) * (d0 + d1) / (2 * length), mz = az + (bz - az) * (d0 + d1) / (2 * length);
+          if (stairOpening(mx, mz) || groundHeight(mx + nx * 0.5, mz + nz * 0.5) >= top - 0.1) continue;
+          if (Math.sin(mx * 0.44 + mz * 0.27) + Math.cos(mx * 0.79 - mz * 0.51) < -0.84) continue;
+          const k = soilLipVertices.length / 3;
+          for (const d of [d0, d1]) {
+            const x = ax + (bx - ax) * d / length, z = az + (bz - az) * d / length;
+            const depth = 0.12 + 0.40 * (0.5 + 0.5 * Math.sin(x * 0.61 + z * 0.38)) * (0.5 + 0.5 * Math.cos(x * 1.03 - z * 0.57));
+            const topInset = 0.018 + (0.5 + 0.5 * Math.sin(x * 0.96 - z * 0.48)) * 0.043;
+            soilLipVertices.push(x + nx * 0.06, top - topInset, z + nz * 0.06,
+              x + nx * 0.105, top - depth * 0.48 - topInset, z + nz * 0.105,
+              x + nx * 0.04, top - depth - topInset, z + nz * 0.04);
+            const moss = Math.max(0, Math.sin(x * 0.83 + z * 0.48) * Math.cos(z * 0.67 - x * 0.23));
+            for (const [ring, hex] of [0x717949, 0x857858, 0x7b7c61].entries()) {
+              const color = new Color(hex).lerp(new Color(0x687842), moss * (ring === 0 ? 0.70 : ring === 1 ? 0.48 : 0.20));
+              color.multiplyScalar(0.94 + Math.sin(x * 0.52 + z * 0.71 + ring) * 0.075); soilLipColors.push(color.r, color.g, color.b);
+            }
+          }
+          soilLipIndices.push(k, k + 3, k + 1, k + 1, k + 3, k + 4, k + 1, k + 4, k + 2, k + 2, k + 4, k + 5);
+          if (random() > 0.75) put('crevice-trailer', mx + nx * 0.13, top - 0.05 - random() * 0.11, mz + nz * 0.13, 0.56 + random() * 0.34, 0.45 + random() * 0.7, 0.53 + random() * 0.28, Math.atan2(nx, nz), 0.86 + random() * 0.13);
+        }
+      }
       let stride = 1.8;
       for (let distance = 0.4; distance < length; distance += stride) {
         stride = 1.7 + random() * 1.7;
@@ -526,53 +506,189 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
         const outsideHeight = groundHeight(x + nx * 0.7, z + nz * 0.7);
         if (outsideHeight >= top - 0.05 || top < -0.1) continue;
         const exposedBottom = Math.max(bottom, outsideHeight, top === 0 ? -1.35 : -4);
-        if (Math.abs(x + 7) < 2.35 && z > 2 && z < 11.5 || Math.abs(x + 14) < 2.05 && z > -21 && z < -12) continue;
+        if (stairOpening(x, z)) continue;
         if (top === 0 && Math.abs(x - RURAL.bridge.x) < 2.4) continue;
+        if (top === 0) continue; // Bank dressing uses its actual sloping shore and clustered communities below.
         const relief = top - exposedBottom;
         if (relief > 1.5) {
-          const broadBedrock = random() > 0.70 && length - distance > 3;
+          const broadBedrock = random() > 0.76 && length - distance > 3;
           if (broadBedrock) stride = 3.8 + random() * 2.3;
           const divisions = broadBedrock ? [0, 0.64 + random() * 0.18, 1]
             : random() > 0.5 ? [0, 0.29 + random() * 0.12, 0.63 + random() * 0.14, 1] : [0, 0.36 + random() * 0.20, 1];
           for (let layer = 0; layer < divisions.length - 1; layer++) {
             const layerBottom = exposedBottom + relief * divisions[layer]!;
-            const layerTop = exposedBottom + relief * divisions[layer + 1]!;
+            const layerTop = exposedBottom + relief * divisions[layer + 1]! - (layer === divisions.length - 2 ? 0.25 + random() * 0.16 : 0);
             const height = layerTop - layerBottom;
             const along = (random() - 0.5) * (broadBedrock ? 0.5 : 0.9);
             const px = x + (bx - ax) / length * along, pz = z + (bz - az) / length * along;
             const width = broadBedrock ? stride * (layer === 0 ? 0.78 : 0.56) : 0.65 + random() * 1.08;
-            const projection = layer === 0 ? 0.19 : 0.04 - layer * 0.025;
+            const projection = layer === 0 ? 0.25 + random() * 0.14 : 0.04 + random() * 0.12 - layer * 0.025;
+            const rockHalfHeight = height * (0.48 + random() * 0.05);
             put((layer + edge) % 2 ? 'fracture-0' : 'fracture-1', px + nx * projection,
-              (layerTop + layerBottom) / 2, pz + nz * projection, width, height * (0.48 + random() * 0.05),
+              (layerTop + layerBottom) / 2, pz + nz * projection, width, rockHalfHeight,
               0.48 + random() * 0.36, Math.atan2(nx, nz));
-            if (layer < divisions.length - 2 && random() > 0.5) {
+            faceRocks.push({ distance: distance + along, y: (layerTop + layerBottom) / 2, width, halfHeight: rockHalfHeight });
+            if (layer < divisions.length - 2 && random() > 0.40) {
               put('moss', px + nx * 0.37, layerTop - 0.065, pz + nz * 0.37,
                 Math.min(1.3, width * 0.77), 0.32, 0.48 + random() * 0.22);
-              if (random() > 0.50) put('fern', px + nx * 0.38, layerTop - 0.02, pz + nz * 0.38, 0.32 + random() * 0.20);
+              if (random() > 0.58) put('fern', px + nx * 0.34, layerTop - 0.13, pz + nz * 0.34, 0.24 + random() * 0.21);
+              if (random() > 0.65) put('weed', px + nx * 0.29, layerTop - 0.08, pz + nz * 0.29, 0.28, 0.40, 0.28);
             }
           }
-          if (random() > 0.58) put('fracture-1', x + nx * 0.3, exposedBottom + 0.24, z + nz * 0.3, 0.5 + random() * 0.5, 0.24, 0.47, Math.atan2(nx, nz));
+          for (let scree = 0; scree < 2 + Math.floor(random() * 4); scree++) {
+            const along = (random() - 0.5) * 1.8, out = 0.38 + random() * 0.85;
+            const px = x + nx * out + (bx - ax) / length * along, pz = z + nz * out + (bz - az) / length * along;
+            const floor = groundHeight(px, pz);
+            if (floor >= top - 0.5 || reserved(px, pz, floor, 0.12)) continue;
+            const size = 0.21 + random() * 0.43;
+            put(scree % 2 ? 'fracture-1' : 'rock', px, floor + size * 0.25, pz, size, size * 0.37, size * (0.6 + random() * 0.5));
+            if (scree === 0) { put('moss-island', px, floor + 0.008, pz, 0.5, 1, 0.35); put('fern', px, floor, pz, 0.35); }
+          }
         } else {
           put('fracture-0', x + nx * 0.06, (exposedBottom + top) / 2, z + nz * 0.06,
             0.8 + random() * 0.4, relief * 0.48, 0.4 + random() * 0.3, Math.atan2(nx, nz));
+          faceRocks.push({ distance, y: (exposedBottom + top) / 2, width: 1.0, halfHeight: relief * 0.48 });
         }
-        if (random() > 0.3) put('moss', x - nx * 0.13, top + 0.025, z - nz * 0.13, 0.55 + random() * 0.5, 0.5, 0.7);
         const lipX = x - nx * 0.4, lipZ = z - nz * 0.4;
-        if (!reserved(lipX, lipZ, top, 0.25)) {
-          put('tall', lipX, top, lipZ, 0.7 + random() * 0.5);
-          if (random() > 0.33) {
-            put('shrub', lipX - nx * 0.2, top, lipZ - nz * 0.2, 0.46 + random() * 0.5);
-            put('fern', lipX - nx * 0.5 + 0.3, top, lipZ - nz * 0.5, 0.45 + random() * 0.4);
+        if (Math.abs(groundHeight(lipX, lipZ) - top) < 0.08 && !reserved(lipX, lipZ, top, 0.25)) {
+          put('moss-island', lipX, top + 0.008, lipZ, 0.6 + random() * 0.70, 1, 0.3 + random() * 0.4);
+          const plantPatch = Math.sin(x * 0.48 + z * 0.23) + Math.cos(z * 0.56 - x * 0.15);
+          if (plantPatch > -0.4) for (let plant = 0; plant < 3 + Math.floor(random() * 4); plant++) {
+            const along = (random() - 0.5) * 1.45, inset = 0.16 + random() * 0.58;
+            const px = lipX - nx * inset + (bx - ax) / length * along, pz = lipZ - nz * inset + (bz - az) / length * along;
+            if (Math.abs(groundHeight(px, pz) - top) > 0.08 || reserved(px, pz, top, 0.12)) continue;
+            put(plant % 3 === 0 ? 'fern' : plant % 3 === 1 ? 'weed' : 'tall', px, top, pz, 0.35 + random() * 0.37);
           }
-        }
-        if (top === 0) {
-          for (let reed = 0; reed < 3; reed++) {
-            const offset = 0.45 + random() * 0.5;
-            put('reed', x + nx * offset + (random() - 0.5) * 0.5, -0.8, z + nz * offset + (random() - 0.5) * 0.5, 0.65 + random() * 0.45);
-          }
-          put('rock', x + nx * 0.65, -0.83, z + nz * 0.65, 0.45 + random() * 0.75, 0.45, 0.5 + random() * 0.45);
         }
       }
+      if (top > 0) {
+        // Fill only exposed interstices between the retained outcrops; no new course/grid of rock modules.
+        const averageFloor = groundHeight((ax + bx) / 2 + nx * 0.55, (az + bz) / 2 + nz * 0.55);
+        const faceHeight = top - Math.max(bottom, averageFloor);
+        const candidates = Math.ceil(length * Math.max(0, faceHeight) * 0.95);
+        for (let gap = 0; gap < candidates; gap++) {
+          const distance = (0.04 + creviceRandom() * 0.92) * length;
+          const x = ax + (bx - ax) * distance / length, z = az + (bz - az) * distance / length;
+          const floor = Math.max(bottom, groundHeight(x + nx * 0.55, z + nz * 0.55));
+          if (floor >= top - 0.8 || stairOpening(x, z)) continue;
+          let y = floor + 0.22 + creviceRandom() * Math.max(0, top - floor - 0.65);
+          const covered = faceRocks.some(rock => Math.pow((distance - rock.distance) / (rock.width * 0.95), 2) + Math.pow((y - rock.y) / (rock.halfHeight * 0.88), 2) < 1);
+          if (covered) continue;
+          const width = 0.22 + creviceRandom() * 0.57, halfHeight = 0.20 + creviceRandom() * 0.40;
+          y = Math.min(y, top - 0.13 - (width * 0.40 + halfHeight * 0.96));
+          if (Math.abs(x + 7) < 2.35 + width && z > 2 && z < 11.5 || Math.abs(x + 14) < 2.05 + width && z > -21 && z < -12) continue;
+          const relief = 0.16 + creviceRandom() * 0.22;
+          put(gap % 3 ? 'fracture-chip' : 'fracture-slate', x + nx * 0.035, y, z + nz * 0.035,
+            width, halfHeight, relief, Math.atan2(nx, nz), 0.82 + creviceRandom() * 0.20);
+          faceRocks.push({ distance, y, width, halfHeight });
+          if (creviceRandom() > 0.48) {
+            const side = creviceRandom() > 0.5 ? 1 : -1;
+            const along = side * width * 0.76;
+            const px = x + (bx - ax) / length * along + nx * 0.022, pz = z + (bz - az) / length * along + nz * 0.022;
+            const streakHeight = Math.min(0.30 + creviceRandom() * 0.48, (top - y - halfHeight * 0.18 - 0.08) / 0.85);
+            put('cliff-soil-streak', px, y + halfHeight * 0.18, pz, 0.10 + creviceRandom() * 0.14,
+              streakHeight, 0.20, Math.atan2(nx, nz), 0.87 + creviceRandom() * 0.10);
+            if (creviceRandom() > 0.40) put('crevice-trailer', px + nx * 0.048, y + halfHeight * 0.38, pz + nz * 0.048,
+              0.34 + creviceRandom() * 0.29, 0.42 + creviceRandom() * 0.53, 0.40,
+              Math.atan2(nx, nz), 0.84 + creviceRandom() * 0.13);
+          }
+        }
+      }
+    }
+  }
+
+  const soilLipGeometry = new BufferGeometry();
+  soilLipGeometry.setAttribute('position', new Float32BufferAttribute(soilLipVertices, 3)); soilLipGeometry.setAttribute('color', new Float32BufferAttribute(soilLipColors, 3)); soilLipGeometry.setIndex(soilLipIndices); soilLipGeometry.computeVertexNormals(); applyLandscapeUV(soilLipGeometry, 'cliff');
+  const soilLipMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 1 }); soilLipMaterial.name = 'landscape.layered-soil-lip';
+  const soilLips = new Mesh(soilLipGeometry, soilLipMaterial); soilLips.name = 'terrain.layered-soil-lips'; soilLips.receiveShadow = true; group.add(soilLips);
+
+  const shores = ground.filter(surface => surface.id.includes('north-bank') || surface.id.includes('south-bank'));
+  const bankVertices: number[] = [], bankColors: number[] = [], bankIndices: number[] = [];
+  const shoreHeight = (offset: number) => offset < 0 ? 0 : offset < 0.55 ? -0.04 - offset / 0.55 * 0.36 : -0.40 - (offset - 0.55) / 0.95 * 1.12;
+  const bankBands = [-0.14, 0.08, 0.30, 0.55, 0.85, 1.13, 1.52];
+  for (const shore of shores) for (let edge = 0; edge < shore.vertices.length; edge += 3) {
+    const next = (edge + 3) % shore.vertices.length;
+    const ax = shore.vertices[edge]!, az = shore.vertices[edge + 2]!, bx = shore.vertices[next]!, bz = shore.vertices[next + 2]!;
+    if (Math.abs(ax) > 47.9 && Math.abs(bx) > 47.9 || az < 0 || bz < 0 || az > 30 || bz > 30) continue;
+    const length = Math.hypot(bx - ax, bz - az), nx = (bz - az) / length, nz = -(bx - ax) / length;
+    const previous = (edge - 3 + shore.vertices.length) % shore.vertices.length;
+    const previousX = shore.vertices[previous]!, previousZ = shore.vertices[previous + 2]!;
+    const previousLength = Math.hypot(ax - previousX, az - previousZ);
+    const previousNX = (az - previousZ) / previousLength, previousNZ = -(ax - previousX) / previousLength;
+    // Small deposited stone/plant pockets soften local bends in the authored shoreline polygon.
+    if (Math.abs(nx - previousNX) + Math.abs(nz - previousNZ) > 0.25 && previousZ > 0 && previousZ < 30 && Math.abs(ax - RURAL.bridge.x) > 2.8) {
+      const normalLength = Math.hypot(nx + previousNX, nz + previousNZ);
+      const cornerNX = (nx + previousNX) / normalLength, cornerNZ = (nz + previousNZ) / normalLength;
+      for (let deposit = 0; deposit < 2 + Math.floor(creviceRandom() * 3); deposit++) {
+        const offset = 0.22 + creviceRandom() * 0.73, along = (creviceRandom() - 0.5) * 1.04, size = 0.29 + creviceRandom() * 0.39;
+        const x = ax + cornerNX * offset + cornerNZ * along, z = az + cornerNZ * offset - cornerNX * along;
+        put(deposit % 2 ? 'fracture-chip' : 'rock', x, shoreHeight(offset) + size * 0.16, z,
+          size, size * (0.31 + creviceRandom() * 0.16), size * (0.5 + creviceRandom() * 0.35), creviceRandom() * Math.PI * 2, 0.82 + creviceRandom() * 0.15);
+        if (deposit < 2) put('reed', x + cornerNX * 0.14, shoreHeight(offset + 0.14) + 0.012, z + cornerNZ * 0.14,
+          0.45 + creviceRandom() * 0.28, 0.5 + creviceRandom() * 0.32, 0.47, creviceRandom() * Math.PI * 2, 0.88);
+      }
+      const inlandX = ax - cornerNX * 0.34, inlandZ = az - cornerNZ * 0.34;
+      if (groundHeight(inlandX, inlandZ) === 0 && !reserved(inlandX, inlandZ, 0, 0.2)) {
+        put('ecology-groundcover', inlandX, 0.008, inlandZ, 0.53, 0.46, 0.54, creviceRandom() * Math.PI * 2, 0.88);
+        put('short', inlandX - cornerNX * 0.19, 0.008, inlandZ - cornerNZ * 0.19, 0.57, 0.60, 0.53, creviceRandom() * Math.PI * 2, 0.88);
+      }
+    }
+    const sections = Math.ceil(length / 0.8);
+    for (let section = 0; section <= sections; section++) {
+      const d = section / sections * length, x = ax + (bx - ax) * d / length, z = az + (bz - az) * d / length;
+      for (const [band, basis] of bankBands.entries()) {
+        const variation = Math.sin(x * 0.63 + z * 0.46 + band * 1.37) * (band === 0 ? 0.095 : band === 3 ? 0 : 0.055);
+        const offset = basis + variation;
+        bankVertices.push(x + nx * offset, shoreHeight(offset) + (offset < 0 ? 0.008 : 0.010), z + nz * offset);
+        const depth = Math.max(0, Math.min(1, (offset + 0.02) / 1.27));
+        const mix = depth * depth * (3 - 2 * depth);
+        const earth = new Color(0x75804a), shallows = new Color(0x638f76);
+        const color = earth.lerp(shallows, mix).lerp(new Color(0x837950), Math.sin(depth * Math.PI) * 0.17);
+        color.multiplyScalar(0.97 + Math.sin(x * 0.41 + z * 0.39 + depth) * 0.045); bankColors.push(color.r, color.g, color.b);
+      }
+      if (section > 0) for (let band = 0; band < bankBands.length - 1; band++) {
+        const k = bankVertices.length / 3 - bankBands.length + band;
+        bankIndices.push(k - bankBands.length, k, k - bankBands.length + 1, k - bankBands.length + 1, k, k + 1);
+      }
+    }
+    for (let distance = 0.8 + random() * 2; distance < length; distance += 2.5 + random() * 4.8) {
+      const x = ax + (bx - ax) * distance / length, z = az + (bz - az) * distance / length;
+      if (Math.abs(x - RURAL.bridge.x) < 2.7 || Math.sin(x * 0.32 + z * 0.42) < -0.68) continue;
+      const reeds = 4 + Math.floor(random() * 12), patchWidth = 0.6 + random() * 1.5;
+      for (let plant = 0; plant < reeds; plant++) {
+        const along = (random() - 0.5) * patchWidth * 2;
+        const offset = 0.22 + random() * (plant % 4 === 0 ? 1.05 : 0.58);
+        const px = x + nx * offset + (bx - ax) / length * along, pz = z + nz * offset + (bz - az) / length * along;
+        put('reed', px, shoreHeight(offset) + 0.025, pz, 0.44 + random() * 0.74, 0.46 + random() * 0.67, 0.50 + random() * 0.68);
+        if (plant < 5) {
+          const inset = 0.3 + random() * 0.55, lx = x - nx * inset + (bx - ax) / length * along, lz = z - nz * inset + (bz - az) / length * along;
+          if (groundHeight(lx, lz) === 0 && !reserved(lx, lz, 0, 0.16)) {
+            put(plant % 3 === 0 ? 'fern' : plant % 3 === 1 ? 'ecology-groundcover' : 'short', lx, 0.008, lz, 0.44 + random() * 0.36);
+            if (plant === 0) put('moss-island', lx, 0.004, lz, 0.35 + random() * 0.25, 0.12, 0.23 + random() * 0.18, random() * Math.PI * 2, 0.8);
+          }
+        }
+      }
+      if (random() > 0.24) for (let stone = 0; stone < 2 + Math.floor(random() * 4); stone++) {
+        const along = (random() - 0.5) * patchWidth * 2.3, offset = 0.12 + random() * 0.94;
+        const size = 0.32 + random() * 0.70;
+        put(stone % 2 ? 'rock' : 'fracture-1', x + nx * offset + (bx - ax) / length * along,
+          shoreHeight(offset) + size * 0.17, z + nz * offset + (bz - az) / length * along,
+          size, size * (0.30 + random() * 0.22), size * (0.46 + random() * 0.46));
+      }
+    }
+  }
+  const bankGeometry = new BufferGeometry();
+  bankGeometry.setAttribute('position', new Float32BufferAttribute(bankVertices, 3)); bankGeometry.setAttribute('color', new Float32BufferAttribute(bankColors, 3)); bankGeometry.setIndex(bankIndices); bankGeometry.computeVertexNormals();
+  const banks = new Mesh(bankGeometry, new MeshStandardMaterial({ vertexColors: true, roughness: 1 })); banks.name = 'water.irregular-wet-bank-washes'; banks.receiveShadow = true; group.add(banks);
+
+  // Stone shoulders support bridge corners and grass grows around, while both landing cores remain open.
+  for (const z of [12, 26]) for (const sign of [-1, 1]) {
+    const sideX = RURAL.bridge.x + sign * 2.12;
+    put('fracture-0', sideX, -0.33, z, 0.64, 0.43, 0.82, z === 12 ? 0 : Math.PI, 0.78);
+    put('rock', sideX + sign * 0.56, -0.19, z + (z === 12 ? -0.28 : 0.28), 0.38, 0.31, 0.48, 0, 0.87);
+    const landZ = z + (z === 12 ? -0.57 : 0.57), landX = sideX + sign * 0.37;
+    if (groundHeight(landX, landZ) === 0) {
+      put('moss-island', landX, 0.011, landZ, 0.58, 1, 0.43); put('short', landX, 0, landZ, 0.64);
     }
   }
 
@@ -581,7 +697,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
   const transform = new Object3D();
   const instances: Record<string, number> = {};
   for (const [name, batch] of library) {
-    const isStone = name.startsWith('fracture-') || name === 'rock' || name === 'small-stone';
+    const isStone = name.startsWith('fracture-') || name.startsWith('step-stone-') || name === 'rock' || name === 'small-stone';
     if (isStone) {
       applyLandscapeUV(batch.geometry, 'cliff');
       const uv = batch.geometry.getAttribute('uv');
@@ -600,8 +716,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
   waterGeometry.rotateX(-Math.PI / 2); waterGeometry.translate(0, -1.16, 18.5);
   const waterPositions = waterGeometry.getAttribute('position');
   const waterColors: number[] = [];
-  const shallow = new Color(0x589d88), deep = new Color(0x257e82);
-  const shores = ground.filter(surface => surface.id.includes('north-bank') || surface.id.includes('south-bank'));
+  const shallow = new Color(0x638f76), deep = new Color(0x247e80);
   function bankDistance(x: number, z: number) {
     let nearest = 30;
     for (const shore of shores) for (let i = 0; i < shore.vertices.length; i += 3) {
@@ -616,9 +731,9 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
   for (let i = 0; i < waterPositions.count; i++) {
     const z = waterPositions.getZ(i), x = waterPositions.getX(i);
     const edgeDepth = bankDistance(x, z) + Math.sin(x * 0.53 + z * 0.74) * 0.22 + Math.sin(x * 0.22 - z * 1.7) * 0.15;
-    const mix = Math.max(0, Math.min(1, (edgeDepth - 0.4) / 3.7));
+    const mix = Math.max(0, Math.min(1, (edgeDepth - 0.6) / 3.9));
     const color = shallow.clone().lerp(deep, mix);
-    color.multiplyScalar(0.96 + 0.095 * Math.sin(x * 0.27 + Math.sin(z * 0.55)) * Math.sin(z * 0.43 + x * 0.18));
+    color.multiplyScalar((0.94 + 0.105 * Math.sin(x * 0.27 + Math.sin(z * 0.55)) * Math.sin(z * 0.43 + x * 0.18)) * (1 - Math.exp(-edgeDepth * 1.5) * 0.13));
     waterColors.push(color.r, color.g, color.b);
   }
   waterGeometry.setAttribute('color', new Float32BufferAttribute(waterColors, 3));
@@ -638,11 +753,11 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
   crests.frustumCulled = false; group.add(crests);
   group.userData.environment = {
     generator: 'src/render/rural.ts', seed: RURAL.seed, meters: true,
-    library: ['forked oak', 'upright alder', 'spreading orchard tree', 'compound shrub', 'fern', 'short grass', 'tall grass', 'cattail reed', 'white flower', 'yellow flower', 'weed', 'wheat', 'two fractured stone faces'],
+    library: ['authored branching tree families', 'varied shrub families', 'fern', 'short grass', 'tall grass', 'cattail reed', 'white flower', 'yellow flower', 'weed', 'wheat', 'fractured bedrock', 'worn beveled stair stones', 'soil and moss islands'],
     instances, totalInstances: Object.values(instances).reduce((a, b) => a + b, 0) + crests.count,
-    distribution: 'authored ecological patches with path, structure, crop and stair exclusion; agriculture in rows',
+    distribution: 'clustered ecological communities with clear path cores, worn unequal verges, supported cliff-lip/crevice growth and sloping bank reed/stone patches; agriculture in rows',
     collision: 'triangle terrain/shore shared with Rapier; separate trunk, fence, raised bed and hero-architecture proxies; small plants/rock veneers noncolliding',
-    water: 'opaque depth-colored surface with deterministic shallow geometry waves and current highlights; no simulation or screen-space effect',
+    water: 'opaque depth-colored surface with irregular wet-bank bands, clustered bank plants and corner footings; deterministic shallow geometry waves/current highlights; no simulation or screen-space effect',
     sourceImagesSampled: false,
   };
   const waterHeight = (x: number, z: number, elapsed: number) =>

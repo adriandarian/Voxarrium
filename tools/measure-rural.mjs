@@ -2,7 +2,7 @@ import { chromium } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 // Fixed one-minute local benchmark, explicitly invoked; no background monitor.
-const directory = 'artifacts/m2/final';
+const directory = process.env.VOXARRIUM_CAPTURE_DIR ?? 'artifacts/m2/final';
 mkdirSync(directory, { recursive: true });
 const browser = await chromium.launch({ channel: process.env.VOXARRIUM_BROWSER ?? 'chrome', headless: false });
 const context = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
