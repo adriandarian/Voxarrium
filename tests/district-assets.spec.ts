@@ -29,7 +29,7 @@ test('real district GLB matches retained local Blender checksum and module inven
   const imported = inspectDistrictKit(root);
   expect(createHash('sha256').update(data).digest('hex')).toBe(report.assets[0].sha256);
   expect(imported.triangles).toBe(report.assets[0].triangles);
-  expect(imported.moduleCount).toBe(24);
+  expect(imported.moduleCount).toBe(32);
   expect(new Set(imported.modules.map(m => m.id))).toEqual(new Set(DISTRICT_MODULE_IDS));
   expect(imported.materials.length).toBeGreaterThan(20);
   root.traverse(object => {
@@ -60,7 +60,7 @@ test('27 composed lots share module instance batches and expose individual roof 
   const { root } = await load(); const district = composeDistrictArchitecture(root);
   expect(district.facts.buildings).toBe(27);
   expect(district.facts.archetypes.length).toBe(6);
-  expect(district.facts.instanceBatches).toBeLessThan(120);
+  expect(district.facts.instanceBatches).toBeLessThanOrEqual(131);
   expect(district.facts.totalInstances).toBeGreaterThan(2500);
   expect(district.group.children.every(object => object instanceof InstancedMesh)).toBe(true);
   for (const mesh of district.group.children as InstancedMesh[]) {

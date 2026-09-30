@@ -5,7 +5,8 @@ import { enrichRuralHero } from '../render/hero-materials';
 
 export const DISTRICT_MODULE_IDS = ['wall', 'stone', 'post', 'beam', 'brace', 'window', 'shop-window',
   'door', 'doorstep', 'stair', 'gable-cap', 'roof-gable', 'roof-hip', 'roof-mansard', 'chimney',
-  'balcony', 'railing', 'awning', 'sign', 'lantern', 'barrel', 'crate', 'stall', 'tower'] as const;
+  'balcony', 'railing', 'awning', 'sign', 'lantern', 'barrel', 'crate', 'stall', 'tower',
+  'shutter', 'goods-bread', 'goods-pottery', 'goods-produce', 'goods-textiles', 'basket', 'bench', 'mooring'] as const;
 export type DistrictModuleId = typeof DISTRICT_MODULE_IDS[number];
 
 /** Actual GLTFLoader geometry/material inventory, independently useful in Node tests. */

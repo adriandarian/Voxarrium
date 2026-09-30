@@ -79,7 +79,10 @@ for (let i = 0; i < 36; i++) {
     appearance: { height: 1.56 + (i % 8) * 0.035,
       coat: [0x657246, 0x496c70, 0x9b6849, 0xa69770, 0x775653, 0x526455][i % 6]!,
       trousers: [0x514d40, 0x625444, 0x454d52][i % 3]!, skin: [0xb78965, 0xd3a67e, 0x91664c, 0xe0b993][i % 4]!,
-      hair: [0x3e3027, 0x776d5a, 0x594337][i % 3]!, hat: i % 3 === 0, apron: role === 'merchant' || role === 'worker' },
+      hair: [0x3e3027, 0x776d5a, 0x594337][i % 3]!, hat: i % 3 === 0 || role==='worker', apron: role === 'merchant' || role === 'worker',
+      build:[.87,1.02,.94,1.13,.98][i%5]!,coatLength:role==='traveler'?.72:role==='worker'?.52:.57+(i%3)*.05,
+      hatStyle:role==='worker'?'cap':'brim',accessory:role==='traveler'?'satchel':role==='resident'&&i%3===1?'shawl':'belt',
+      accent:[0x777a63,0xa88e63,0x824d3b,0x56656a][i%4]! },
   });
 }
 export const DISTRICT_NPC_NODES: Readonly<Record<string, Vec3>> = nodes;

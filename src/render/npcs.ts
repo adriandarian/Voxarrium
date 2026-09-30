@@ -71,28 +71,40 @@ export function createNpcPresentation(definitions: readonly NpcDefinition[] = NP
     root.name = `npc:${definition.id}`;
     root.userData = { npcId: definition.id, dynamicCollider: false };
     root.scale.setScalar(appearance.height / (appearance.hat ? 1.811 : 1.732));
+    root.scale.x *= appearance.build ?? 1;
     group.add(root);
     const bodyParts = [
-      part(torso, appearance.coat, 0, 1.02, 0, 0.255, 0.58, 0.17),
+      part(torso, appearance.coat, 0, 1.02 - ((appearance.coatLength??.58)-.58)/2, 0, 0.255, appearance.coatLength??.58, 0.17),
       part(sphere, appearance.trousers, 0, 0.74, 0, 0.235, 0.15, 0.165),
       part(cube, 0x685237, 0, 0.82, 0, 0.46, 0.055, 0.35),
       part(cylinder, appearance.skin, 0, 1.34, 0, 0.065, 0.15, 0.065),
       part(sphere, appearance.skin, 0, 1.52, -0.008, 0.158, 0.195, 0.145),
       part(sphere, appearance.hair, 0, 1.645, 0.027, 0.16, 0.087, 0.147),
-      part(sphere, appearance.skin, 0, 1.515, -0.148, 0.037, 0.046, 0.055),
-      part(sphere, 0x392e26, -0.053, 1.565, -0.14, 0.011, 0.012, 0.012),
-      part(sphere, 0x392e26, 0.053, 1.565, -0.14, 0.011, 0.012, 0.012),
+      part(sphere, appearance.skin, 0, 1.515, -0.148, appearance.build ? .025 : .037, .038, appearance.build ? .036 : .055),
+      part(sphere, 0x392e26, -0.053, 1.565, -0.14, .008, .009, .010),
+      part(sphere, 0x392e26, 0.053, 1.565, -0.14, .008, .009, .010),
       part(sphere, appearance.skin, -0.156, 1.525, 0.0, 0.031, 0.048, 0.037),
       part(sphere, appearance.skin, 0.156, 1.525, 0.0, 0.031, 0.048, 0.037),
     ];
-    if (appearance.hat) bodyParts.push(
-      part(cylinder, 0xbda56f, 0, 1.686, 0.016, 0.248, 0.035, 0.217),
-      part(torso, 0xab925d, 0, 1.756, 0.018, 0.178, 0.11, 0.163),
-    );
+    if (appearance.hat) {
+      const cap=appearance.hatStyle==='cap';
+      bodyParts.push(
+        part(cylinder, appearance.accent??0xbda56f, 0, 1.686, cap?-.045:.016, cap?.185:.248, .035, cap?.18:.217),
+        part(torso, appearance.accent??0xab925d, 0, cap?1.72:1.756, .018, .178, cap?.075:.11, .163),
+      );
+    }
     else bodyParts.push(part(cube, 0xc5b480, 0, 1.281, -0.06, 0.31, 0.075, 0.26));
     if (appearance.apron) bodyParts.push(
-      part(cube, 0xc8b58b, 0, 0.888, -0.164, 0.31, 0.51, 0.028),
+      part(cube, appearance.accent??0xc8b58b, 0, 0.888, -0.164, 0.31, 0.51, 0.028),
       part(cube, 0xa39476, 0.058, 0.878, -0.184, 0.125, 0.095, 0.015),
+    );
+    if (appearance.accessory==='satchel') bodyParts.push(
+      part(cube,0x66533e,.25,.83,-.035,.19,.25,.17),
+      part(cube,appearance.accent??0x998464,.13,1.07,-.175,.044,.46,.025),
+    );
+    if (appearance.accessory==='shawl') bodyParts.push(
+      part(torso,appearance.accent??0x7c7362,0,1.18,.035,.28,.20,.195),
+      part(cube,appearance.accent??0x7c7362,.13,1.02,-.18,.14,.33,.025),
     );
     const body = baked(bodyParts, `${definition.id}.body`);
     root.add(body);

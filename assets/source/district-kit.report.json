@@ -8,6 +8,7 @@
   "license": "Project license unassigned; no third-party source content",
   "assumptions": [
     "Canonical 8x7m roof bodies resize coherently; streets and unseen elevations are authored interpretations.",
+    "M4.1 adds hinge-origin shutters and authored bakery, pottery, produce and textile goods; stalls retain the M4 foundations.",
     "Closed doors and recessed glazing are full geometry; no explorable interiors are claimed.",
     "Belfry, guild emblem and market goods are invented coherent street-level details."
   ],
@@ -15,11 +16,11 @@
     {
       "id": "district.kit",
       "path": "public/assets/district/district-kit.glb",
-      "sha256": "d083081952497568b8e84f0412c5868d61a9996bcfb5b274f65f8962b420d97c",
-      "bytes": 4674396,
+      "sha256": "e9fda0056a6ad27c6cad83ff5b980d431dcc6e186c6ba2a98463ab4f4b71449d",
+      "bytes": 4925292,
       "units": "meters",
-      "moduleCount": 24,
-      "triangles": 94244,
+      "moduleCount": 32,
+      "triangles": 99192,
       "textures": 0,
       "axisConvention": "Blender X/Y/Z -> glTF X/-Z/Y; front +Z; no runtime correction",
       "collision": "Simplified runtime boxes and stair/bridge proxies owned by parent",
@@ -266,20 +267,19 @@
           "seed": 104729,
           "bounds": {
             "min": [
-              -1.01,
+              -0.725,
               -0.21,
               -0.2175
             ],
             "max": [
-              1.01,
+              0.725,
               1.545,
               0.36
             ]
           },
-          "triangles": 952,
-          "vertices": 528,
+          "triangles": 512,
+          "vertices": 288,
           "materials": [
-            "door_oak_light",
             "recess_shadow",
             "stone_light",
             "timber_endgrain",
@@ -288,12 +288,11 @@
             "window_glass",
             "window_glint"
           ],
-          "materialCount": 8,
-          "meshObjects": 10,
+          "materialCount": 7,
+          "meshObjects": 7,
           "textures": 0,
           "groups": [
             "opening_frames",
-            "shutters",
             "stone_sills",
             "window_glazing",
             "window_mullions",
@@ -359,17 +358,80 @@
                 -0.05,
                 0.36
               ]
-            },
-            "shutters": {
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.shutter",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              0,
+              0,
+              -0.0045
+            ],
+            "max": [
+              0.48,
+              1.32,
+              0.092
+            ]
+          },
+          "triangles": 352,
+          "vertices": 192,
+          "materials": [
+            "door_oak_light",
+            "iron_aged",
+            "timber_structure"
+          ],
+          "materialCount": 3,
+          "meshObjects": 3,
+          "textures": 0,
+          "groups": [
+            "boards",
+            "hinges",
+            "ledges"
+          ],
+          "partBounds": {
+            "boards": {
               "min": [
-                -1.01,
-                0.0594,
-                -0.0225
+                0.0035,
+                0,
+                -0.0045
               ],
               "max": [
-                1.01,
-                1.2606,
-                0.0885
+                0.4765,
+                1.32,
+                0.0405
+              ]
+            },
+            "ledges": {
+              "min": [
+                0,
+                0.185,
+                0.0315
+              ],
+              "max": [
+                0.48,
+                1.115,
+                0.0765
+              ]
+            },
+            "hinges": {
+              "min": [
+                0.015,
+                0.2025,
+                0.074
+              ],
+              "max": [
+                0.115,
+                1.0975,
+                0.092
               ]
             }
           },
@@ -1790,28 +1852,23 @@
               1.05
             ]
           },
-          "triangles": 3852,
-          "vertices": 2080,
+          "triangles": 840,
+          "vertices": 496,
           "materials": [
             "cloth_color",
             "cloth_cream",
             "door_oak_light",
-            "produce_green",
-            "produce_ochre",
-            "produce_red",
             "timber_endgrain",
             "timber_structure",
             "timber_worn"
           ],
-          "materialCount": 9,
-          "meshObjects": 11,
+          "materialCount": 6,
+          "meshObjects": 7,
           "textures": 0,
           "groups": [
             "canvas_roof",
             "counter",
             "front_boards",
-            "produce",
-            "produce_trays",
             "roof_rails",
             "uprights"
           ],
@@ -1875,29 +1932,517 @@
                 2.65,
                 1.05
               ]
-            },
-            "produce_trays": {
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.goods-produce",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -1.17,
+              0,
+              -0.295
+            ],
+            "max": [
+              1.17,
+              0.24,
+              0.495
+            ]
+          },
+          "triangles": 2616,
+          "vertices": 1368,
+          "materials": [
+            "produce_green",
+            "produce_ochre",
+            "produce_red",
+            "timber_endgrain"
+          ],
+          "materialCount": 4,
+          "meshObjects": 4,
+          "textures": 0,
+          "groups": [
+            "fruit",
+            "trays"
+          ],
+          "partBounds": {
+            "trays": {
               "min": [
                 -1.17,
-                0.92,
+                0,
                 -0.295
               ],
               "max": [
                 1.17,
-                1.06,
+                0.11,
                 0.495
               ]
             },
-            "produce": {
+            "fruit": {
               "min": [
-                -1.12677,
-                1.04,
-                -0.26024
+                -1.15028,
+                0.1,
+                -0.22028
               ],
               "max": [
-                1.1302,
-                1.19,
-                0.45024
+                1.15028,
+                0.24,
+                0.40028
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.goods-bread",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -1.06834,
+              0.06,
+              -0.47059
+            ],
+            "max": [
+              0.60834,
+              0.233,
+              0.43059
+            ]
+          },
+          "triangles": 1476,
+          "vertices": 792,
+          "materials": [
+            "cloth_cream",
+            "produce_ochre"
+          ],
+          "materialCount": 2,
+          "meshObjects": 2,
+          "textures": 0,
+          "groups": [
+            "loaves",
+            "scoring"
+          ],
+          "partBounds": {
+            "loaves": {
+              "min": [
+                -1.06834,
+                0.06,
+                -0.47059
+              ],
+              "max": [
+                0.60834,
+                0.22,
+                0.43059
+              ]
+            },
+            "scoring": {
+              "min": [
+                -0.9825,
+                0.223,
+                -0.405
+              ],
+              "max": [
+                0.5225,
+                0.233,
+                0.365
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.goods-pottery",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -1.11752,
+              0.03,
+              -0.44752
+            ],
+            "max": [
+              1.06752,
+              0.393,
+              0.42752
+            ]
+          },
+          "triangles": 1932,
+          "vertices": 1008,
+          "materials": [
+            "recess_shadow",
+            "terracotta_aged.001",
+            "terracotta_warm.001"
+          ],
+          "materialCount": 3,
+          "meshObjects": 3,
+          "textures": 0,
+          "groups": [
+            "mouth",
+            "neck",
+            "pots"
+          ],
+          "partBounds": {
+            "pots": {
+              "min": [
+                -1.11752,
+                0.03,
+                -0.44752
+              ],
+              "max": [
+                1.06752,
+                0.24,
+                0.42752
+              ]
+            },
+            "neck": {
+              "min": [
+                -1.04873,
+                0.24,
+                -0.37873
+              ],
+              "max": [
+                0.99873,
+                0.38,
+                0.35873
+              ]
+            },
+            "mouth": {
+              "min": [
+                -1.015,
+                0.385,
+                -0.345
+              ],
+              "max": [
+                0.965,
+                0.393,
+                0.325
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.goods-textiles",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -1.195,
+              0.014,
+              -0.365
+            ],
+            "max": [
+              1.135,
+              0.34,
+              0.38
+            ]
+          },
+          "triangles": 528,
+          "vertices": 288,
+          "materials": [
+            "cloth_color",
+            "cloth_cream",
+            "timber_structure"
+          ],
+          "materialCount": 3,
+          "meshObjects": 3,
+          "textures": 0,
+          "groups": [
+            "folded_bolts",
+            "ties"
+          ],
+          "partBounds": {
+            "folded_bolts": {
+              "min": [
+                -1.195,
+                0.014,
+                -0.365
+              ],
+              "max": [
+                1.135,
+                0.276,
+                0.365
+              ]
+            },
+            "ties": {
+              "min": [
+                -0.8825,
+                0.32,
+                -0.3
+              ],
+              "max": [
+                0.8225,
+                0.34,
+                0.38
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.basket",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.35949,
+              0.02,
+              -0.35034
+            ],
+            "max": [
+              0.35949,
+              0.4925,
+              0.35034
+            ]
+          },
+          "triangles": 920,
+          "vertices": 496,
+          "materials": [
+            "cloth_cream",
+            "recess_shadow",
+            "timber_endgrain",
+            "timber_worn"
+          ],
+          "materialCount": 4,
+          "meshObjects": 4,
+          "textures": 0,
+          "groups": [
+            "handles",
+            "inside",
+            "weave",
+            "woven_body"
+          ],
+          "partBounds": {
+            "woven_body": {
+              "min": [
+                -0.34743,
+                0.02,
+                -0.33872
+              ],
+              "max": [
+                0.34743,
+                0.39,
+                0.33872
+              ]
+            },
+            "inside": {
+              "min": [
+                -0.3,
+                0.392,
+                -0.29248
+              ],
+              "max": [
+                0.3,
+                0.4,
+                0.29248
+              ]
+            },
+            "weave": {
+              "min": [
+                -0.35949,
+                0.05834,
+                -0.35034
+              ],
+              "max": [
+                0.35949,
+                0.39166,
+                0.35034
+              ]
+            },
+            "handles": {
+              "min": [
+                -0.21,
+                0.4475,
+                -0.2575
+              ],
+              "max": [
+                0.21,
+                0.4925,
+                0.2575
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.bench",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -1.08,
+              0,
+              -0.3375
+            ],
+            "max": [
+              1.08,
+              1.085,
+              0.3375
+            ]
+          },
+          "triangles": 396,
+          "vertices": 216,
+          "materials": [
+            "timber_structure",
+            "timber_worn"
+          ],
+          "materialCount": 2,
+          "meshObjects": 4,
+          "textures": 0,
+          "groups": [
+            "back",
+            "back_posts",
+            "feet",
+            "seat"
+          ],
+          "partBounds": {
+            "feet": {
+              "min": [
+                -0.9,
+                0,
+                -0.305
+              ],
+              "max": [
+                0.9,
+                0.48,
+                0.305
+              ]
+            },
+            "back_posts": {
+              "min": [
+                -0.87,
+                0.215,
+                0.21
+              ],
+              "max": [
+                0.87,
+                1.085,
+                0.31
+              ]
+            },
+            "seat": {
+              "min": [
+                -1.08,
+                0.425,
+                -0.3375
+              ],
+              "max": [
+                1.08,
+                0.535,
+                0.3375
+              ]
+            },
+            "back": {
+              "min": [
+                -1.08,
+                0.67,
+                0.245
+              ],
+              "max": [
+                1.08,
+                1.01,
+                0.335
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.mooring",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.23,
+              0,
+              -0.17
+            ],
+            "max": [
+              0.23,
+              0.78,
+              0.17
+            ]
+          },
+          "triangles": 180,
+          "vertices": 96,
+          "materials": [
+            "cloth_cream",
+            "iron_aged",
+            "timber_structure"
+          ],
+          "materialCount": 3,
+          "meshObjects": 3,
+          "textures": 0,
+          "groups": [
+            "collar",
+            "post",
+            "rope"
+          ],
+          "partBounds": {
+            "post": {
+              "min": [
+                -0.135,
+                0,
+                -0.135
+              ],
+              "max": [
+                0.135,
+                0.78,
+                0.135
+              ]
+            },
+            "collar": {
+              "min": [
+                -0.17,
+                0.64,
+                -0.17
+              ],
+              "max": [
+                0.17,
+                0.7,
+                0.17
+              ]
+            },
+            "rope": {
+              "min": [
+                -0.23,
+                0.40844,
+                -0.04156
+              ],
+              "max": [
+                0.23,
+                0.49156,
+                0.04156
               ]
             }
           },
@@ -2164,17 +2709,17 @@
           "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
         }
       ],
-      "exportedMeshes": 111,
-      "exportedPrimitives": 111,
+      "exportedMeshes": 131,
+      "exportedPrimitives": 131,
       "materialCount": 28
     }
   ],
   "preview": "Actual runtime all-side captures by parent are required; export is not owner art approval",
   "sourceHashes": {
-    "tools/blender/district_kit.py": "059d7a81fa231beb648c2e37b4dd25453a8a61f210bb7f14e8e622c1d77056f7",
+    "tools/blender/district_kit.py": "49eee3302c6466fe708e6ac75d89e96a36eb11d0a15357c871f752f7785b4f7a",
     "tools/blender-district.mjs": "4d4ee1c54d7dbbeddfc722bdbaf6c872e82447877e2cadfc9fb2c380eb3d03ca",
     "tools/blender/rural_hero.py": "09dd73587e0b8b324f98f25c589b9213be751e1bbacc1a4208ca43034cedeea5",
-    "assets/source/district-kit.blend": "a3848ae53968f1a0d29d9005f00458d3102629fae1aa758e051e3f230da42def"
+    "assets/source/district-kit.blend": "6fcb35bf216d07ad406a1d1475eff0be366bd1690785f4b6176b9e39045fd2c8"
   },
   "referenceHashes": {
     "city-master.png": "6868b0cbd6a5bcc28a8580ba1b40ff4069f6bb405715fb9ff3a098aaa6abeffd",

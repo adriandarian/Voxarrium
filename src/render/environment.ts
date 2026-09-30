@@ -7,6 +7,7 @@ import type { DirectionalLight, HemisphereLight, Material, Scene } from 'three';
 import { MeshStandardNodeMaterial } from 'three/webgpu';
 import { Fn, If, instanceIndex, positionGeometry, positionLocal, sin, smoothstep, uniform, vec3 } from 'three/tsl';
 import { RURAL } from '../simulation/rural-layout';
+import { DISTRICT_LAMPS } from '../simulation/district-art';
 import { createRuralCourse } from '../simulation/rural';
 import type { EnvironmentColor, EnvironmentState } from '../simulation/environment';
 import type { CourseSpec, Vec3 } from '../simulation/types';
@@ -40,7 +41,7 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
   const lantern = new PointLight(0xffcc83, 0, 11, 2);
   lantern.name = 'living.garden-lantern'; lantern.position.set(15.35, 5.4, -3.8); group.add(lantern);
   const lanternGlass = scene.getObjectByName('garden.lantern.inferred');
-  const districtLamps = district ? [[84, 6.5, -18], [98, 6.5, -4], [96, 2.6, 28], [129, 2.6, 10]]
+  const districtLamps = district ? DISTRICT_LAMPS
     .map(([x, y, z], i) => {
       const light = new PointLight(0xffcb89, 0, 12, 2);
       light.name = `living.district-lamp.${i}`; light.position.set(x!, y!, z!);
@@ -170,7 +171,7 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
     const lighting = state.lighting;
     const lampStrength = Math.max(0, Math.min(1, (1.85 - lighting.fillIntensity) / 0.67));
     lantern.intensity = lampStrength * 7;
-    districtLamps.forEach(light => { light.intensity = lampStrength * 8; });
+    districtLamps.forEach(light => { light.intensity = lampStrength * 10; });
     if (lanternGlass instanceof Mesh && lanternGlass.material instanceof MeshStandardMaterial) {
       lanternGlass.material.emissive.setHex(0xffcc83); lanternGlass.material.emissiveIntensity = lampStrength * 0.65;
     }

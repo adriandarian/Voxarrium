@@ -124,7 +124,7 @@ test('evidence: M4 district, streets, doorway, backs, plaza, canal, dusk, night 
     ['rain', 'primaryStreet', 'third-person', 'rain', 'day'],
     ['rain-market', 'market', 'first-person', 'rain', 'dusk'],
   ] as const;
-  const clean = await page.addStyleTag({ content: '.identity,.backend-badge,.hud-bottom,#diagnostics,#crosshair {visibility:hidden}' });
+  const clean = await page.addStyleTag({ content: '.identity,.backend-badge,.hud-bottom,#diagnostics,#crosshair,#interaction-prompt {visibility:hidden}' });
   for (const [name, point, mode, weather, time] of captures) {
     await page.setViewportSize(name === 'eagle-eye' ? { width: 1600, height: 1100 } : { width: 1440, height: 900 });
     await page.evaluate(({ point, mode, weather, time }) => {
@@ -133,6 +133,20 @@ test('evidence: M4 district, streets, doorway, backs, plaza, canal, dusk, night 
     }, { point, mode, weather, time });
     await page.screenshot({ path: `${directory}/${name}.png` });
     states[name] = await page.evaluate(() => window.__VOXARRIUM__!.snapshot());
+  }
+  for(const [name,x,y,z,yaw,pitch] of [
+    ['canal-waterline',109,0.04,10.4,-1.9,.16],
+    ['quay-service',110,0.04,6.0,0,.10],
+    ['market-goods',89,4.04,-14.5,.84,.08],
+    ['third-person-alley',60,4.04,-31,0,.08],
+  ] as const){
+    await page.evaluate(({name,x,y,z,yaw,pitch})=>{
+      const h=window.__VOXARRIUM__!;h.environment('clear','day',true);
+      h.bookmark('market',name==='third-person-alley'?'third-person':'first-person');
+      h.teleport({x,y,z});h.look(yaw,pitch);h.step(30);
+    },{name,x,y,z,yaw,pitch});
+    await page.screenshot({path:`${directory}/${name}.png`});
+    states[name]=await page.evaluate(()=>window.__VOXARRIUM__!.snapshot());
   }
   for (const [name, x, z, yaw, pitch] of [
     ['first-person-alley', 60, -33, 0, 0.08],

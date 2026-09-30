@@ -1,4 +1,5 @@
 import { DISTRICT, DISTRICT_BUILDINGS, DISTRICT_GARDENS } from './district-layout';
+import { DISTRICT_DRESSING, DISTRICT_LAMPS, DISTRICT_STALLS } from './district-art';
 import { createRuralCourse } from './rural';
 import type { BoxSpec, CourseSpec, Vec3 } from './types';
 
@@ -76,15 +77,23 @@ export function createDistrictCourse(): CourseSpec {
 
   // Counter proxies keep the functional stalls solid while their covered
   // merchant positions and the central crossing stay unobstructed.
-  for (const [i, [x, z]] of [[84, -18], [95, -18], [84, -4], [95, -4]].entries()) {
-    add(`market-stall.${i}.counter.collider`, { x: x!, y: 4.47, z: z! },
-      { x: 2.62, y: 0.94, z: 1.52 });
+  for (const [i, stall] of DISTRICT_STALLS.entries()) {
+    add(`market-stall.${i}.counter.collider`, { x: stall.x, y: 4.47, z: stall.z },
+      { x: 2.62*stall.width, y: 0.94, z: 1.52*stall.depth });
   }
+  for (const [i,[x,,z]] of DISTRICT_LAMPS.slice(0,2).entries())
+    add(`street-lamp.${i}.collider`,{x,y:5.3,z},{x:.20,y:2.6,z:.20});
   for (const [i, garden] of DISTRICT_GARDENS.entries()) if (garden.tree) {
     add(`garden-tree.${i}.collider`, { x: garden.x, y: garden.y + garden.scale * 1.55, z: garden.z },
       { x: garden.scale * .66, y: garden.scale * 3.1, z: garden.scale * .66 });
   }
 
+  for (const prop of DISTRICT_DRESSING) if (prop.collider) {
+    const proxy = add(prop.id.slice('district.'.length), {
+      ...prop.position, y: prop.position.y + prop.collider.y / 2,
+    }, prop.collider);
+    proxy.rotationY = prop.yaw;
+  }
   for (const bridge of DISTRICT.bridges) {
     add(`bridge.${bridge.id}.deck.collider`, { x: bridge.x, y: bridge.y - 0.18, z: bridge.z },
       { x: bridge.width, y: 0.36, z: bridge.length });

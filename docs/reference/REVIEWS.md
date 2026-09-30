@@ -1,5 +1,21 @@
 # Visual review log
 
+## 2026-09-30 — M4.1 River Market art convergence, human decision pending
+
+The owner accepts M4 technically and requests artistic convergence within the same district. Objective: `../prompts/04-1-urban-art-convergence.md`. Clean preflight on `milestone/m4-first-district`; STATUS.md records the verified full base SHA. M5 remains gated. This is a local art pass, with no new district, dependency or simulation-system redesign.
+
+Reduced repetition: six authored facade profiles over the original six archetypes, narrow/tall/wide/paired openings, independently folded/angled/closed shutter leaves, utility-wall omissions and varied awning/sign/balcony relationships. The four existing stall sites now read as bakery, pottery, produce and textiles, with grouped stock, baskets and nearby benches. Worn stone ribbons/aprons, low edge courses and drains replace broad undifferentiated walking surfaces. Alley service props, high hoods and repairs form shadow pockets. Quay loading groups, mooring collars, repair courses and waterline patina enrich the original canal. District locals vary body width, coat hem, caps/brims, apron colors, shawls and satchels. Two existing district lamps move to street edges; five total local lights and zero local shadows remain. Feathered pavement warmth is an authored emissive approximation, not a new light per shop.
+
+Actually inspected: the original master; M4 baseline eagle-eye, market, alley and night; M4.1 whole district, third-person street/market/guild/bridge/alley, first-person alley/goods/quay/service, night and rain. Exact states and camera poses live under `../../artifacts/m4-1/final/capture-states.json`; the final gallery compares the retained M4 views where available. The master has a different scope/camera and is not a pixel-diff target. All screenshots are actual runtime output. Full district circuits and every authored walking/door/NPC clearance remain tested. Human acceptance is not inferred from passing tests or screenshots.
+
+Three remaining concrete mismatches against the master:
+
+1. Parallel rows, regular setbacks and broad quay shelves still read as the bounded M4 layout; the new service pockets improve occupation without changing circulation. Evidence: `eagle-eye.png` and `canal-waterline.png`.
+2. Shared carpentry, six-pane glazing, striped canvas and coursed paving remain recognizable at close range. Individual opening/group/shutter rhythms reduce the earlier repetition, but they do not provide bespoke architectural character for every lot. Evidence: `market.png`, `first-person-alley.png` and `guild-hall.png`.
+3. Locals still use simplified solid figures with no crowd avoidance, and the player remains a diagnostic capsule. Body/garment/accessory variation improves role reads; this is not final character art. Evidence: `primary-street.png`, `market-goods.png` and `night.png`.
+
+The first paving capture had overly bright regular joints; the final low-contrast chipped stones, staggered courses and authored wear patches were inspected after correction. Actual collision tests also exposed a stock crate on an NPC exit, a bench on the market-link/tea-house approach and quay furniture touching the full walking width. Furniture was relocated; assertions were retained. Performance and recurrent-tail findings are recorded in STATUS.md and the measured reports. Stop at the M4.1 human-review gate.
+
 Historical M2/M2.1/M3 entries below retain their original decisions. The subsequent explicit M4 objective establishes the accepted M2/M3 quality bar and authorizes one bounded district; M3 was verified merged as PR #10. M4 stops at its own human-review gate.
 
 ## 2026-09-30 — M4 first district, human decision pending

@@ -181,8 +181,8 @@
     {
       "id": "district.kit",
       "path": "public/assets/district/district-kit.glb",
-      "sha256": "d083081952497568b8e84f0412c5868d61a9996bcfb5b274f65f8962b420d97c",
-      "bytes": 4674396,
+      "sha256": "e9fda0056a6ad27c6cad83ff5b980d431dcc6e186c6ba2a98463ab4f4b71449d",
+      "bytes": 4925292,
       "source": "assets/source/district-kit.blend",
       "generator": "tools/blender/district_kit.py",
       "provenance": "Original local project-authored geometry; accepted rural helper construction; no downloaded/paid assets or image sampling",
@@ -201,13 +201,13 @@
           4.635
         ]
       },
-      "moduleCount": 24,
-      "triangles": 94244,
+      "moduleCount": 32,
+      "triangles": 99192,
       "materials": 28,
       "textures": 0,
-      "collision": "Simplified shared district building, threshold, stair, bridge, canal, counter and trunk proxies in simulation/district.ts",
-      "lod": "111 shared module/material instance batches; no distance LOD or streaming",
-      "preview": "artifacts/m4/final eagle-eye, primary-street, first-person-doorway, building-backs, building-side, canal-bridge and night captures; artistic acceptance pending"
+      "collision": "Simplified shared district building, threshold, stair, bridge, canal, counter, trunk and street-furniture proxies in simulation/district.ts",
+      "lod": "131 shared module/material instance batches; no distance LOD or streaming",
+      "preview": "artifacts/m4-1/final eagle-eye, primary-street, first-person-doorway, building-backs, building-side, canal-bridge and night captures; artistic acceptance pending"
     }
   ],
   "procedural": [

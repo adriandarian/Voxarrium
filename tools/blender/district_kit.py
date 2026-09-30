@@ -47,7 +47,13 @@ def panel_modules():
     box('post', 'timber_structure', (0, .5, 0), (.18, 1, .18), 'upright')
     box('beam', 'timber_endgrain', (0, 0, 0), (1, .18, .20), 'horizontal')
     h.beam('brace', 'joinery', 'timber_structure', (-.5, 0, 0), (.5, 1, 0), .115, .14)
-    h.window('window', dict(u=0, y=0, w=1.05, h=1.32), (0, 1), (1, 0), 0)
+    h.window('window', dict(u=0, y=0, w=1.05, h=1.32, shutters=False), (0, 1), (1, 0), 0)
+    # Independent hinge origin permits held-open, angled and closed leaves.
+    for plank in range(4):
+        box('shutter', 'door_oak_light', (.06+plank*.12,.66,.018),(.113,1.32,.045),'boards')
+    for y in (.22,1.08):
+        box('shutter','timber_structure',(.24,y,.054),(.48,.07,.045),'ledges')
+        box('shutter','iron_aged',(.065,y,.083),(.10,.035,.018),'hinges')
     h.window('shop-window', dict(u=0, y=0, w=1.88, h=1.47, shutters=False), (0, 1), (1, 0), 0)
     h.door('door', dict(u=0, y=0, w=1.18, h=2.16), (0, 1), (1, 0), 0)
     # One tread: top exactly .18m, front .545m, posterior overlaps the wall.
@@ -196,11 +202,46 @@ def market():
         box('stall','timber_endgrain',(0,2.34 if z else 2.60,z),(3.02,.10,.10),'roof_rails')
     for tray in range(3):
         x = -.82+tray*.82
-        box('stall','timber_endgrain',(x,.99,.1),(.70,.14,.79),'produce_trays')
-        for i in range(12):
+        box('goods-produce','timber_endgrain',(x,.055,.1),(.70,.11,.79),'trays')
+        for i in range(9):
             mat = ['produce_green','produce_ochre','produce_red'][tray]
-            h.cylinder('stall','produce',mat,(x-.24+(i%3)*.24,1.04,-.19+(i//3)*.19),
-                       (x-.24+(i%3)*.24,1.19,-.19+(i//3)*.19),.075,7,.06)
+            h.cylinder('goods-produce','fruit',mat,(x-.24+(i%3)*.24,.10,-.13+(i//3)*.22),
+                       (x-.24+(i%3)*.24,.24,-.13+(i//3)*.22),.095,8,.075)
+    for i in range(9):
+        x,z=-.91+(i%3)*.68,-.32+(i//3)*.30
+        h.cylinder('goods-bread','loaves','produce_ochre',(x,.06,z),(x,.22,z),.16,10,.13)
+        for cut in (-.06,.06):
+            box('goods-bread','cloth_cream',(x+cut,.228,z),(.025,.01,.17),'scoring')
+    for i in range(7):
+        x,z=-.94+(i%4)*.61,-.27+(i//4)*.52
+        h.cylinder('goods-pottery','pots','terracotta_warm',(x,.03,z),(x,.24,z),.18,12,.12)
+        h.cylinder('goods-pottery','neck','terracotta_aged',(x,.24,z),(x,.38,z),.09,12,.11)
+        h.cylinder('goods-pottery','mouth','recess_shadow',(x,.385,z),(x,.393,z),.075,12)
+    for i in range(3):
+        x=-.85+i*.82
+        for layer in range(3):
+            box('goods-textiles','cloth_color' if i%2 else 'cloth_cream',
+                (x,.055+layer*.09,0),(.69-layer*.035,.082,.73),'folded_bolts')
+        box('goods-textiles','timber_structure',(x,.33,.04),(.065,.02,.68),'ties')
+    # Tapered basket, open rim and crossed handles; no textured billboards.
+    h.cylinder('basket','woven_body','cloth_cream',(0,.02,0),(0,.39,0),.24,14,.35)
+    h.cylinder('basket','inside','recess_shadow',(0,.392,0),(0,.4,0),.30,14)
+    for i in range(14):
+        angle=i/14*math.tau
+        h.beam('basket','weave','timber_worn',(.24*math.cos(angle),.06,.24*math.sin(angle)),
+               (.35*math.cos(angle),.39,.35*math.sin(angle)),.026,.025)
+    for z in (-.24,.24):
+        box('basket','timber_endgrain',(0,.47,z),(.42,.045,.035),'handles')
+    for x in (-.82,.82):
+        box('bench','timber_structure',(x,.24,0),(.16,.48,.61),'feet')
+        box('bench','timber_structure',(x,.65,.26),(.10,.87,.10),'back_posts')
+    for z in (-.23,0,.23):
+        box('bench','timber_worn',(0,.48,z),(2.16,.11,.215),'seat')
+    for y in (.74,.94):
+        box('bench','timber_worn',(0,y,.29),(2.16,.14,.09),'back')
+    box('mooring','timber_structure',(0,.39,0),(.27,.78,.27),'post')
+    box('mooring','iron_aged',(0,.67,0),(.34,.06,.34),'collar')
+    h.cylinder('mooring','rope','cloth_cream',(-.23,.45,0),(.23,.45,0),.045,8)
 
 
 def civic_tower():
@@ -277,6 +318,7 @@ def export(args):
         'provenance':'Original local project-authored geometry; accepted rural helper construction; no downloaded/paid assets or image sampling',
         'license':'Project license unassigned; no third-party source content',
         'assumptions':['Canonical 8x7m roof bodies resize coherently; streets and unseen elevations are authored interpretations.',
+                       'M4.1 adds hinge-origin shutters and authored bakery, pottery, produce and textile goods; stalls retain the M4 foundations.',
                        'Closed doors and recessed glazing are full geometry; no explorable interiors are claimed.',
                        'Belfry, guild emblem and market goods are invented coherent street-level details.'],
         'assets':[{'id':'district.kit','path':'public/assets/district/district-kit.glb','sha256':hashlib.sha256(blob).hexdigest(),

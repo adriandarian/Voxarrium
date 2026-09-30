@@ -1,5 +1,13 @@
 # Testing and visual review
 
+## M4.1 art-convergence evidence
+
+Set `VOXARRIUM_HEADED=1` and `VOXARRIUM_DISTRICT_CAPTURE_DIR=artifacts/m4-1/final` for `npm run test:browser`. The preserved suite covers M1–M4, both entire district circuits, real controls/dialogue/audio/shelter, WebGPU, explicit WebGL2, capability-masked fallback and visible initialization failure. The evidence test includes additional market goods, quay service/waterline and third-person alley views. `npm run capture:m4` can rerun just the capture case. Store the test report separately before another Playwright invocation overwrites `artifacts/test-results.json`.
+
+With the local dev server running and source stable, run `node tools/measure-district.mjs` three times sequentially, using output directories `artifacts/m4-1/performance`, `artifacts/m4-1/trace` and `artifacts/m4-1/rain`. The first is clear/day; the second sets `VOXARRIUM_TRACE=1`; the third clears the trace setting and sets `VOXARRIUM_WEATHER=rain`. Do not run concurrent rendering while measuring. Each experiment is explicitly bounded to 60 seconds of actual W input with waypoint steering at 1920×1080/DPR 1. Main-thread trace inspection is offline via `node tools/summarize-district-trace.mjs artifacts/m4-1/trace`; it reports bounded callback/GC spans without inferring a GPU/OS cause. rAF wall intervals and JS heap remain distinct from GPU time and VRAM.
+
+After `npm run build`, the existing preview on 4173 supports `node tools/smoke-district-production.mjs`, with the same final capture-directory setting. It tests real W/V/Esc, pointer lock, rain/night menu controls and absence of the development harness. Once all evidence exists, `node tools/review-district-art.mjs` creates `artifacts/m4-1/review.html`, preserving before/after camera metadata and explicitly labeling unmatched poses. Evidence is ignored outside shipped public assets. Human artistic approval remains pending regardless of automated check results.
+
 ## M4 district procedures
 
 Current `npm test` passes 9 Node plus 59 simulation/assets/clock tests (68 total). District coverage loads the real GLB, composes six archetypes, samples actual Rapier street/camera/door clearance, walks the complete circuit outward and in reverse, checks rail containment, samples every NPC graph edge and continues serialized day/rain/night schedules without jumps. Existing M1–M3 coverage remains. `artifacts/m4/simulation-suite.json` retains the 59-test runner report; Node results are command output.

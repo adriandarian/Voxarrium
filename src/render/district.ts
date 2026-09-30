@@ -9,15 +9,17 @@ import { loadDistrictKit, inspectDistrictKit } from '../assets/district';
 import type { DistrictModuleId } from '../assets/district';
 import { DISTRICT, DISTRICT_BUILDINGS, DISTRICT_GARDENS, DISTRICT_STREETS } from '../simulation/district-layout';
 import type { DistrictBuilding } from '../simulation/district-layout';
+import { DISTRICT_DRESSING, DISTRICT_FACADES, DISTRICT_LAMPS, DISTRICT_STALLS, FACADE_PROFILES } from '../simulation/district-art';
 import type { EnvironmentState } from '../simulation/environment';
 import type { CourseSpec } from '../simulation/types';
 import { createLandscapeMaterials } from './landscape-materials';
 import { registerEcology } from './rural-ecology';
 import { randomSequence } from './rural-geometry';
+import { createDistrictGround } from './district-ground';
 
 type Placement = { matrix: Matrix4; plaster: number; clay: number; cloth: number; tint: number; owner: string };
 type Envelope = { min: [number, number, number]; max: [number, number, number] };
-type Opening = { x: number; y: number; width: number; height: number; module: 'door' | 'window' | 'shop-window' };
+type Opening = { x: number; y: number; width: number; height: number; module: 'door' | 'window' | 'shop-window'; shutter?: number };
 
 /** All four elevations partition around actual voids; no repeated per-panel Object3Ds. */
 export function composeDistrictArchitecture(root: Object3D) {
@@ -42,6 +44,7 @@ export function composeDistrictArchitecture(root: Object3D) {
   };
   for (const [index, building] of DISTRICT_BUILDINGS.entries()) {
     const { width, depth, floors, floorHeight } = building;
+    const profile = FACADE_PROFILES[DISTRICT_FACADES[building.id]!];
     const height = floors * floorHeight;
     lotTransform.position.set(building.position.x, building.position.y, building.position.z);
     lotTransform.rotation.set(0, building.yaw, 0); lotTransform.scale.set(1, 1, 1); lotTransform.updateMatrix();
@@ -72,16 +75,24 @@ export function composeDistrictArchitecture(root: Object3D) {
       }
       for (let floor = 0; floor < floors; floor++) {
         const large = floor === 0 && elevation.front && building.awning;
-        const count = Math.max(2, Math.floor(elevation.length / (large ? 3 : 2.55)));
-        const span = elevation.length - 1.45;
+        const paired = profile === FACADE_PROFILES.paired && !large && elevation.front;
+        const count = Math.max(2, Math.floor(elevation.length / (large ? 3.7 : profile.spacing)));
+        const span = elevation.length - (paired ? 2.75 : 2.1);
         for (let bay = 0; bay < count; bay++) {
-          const x = -span / 2 + span * bay / (count - 1);
+          const centre = -span / 2 + span * bay / (count - 1) + (elevation.front ? profile.shift : -profile.shift);
           const module = large ? 'shop-window' : 'window';
-          const w = large ? 1.88 : 1.05, h = large ? 1.47 : 1.32;
-          if (floor === 0 && openings.some(o => Math.abs(o.x - x) < (o.width + w) / 2 + .12)) continue;
-          // One side bay is omitted on selected workshops to provide a utility wall.
-          if (building.archetype === 'workshop' && !elevation.front && !elevation.back && bay === 0 && floor === 0) continue;
-          openings.push({ x, y: floor * floorHeight + (large ? .85 : .99), width: w, height: h, module });
+          const w = large ? (profile.shop === 'wide' ? 2.05 : 1.56) : profile.width;
+          const h = large ? 1.46 : profile.height;
+          for (const offset of paired ? [-.49,.49] : [0]) {
+            const x=centre+offset;
+            if (Math.abs(x)+w/2 > elevation.length/2-.28) continue;
+            if (floor === 0 && openings.some(o => Math.abs(o.x - x) < (o.width + w) / 2 + .16)) continue;
+            if (building.archetype === 'workshop' && !elevation.front && bay === 0 && floor === 0) continue;
+            // Service elevations have fewer openings and higher sills.
+            if (elevation.back && floor===0 && bay===count-1 && index%2===0) continue;
+            openings.push({ x, y: floor * floorHeight + (large ? .81 : h>1.5 ? .72 : 1.01), width:w,height:h,module,
+              shutter: profile.shutters==='none' || large || paired ? undefined : (index+floor+bay)%4 });
+          }
         }
       }
       const xs = [...new Set([-elevation.length / 2, elevation.length / 2,
@@ -94,7 +105,17 @@ export function composeDistrictArchitecture(root: Object3D) {
             (lo + hi) / 2 > o.y && (lo + hi) / 2 < o.y + o.height)) continue;
         wall('wall', (a + b) / 2, lo, 0, b - a, hi - lo);
       }
-      for (const opening of openings) wall(opening.module, opening.x, opening.y, 0);
+      for (const o of openings) {
+        wall(o.module,o.x,o.y,0,o.width/(o.module==='shop-window'?1.88:o.module==='door'?1.18:1.05),
+          o.height/(o.module==='shop-window'?1.47:o.module==='door'?2.16:1.32));
+        if (o.shutter!==undefined) for (const side of [-1,1]) {
+          const closed=profile.shutters==='closed' && o.shutter===0 || profile.shutters==='utility' && side===1 ||
+            profile.shutters==='mixed' && o.shutter===1 && side===-1;
+          const angle=side<0 ? (closed?0:Math.PI+(o.shutter===2?.42:0)) : (closed?Math.PI:(o.shutter===3?-.48:0));
+          put('shutter',o.x+side*(o.width/2+.075),o.y,.055,o.width/1.05,o.height/1.32,1,
+            angle,face,building,building.id,.92+index%3*.035);
+        }
+      }
       const stoneCount = Math.ceil(elevation.length / .74);
       for (let row = 0; row < 2; row++) for (let stone = 0; stone < stoneCount; stone++) {
         const x = -elevation.length / 2 + (stone + .5) * elevation.length / stoneCount;
@@ -119,12 +140,19 @@ export function composeDistrictArchitecture(root: Object3D) {
       }
       // Full-height timber rhythm is selective, while wealthier houses use broad plaster.
       if (elevation.front && building.awning) {
-        put('awning', 0, 2.46, 0, Math.min(1.4, width / 7), 1, 1, 0, face, building, building.id,
+        put('awning', profile.shift + (index%2?.38:-.28), 2.51, 0, Math.min(1.55, width / (index%3?7.5:5.8)), 1, index%3===0?1.15:.88, 0, face, building, building.id,
           1, building.archetype === 'workshop' ? 0x7c8871 : index % 2 ? 0x955d48 : 0x4b7771);
-        wall('sign', -elevation.length / 2 + .68, 3.00, .03, .9, .9, .9);
+        wall('sign', (index%2?1:-1)*(elevation.length / 2 - .72), 3.05 + index%3*.12, .03,
+          index%3===0?1.14:.82,.88,.9);
       }
-      if (elevation.front && building.balcony) wall('balcony', 0, floorHeight + .14, .02,
-        building.archetype === 'canal' ? 1.1 : 1);
+      if (elevation.front && building.balcony) wall('balcony', profile.balcony, floorHeight + .12, .02,
+        index%2?.82:1.08);
+      // Selective utility hood and stacked repairs form side-street shadow pockets.
+      if (!elevation.front && !elevation.back && (building.id==='district.weaver-home' || building.id==='district.bookbinder') && elevation.yaw>0) {
+        put('awning',-.55,3.26,0,.65,1,.42,0,face,building,building.id,1,0x79765a);
+        wall('beam',-.55,3.48,.12,2.15,.8,1);
+        wall('stone',.85,.55,.022,.65,.72,.035,.72);
+      }
       if (elevation.front && floors > 1 && index % 3 === 1) {
         wall('crate', -elevation.length * .27, floorHeight + .84, .16, .95, .27, .47);
       }
@@ -157,13 +185,14 @@ export function composeDistrictArchitecture(root: Object3D) {
     }
   }
   // A functional market is grouped around a generous central crossing.
-  const marketStalls = [[84, -18, 0], [95, -18, 0], [84, -4, Math.PI], [95, -4, Math.PI]] as const;
-  for (const [i, [x, z, yaw]] of marketStalls.entries()) {
-    put('stall', x, 4, z, 1, 1, 1, yaw, undefined, undefined, `district.market.${i}`, 1,
-      [0x8e5843, 0x526f68, 0x8a7c49, 0x667b4d][i]!);
-    put('crate', x + 1.84, 4, z - .5, .72, .72, .72, .18, undefined, undefined, `district.market.${i}`);
-    roofEnvelopes.push({ min: [x - 1.55, 6.13, z - 1.03], max: [x + 1.55, 6.68, z + 1.03] });
+  const marketStalls = DISTRICT_STALLS;
+  for (const [i, {x,z,yaw,width,depth,cloth,goods}] of marketStalls.entries()) {
+    put('stall', x, 4, z, width, 1, depth, yaw, undefined, undefined, `district.market.${i}`, 1,cloth);
+    put(goods,x,4.94,z,width,1,depth,yaw,undefined,undefined,`district.market.${i}.goods`,1,cloth);
+    roofEnvelopes.push({ min: [x - 1.55*width, 6.13, z - 1.03*depth], max: [x + 1.55*width, 6.68, z + 1.03*depth] });
   }
+  for (const prop of DISTRICT_DRESSING) put(prop.module,prop.position.x,prop.position.y,prop.position.z,
+    ...prop.scale,prop.yaw,undefined,undefined,prop.id,prop.tint);
   // Bridge decks and rails align exactly with parent-authored collision.
   for (const bridge of DISTRICT.bridges) {
     const divisions = 35, step = bridge.length / divisions;
@@ -194,7 +223,16 @@ export function composeDistrictArchitecture(root: Object3D) {
     const count = Math.ceil((end - start) / .85), spacing = (end - start) / count;
     for (let i = 0; i < count; i++) put('stone', start + (i + .5) * spacing, .89, z,
       spacing - .012, .16, .40, 0, undefined, undefined, 'district.quay', 1.12);
+    // Restrained repair courses and splash-darkened sections on the water face.
+    const face=z<19?z+.174:z-.174;
+    for(let i=0;i<count;i++)for(let row=0;row<2;row++)
+      put('stone',start+(i+.5)*spacing,.12+row*.34,face,spacing-.025,.31,.022,
+        0,undefined,undefined,'district.quay.face',.81+((i+row*2)%7)*.027);
   }
+  // Old dressed-stone repairs along selected retaining-wall service pockets.
+  for(const x of [68,81,109,138])for(let row=0;row<3;row++)for(let c=0;c<4;c++)
+    put('stone',x+c*.67+(row%2?.19:0),.22+row*.46,1.018,.64,.43,.032,
+      0,undefined,undefined,'district.quay.retaining-repairs',.81+(row+c)%4*.04);
   for (const stair of DISTRICT.stairs) for (let i = 0; i < stair.count; i++) {
     const civic = stair.id === 'civic', top = civic ? 4 + (i + 1) * stair.rise : (stair.count - i) * stair.rise;
     put('stair', stair.x, top - .18, stair.z + i * stair.tread, stair.width, 1,
@@ -202,7 +240,7 @@ export function composeDistrictArchitecture(root: Object3D) {
       .95 + (i % 4) * .025);
   }
   // Bracket lanterns intentionally coincide with parent-owned measured light positions.
-  for (const [x, y, z] of [[84,6.5,-18],[98,6.5,-4],[96,2.6,28],[129,2.6,10]]) {
+  for (const [x, y, z] of DISTRICT_LAMPS) {
     put('post', x!, 0 + (y! > 4 ? 4 : 0), z!, 1.05, y! > 4 ? 2.6 : 2.7, 1.05,
       0, undefined, undefined, 'district.lights');
     put('lantern', x!, y! - .10, z! - .45, 1, 1, 1, 0, undefined, undefined, 'district.lights');
@@ -237,45 +275,9 @@ export function composeDistrictArchitecture(root: Object3D) {
     buildingIds: DISTRICT_BUILDINGS.map(b => b.id), instances,
     instanceBatches: Object.keys(instances).length,
     totalInstances: Object.values(instances).reduce((sum, n) => sum + n, 0),
-    roofEnvelopes, marketStalls: marketStalls.map(([x,z,yaw]) => ({x,y:4,z,yaw})),
+    roofEnvelopes, marketStalls: marketStalls.map(stall => ({...stall,y:4})),
+    facadeProfiles: DISTRICT_FACADES, dressing: DISTRICT_DRESSING.length,
     assumptions: 'Unseen elevations, guild belfry and local trade dressing are authored interpretations; closed doors have future interior hooks.' } };
-}
-
-function districtPaving() {
-  const positions: number[] = [], colors: number[] = [], indices: number[] = [];
-  const stone = new Color(0xaaa18b), warm = new Color(0xc3b293);
-  const quad = (points: [number, number, number][]) => {
-    const offset = positions.length / 3;
-    for (const [x, y, z] of points) {
-      positions.push(x, y, z);
-      const color = stone.clone().lerp(warm, .44 + Math.sin(x * .47 + Math.sin(z * .33)) * .23);
-      color.multiplyScalar(.93 + Math.sin(x * 1.7 + z * .96) * .055); colors.push(color.r, color.g, color.b);
-    }
-    indices.push(offset, offset + 2, offset + 1, offset, offset + 3, offset + 2);
-  };
-  for (const street of DISTRICT_STREETS) for (let segment = 0; segment < street.points.length - 1; segment++) {
-    const a = street.points[segment]!, b = street.points[segment + 1]!;
-    const length = Math.hypot(b.x - a.x, b.z - a.z), count = Math.ceil(length / 1.7);
-    const nx = -(b.z - a.z) / length, nz = (b.x - a.x) / length;
-    for (let i = 0; i < count; i++) {
-      const points: [number, number, number][] = [];
-      for (const [t, sign] of [[i / count, -1], [(i + 1) / count, -1], [(i + 1) / count, 1], [i / count, 1]]) {
-        const x = a.x + (b.x - a.x) * t!, z = a.z + (b.z - a.z) * t!;
-        const width = street.width / 2 + .17 * Math.sin(x * .61 + z * .34) + .09 * Math.sin(x * 1.3 - z * .57);
-        points.push([x + nx * width * sign!, a.y + .024, z + nz * width * sign!]);
-      }
-      quad(points);
-    }
-  }
-  for (let row = 0; row < 9; row++) for (let column = 0; column < 9; column++) {
-    const x = 80 + column * 2, z = -21 + row * 2;
-    quad([[x,4.035,z],[x+2,4.035,z],[x+2,4.035,z+2],[x,4.035,z+2]]);
-  }
-  const geometry = new BufferGeometry(); geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new Float32BufferAttribute(colors, 3)); geometry.setIndex(indices); geometry.computeVertexNormals();
-  const mesh = new Mesh(geometry, new MeshStandardMaterial({ vertexColors: true, roughness: .94 }));
-  mesh.name = 'district.paving.broad-unequal-stone-washes'; mesh.receiveShadow = true;
-  return mesh;
 }
 
 export async function createDistrictPresentation(_course?: CourseSpec) {
@@ -300,7 +302,7 @@ export async function createDistrictPresentation(_course?: CourseSpec) {
     object.material = nodeMaterial;
   });
   for (const source of plasterNodes.keys()) source.dispose();
-  group.add(districtPaving());
+  const ground = createDistrictGround(); group.add(ground.group);
   const landscape = createLandscapeMaterials();
   const waterGeometry = new PlaneGeometry(98, 14, 65, 10);
   waterGeometry.rotateX(-Math.PI / 2); waterGeometry.translate(97, -1.16, 19);
@@ -315,7 +317,7 @@ export async function createDistrictPresentation(_course?: CourseSpec) {
   const water = new Mesh(waterGeometry, new MeshStandardMaterial({ vertexColors: true, roughness: .29, metalness: .08 }));
   water.name = 'district.water.turquoise-current'; water.receiveShadow = true; group.add(water);
   // Landscape palette is shared with the accepted rural ground. Paving has broad authored washes.
-  const paving = group.getObjectByName('district.paving.broad-unequal-stone-washes') as Mesh;
+  const paving = ground.paving;
   const pavingMat = paving.material as MeshStandardMaterial;
   pavingMat.map = landscape.stone.map;
   const uv: number[] = [];
@@ -398,6 +400,7 @@ export async function createDistrictPresentation(_course?: CourseSpec) {
   }
   function updateEnvironment(environment: EnvironmentState) {
     const warmth = Math.max(0, Math.min(1, (1.85 - environment.lighting.fillIntensity) / .67));
+    ground.updateWarmth(warmth);
     for (const [material, source] of surfaces) {
       if (material.name.startsWith('window_')) {
         material.emissive.set(0xffba62); material.emissiveIntensity = warmth * (material.name === 'window_warm' ? 1.2 : .32);
@@ -409,7 +412,7 @@ export async function createDistrictPresentation(_course?: CourseSpec) {
   }
   update(0);
   const facts = { ...architecture.facts, loadedAssets: [loaded.facts], loadedAssetCount: 1,
-    gardenInstances: pockets.length, dynamicLights: 0, localLightSurfaces: 31,
+    gardenInstances: pockets.length, dynamicLights: 0, localLightSurfaces: 31, ground: ground.facts,
     water: 'Same meter height, turquoise edge colors and wave equation as accepted rural water; x48..146,z12..26.',
     materialTreatment: 'Existing project-authored hero pigment maps plus per-instance plaster/clay/cloth palettes; no reference sampling.' };
   group.userData.district = facts;

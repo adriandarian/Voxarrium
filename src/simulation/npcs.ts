@@ -45,6 +45,11 @@ export interface NpcDefinition {
     hair: number;
     hat: boolean;
     apron: boolean;
+    build?: number;
+    coatLength?: number;
+    hatStyle?: 'cap' | 'brim';
+    accessory?: 'satchel' | 'shawl' | 'belt';
+    accent?: number;
   };
 }
 
