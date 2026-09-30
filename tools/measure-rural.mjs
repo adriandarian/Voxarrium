@@ -14,7 +14,7 @@ const errors = [];
 page.on('pageerror', e => errors.push(e.message));
 page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
 try {
-  await page.goto('http://127.0.0.1:5173/?test=1');
+  await page.goto('http://127.0.0.1:5173/?scene=m2&test=1');
   await page.waitForFunction(() => document.documentElement.dataset.ready === 'true', undefined, { timeout: 60_000 });
   await page.locator('#start').click();
   await page.waitForFunction(() => document.pointerLockElement?.id === 'world');

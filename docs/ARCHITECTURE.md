@@ -1,6 +1,6 @@
 # Architecture
 
-M1 implements the runtime boundaries and renderer decision below. World growth and simulation expansion remain proposals, not implemented infrastructure.
+M1 established the runtime boundaries and renderer decision below. M2–M4 implement the rural/living slice and one authored district; larger-world streaming and residency infrastructure remain proposals.
 
 ## Stack and boundaries
 TypeScript + Vite + vanilla Three.js, DOM HUD/settings, and Rapier character physics are implemented in M1. Exact dependency versions are pinned in package.json with a real package-lock.json; use npm ci. Blender GLB remains the asset pipeline. No React is needed for this milestone.
@@ -9,7 +9,7 @@ TypeScript + Vite + vanilla Three.js, DOM HUD/settings, and Rapier character phy
 
 M1 uses a 60 Hz fixed simulation step with interpolated render positions. Catch-up is capped at six steps and pause/blur clears the accumulator. The course is authored deterministic data with stable IDs and seed 104729; the seed identifies this authored fixture and does not randomize its layout. State is plain serializable data, with no Three.js or Rapier objects.
 
-M2 adds `simulation/rural-layout.ts` as the shared meter/palette contract and `simulation/rural.ts` as the authored environment. Optional triangle surfaces in `CourseSpec` drive both visible terrain and static Rapier collision; separate cuboid proxies represent architecture, bridge and significant obstacles. Each course supplies its own recovery bounds. The M1 course and mechanics remain selectable with `?scene=m1`. M2 is the default; `?stage=blockout` exposes structural massing using the same terrain/collision.
+M2 adds `simulation/rural-layout.ts` as the shared meter/palette contract and `simulation/rural.ts` as the authored environment. Optional triangle surfaces in `CourseSpec` drive both visible terrain and static Rapier collision; separate cuboid proxies represent architecture, bridge and significant obstacles. Each course supplies its own recovery bounds. The M1 course and mechanics remain selectable with `?scene=m1`; the rural slice remains selectable with `?scene=m2`. M4 is now the default; `?stage=blockout` exposes structural massing using the same terrain/collision.
 
 `render/rural.ts` owns deterministic environment geometry, vegetation instances and water presentation. `assets/rural.ts` loads the Blender hero GLBs, verifies meter bounds and reports imported material/triangle facts before placement. `render/landscape-materials.ts` creates project-authored pigment textures; it never reads the reference PNGs. Existing renderer initialization, warmup, fallback diagnostics, capture harness and disposal own the new resources. Instance buffers are explicitly disposed as well as shared geometry/material/texture resources.
 
@@ -26,6 +26,14 @@ Do not mix legacy EffectComposer/ShaderMaterial/onBeforeCompile recipes into Web
 Explicit manifest IDs; pivots/units/LODs/collision metadata. Reuse resources, instance suitable repeated geometry and dispose by ownership/reference counts. Begin CPU-managed instancing; add GPU culling only after profiling. No one-Object3D-per-blade design.
 
 ## World growth
+M4 implements one authored district, without streaming or procedural city generation. `simulation/district-layout.ts` owns explicit lots/archetypes, street graph, plaza, bridges, elevation/stair contracts, gardens, stable entrance hooks and the reproducible route. `simulation/district.ts` appends terrain and collision proxies to the unchanged rural course; the same player/controller/camera traverses both. `docs/DISTRICT_NAVIGATION.md` describes actual clearance and route tests.
+
+`assets/district.ts` validates the local Blender GLB library; `render/district.ts` composes complete 3D buildings and batches repeated module/material primitives into InstancedMesh resources. Roof bounds are supplied per building to the existing rain system. A shared landscape-material adapter gives district trees/plants the same TSL wind and wetness state. Four district PointLights plus the existing garden light have no local shadow maps. The existing directional sun still owns the shadow pass. Disposal covers instance buffers, imported resources, shared materials and generated pigment textures.
+
+`simulation/district-npcs.ts` supplies 36 authored locals with roles, different route/dwell timings and actual tested shelter connections. Together with the original six, 42 locals advance at the existing fixed step. The existing rendering tiers reduce distant limb updates, not simulation residency; no unloaded schedule tier is implemented. District interaction adds closed entrance hooks, without an interior system. District audio extends the same category graph with two localized market loops, nearby workshop impacts, door cues and extended canal attenuation. Five loops and at most five transient voices are bounded.
+
+The following larger-world infrastructure remains a proposal:
+
 Author a district graph: terrain levels, waterways, paths, bridge connections, lots, navigation and hero landmarks before filling lots. Use a tunable chunk size (initial hypothesis 64 m), hysteresis, prefetch, cancellation and resource release. Separate simulation residency from rendering. Maintain continuity across bridges and terraces; protect active player colliders until replacements are ready.
 
 A single 2D heightfield is insufficient for stacked bridge surfaces and interiors. Treat those as separate geometry/collider/navigation layers. Navmesh generation is a later measured choice, not an unexplained dependency.

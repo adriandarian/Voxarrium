@@ -14,6 +14,9 @@ import { PLAYER } from '../simulation/types';
 import type { CourseSpec, GameState } from '../simulation/types';
 import { createEnvironmentPresentation } from './environment';
 import { createNpcPresentation } from './npcs';
+import { createDistrictPresentation } from './district';
+import { createRuralCourse } from '../simulation/rural';
+import { DISTRICT_POPULATION_DEFINITIONS, NPC_DEFINITIONS } from '../simulation/npcs';
 
 // Runtime backends expose these fields in the installed Three.js r186 source;
 // @types/three deliberately omits device/gl internals. Read only for diagnostics.
@@ -115,7 +118,8 @@ function disposeScene(scene: Scene) {
 }
 
 export async function createGameRenderer(canvas: HTMLCanvasElement, course: CourseSpec, forceWebGL: boolean, blockout = false) {
-  const rural = course.id === 'm2-rural-96m';
+  const district = course.id === 'm4-market-district';
+  const rural = course.id === 'm2-rural-96m' || district;
   const renderer = new WebGPURenderer({ canvas, antialias: true, alpha: false, forceWebGL, powerPreference: 'high-performance' });
   const scene = new Scene();
   scene.name = course.id;
@@ -165,11 +169,18 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
     }
     const fill = new HemisphereLight(rural ? 0xf0efe0 : 0xe4f0ff, rural ? 0x797f61 : 0x69745a, rural ? 1.85 : 1.65);
     scene.add(sun, fill);
+    if (district) {
+      sun.target.position.set(50, 0, 0); scene.add(sun.target);
+      sun.shadow.camera.left = -110; sun.shadow.camera.right = 110;
+      sun.shadow.camera.top = 90; sun.shadow.camera.bottom = -90;
+      sun.shadow.camera.far = 300;
+    }
 
     const boxGeometry = new BoxGeometry(1, 1, 1);
     const materials = new Map<number, MeshStandardMaterial>();
     for (const box of course.boxes) {
       if (box.visible === false) continue;
+      if (district && !blockout && box.id.startsWith('district.stairs.')) continue;
       if (rural && !blockout && /^stairs\.(main|crop)\.\d+$/.test(box.id)) continue;
       if (!materials.has(box.color)) materials.set(box.color, new MeshStandardMaterial({ color: box.color, roughness: 0.92, metalness: 0 }));
       const mesh = new Mesh(boxGeometry, materials.get(box.color));
@@ -190,20 +201,23 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       let geometry = new BufferGeometry();
       geometry.setAttribute('position', new Float32BufferAttribute(surface.vertices, 3));
       geometry.setIndex(surface.indices); geometry.computeVertexNormals();
-      const cliff = surface.id.endsWith('.cliff');
+      const districtSurface = surface.id.startsWith('district.');
+      const cliff = surface.id.endsWith('.cliff') || surface.id.endsWith('.edge');
       if (landscapeMaterials) {
         geometry = applyTerrainPigment(geometry, course, LANES, cliff, surface.id.endsWith('.shore'));
         applyLandscapeUV(geometry, cliff ? 'cliff' : 'ground');
       }
-      const mesh = new Mesh(geometry, landscapeMaterials ? (cliff ? landscapeMaterials.stone : surface.id.endsWith('.shore') ? landscapeMaterials.soil : landscapeMaterials.grass)
+      const mesh = new Mesh(geometry, landscapeMaterials ? (cliff || districtSurface ? landscapeMaterials.stone : surface.id.endsWith('.shore') ? landscapeMaterials.soil : landscapeMaterials.grass)
         : new MeshStandardMaterial({ color: surface.color, roughness: 1 }));
       mesh.name = surface.id; mesh.receiveShadow = true; mesh.castShadow = true;
       if (rural && !blockout && surface.id.endsWith('.shore')) mesh.visible = false;
       scene.add(mesh);
     }
-    const environment = rural ? createRuralEnvironment(course, blockout) : null;
+    const environment = rural ? createRuralEnvironment(district ? createRuralCourse() : course, blockout) : null;
     if (environment) scene.add(environment.group);
     const ruralAssets = environment && !blockout ? await loadRuralAssets(environment.group) : [];
+    const districtPresentation = district && !blockout ? await createDistrictPresentation(course) : null;
+    if (districtPresentation) scene.add(districtPresentation.group);
     const labels = course.labels.map(label => {
       const sprite = createLabel(label.text);
       sprite.position.set(label.position.x, label.position.y + 0.42, label.position.z);
@@ -215,9 +229,9 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
     const fixture = await loadScaleFixture();
     fixture.object.visible = !rural;
     scene.add(fixture.object);
-    const locals = rural && !blockout ? createNpcPresentation() : null;
+    const locals = rural && !blockout ? createNpcPresentation(district ? DISTRICT_POPULATION_DEFINITIONS : NPC_DEFINITIONS) : null;
     if (locals) scene.add(locals.group);
-    if (rural && !blockout) livingEnvironment = createEnvironmentPresentation(scene, sun, fill);
+    if (rural && !blockout) livingEnvironment = createEnvironmentPresentation(scene, sun, fill, course, districtPresentation?.facts.roofEnvelopes);
     const facts = {
       threeRevision: REVISION,
       requestedBackend: forceWebGL ? 'WebGL2 (explicit fallback test)' : 'WebGPU preferred',
@@ -231,6 +245,8 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       browser: navigator.userAgent,
       fixture: fixture.facts,
       ruralAssets,
+      district: districtPresentation?.facts ?? null,
+      loadedAssetCount: 1 + ruralAssets.length + (districtPresentation ? 1 : 0),
       environment: environment ? structuredClone(environment.group.userData) : null,
       assetReady: true,
       shadersReady: false,
@@ -272,18 +288,22 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       for (const label of labels) label.visible = state.camera.mode === 'eagle-eye' || cameraPosition.distanceToSquared(label.position) < 24 * 24;
     }
     let lastWaterUpdate = -1;
+    let statePopulationCount = 0;
     function render(camera: PerspectiveCamera, state: GameState, reduced = false) {
       if (disposed) throw new Error('Cannot render after renderer disposal.');
       if (fatalError) throw fatalError;
       sync(state, camera);
+      statePopulationCount = state.population.length;
       if (state.environment) {
         livingEnvironment?.update(state.environment, state.player.position, reduced);
         locals?.update(state.population, state.environment.time, state.player.position, reduced);
+        districtPresentation?.updateEnvironment(state.environment);
       }
       const waterTime = state.environment?.time ?? state.elapsed;
       const waterUpdate = reduced ? Math.floor(waterTime * 15) / 15 : waterTime;
       if (waterUpdate !== lastWaterUpdate) {
         environment?.update(waterUpdate, state.environment?.wind, state.environment?.rain);
+        districtPresentation?.update(waterUpdate, state.environment?.wind, state.environment?.rain);
         lastWaterUpdate = waterUpdate;
       }
       renderer.info.reset();
@@ -330,7 +350,8 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
           viewport: { width: canvas.clientWidth, height: canvas.clientHeight },
           dpr: renderer.getPixelRatio(),
           countScope: 'draw calls and triangles include shadow passes; visibleMeshes counts visible flags, not frustum visibility',
-          living: { environment: livingEnvironment?.stats() ?? null, population: locals?.stats() ?? null },
+          living: { environment: livingEnvironment?.stats() ?? null, population: locals?.stats() ?? null,
+            activeNpcs: locals ? statePopulationCount : 0 },
         };
       },
       dispose() {

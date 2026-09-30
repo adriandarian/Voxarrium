@@ -1,5 +1,25 @@
 # Testing and visual review
 
+## M4 district procedures
+
+Current `npm test` passes 9 Node plus 59 simulation/assets/clock tests (68 total). District coverage loads the real GLB, composes six archetypes, samples actual Rapier street/camera/door clearance, walks the complete circuit outward and in reverse, checks rail containment, samples every NPC graph edge and continues serialized day/rain/night schedules without jumps. Existing M1–M3 coverage remains. `artifacts/m4/simulation-suite.json` retains the 59-test runner report; Node results are command output.
+
+Current `npm run test:browser` passes all 30 headed installed-Chrome tests, zero retries/skips. `district-browser` adds full continuous district routes in third/first person, real keyboard controls/dialogue, market audio/shelter/pause behavior, review captures and an explicit WebGL2 rain bridge crossing. Older rural projects explicitly use `?scene=m2`; M4 is the default. Full result: `artifacts/m4/browser-suite.json`.
+
+```powershell
+$env:VOXARRIUM_HEADED = '1'
+$env:VOXARRIUM_CAPTURE_DIR = 'artifacts/m4/regression'
+$env:VOXARRIUM_DISTRICT_CAPTURE_DIR = 'artifacts/m4/final'
+npm run test:browser
+npm run capture:m4
+```
+
+Sixteen authored district views plus route endpoints and WebGL2 evidence live under `artifacts/m4/final/`, with complete camera/state/backend/count metadata in `capture-states.json`. `living-verification.json` records digital audio signal/muting, merchant activity and rain shelter. This does not prove subjective sound quality or physical headphone listening. The review gallery is `artifacts/m4/review.html` while the local dev server runs. Owner art/feel acceptance remains pending.
+
+With source stable and no other test browser using the GPU, `node tools/measure-district.mjs` runs a bounded 60-second headed Chrome actual-W route at 1920×1080/DPR 1 after three seconds of warmup. `VOXARRIUM_DISTRICT_CAPTURE_DIR` selects its report directory; `VOXARRIUM_WEATHER` and `VOXARRIUM_LIGHT` select exact presets. Only the initial bookmark places the player; subsequent movement uses W and yaw steering. This timed sample need not finish the full circuit; separate route tests prove it. Reports include rAF distribution/long-frame times, counts, checkpoints, active population, loaded assets and JS heap. Set `VOXARRIUM_TRACE=1` for one diagnosed repeat with a CDP performance trace if long frames recur. Trace overhead must be labeled. These are wall intervals, not GPU execution times; heap is not VRAM.
+
+After `npm run build` and local preview on 4173, `node tools/smoke-district-production.mjs` checks actual W/V/Esc/menu rain/night controls, 42 locals, no development harness even with `?test=1` and zero browser errors. Actual results, trace findings and remaining risks are in STATUS.md. No city streaming/soak, lower-end device, hosted CI or traversal video is claimed.
+
 ## M3 living-slice procedures
 
 `npm test` runs 9 Node reference/contracts tests and 45 non-browser simulation/asset/clock tests. New coverage exercises environment blending and JSON continuation, source geometry/material ownership, roof-clipped rain/reduced counts, six deterministic NPC routines, interaction, weather reversal, surface categories and the existing rural Rapier navigation. Every authored NPC graph edge is sampled at 12 cm with actual Rapier capsule overlap and support rays.
@@ -12,7 +32,7 @@ Run `node tools/measure-rural.mjs` against the dev server for the bounded 60-sec
 
 After `npm run build`, serve preview on 4173 and run `node tools/smoke-rural-production.mjs`. It walks with W, changes camera with V, opens authored dialogue with F and selects rain/dusk through the menu. It verifies the development harness is absent even with `?test=1`. `final/rain-river-audio.webm` is a three-second internal live audio-graph recording; `audio-verification.json` records nonzero signal after click, zero output during pause/master mute and surface/listener facts. It is not a microphone recording or a claim that physical speakers/headphones were listened to. Subjective sound quality remains part of owner review.
 
-The canonical day eagle-eye/third-person/first-person baseline and M3 conditions match exactly (`artifacts/m3/comparison-conditions.json`). `artifacts/m3/review.html` presents the before/after and environment views with explicit pose-comparison limits. All source images and shipped GLB hashes remain intact; no new runtime asset or dependency was required. M3 stops at human review; M4 has not started.
+The historical canonical day eagle-eye/third-person/first-person baseline and M3 conditions match exactly (`artifacts/m3/comparison-conditions.json`). `artifacts/m3/review.html` presents the before/after and environment views with explicit pose-comparison limits. M3 required no new runtime asset or dependency. Its original human-review decision is retained in the review log; the subsequent explicit M4 objective and merged M3 authorize the current bounded district.
 
 ## Bootstrap checks (implemented)
 Run `npm ci` from the committed bootstrap lockfile. `npm test`: Node tests for reference verification, corruption/missing-file behavior, and repository-contract checks. `npm run check`: expected documentation/configuration files and manifest sanity. `npm run doctor`: local Node/Git/Blender diagnostics. `npm run references:verify`: strict signatures, byte counts, hashes and dimensions for all four committed originals. CI uses the same strict command; missing or corrupt originals fail. `npm run blender:fixture`: isolated local calibration export and GLB header validation; runtime scale, axes and materials require the M1 runtime.

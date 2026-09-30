@@ -4,7 +4,7 @@ import type { CameraMode, GameState, InputFrame, Vec3 } from '../simulation/type
 import type { Physics } from '../physics/physics';
 
 export function createCameraRig(state: GameState, physics: Physics) {
-  const camera = new PerspectiveCamera(60, 1, 0.08, 220);
+  const camera = new PerspectiveCamera(60, 1, 0.08, state.sceneId === 'm4-market-district' ? 400 : 220);
   const forward = new Vector3();
   const pivot = new Vector3();
   const desired = new Vector3();
@@ -37,7 +37,13 @@ export function createCameraRig(state: GameState, physics: Physics) {
       if (mode === 'eagle-eye') {
         // Overview stays deterministic and frames the full authored 64 m bounds.
         const fit = Math.max(1, 1.25 / aspect);
-        if (state.sceneId === 'm2-rural-96m') {
+        if (state.sceneId === 'm4-market-district') {
+          camera.fov = 42;
+          camera.updateProjectionMatrix();
+          const districtFit = Math.max(1, 1.4 / aspect);
+          camera.position.set(18, 108 * districtFit, 123 * districtFit);
+          camera.lookAt(82, 3, -4);
+        } else if (state.sceneId === 'm2-rural-96m') {
           camera.fov = 31;
           camera.updateProjectionMatrix();
           const ruralFit = Math.max(1, 0.75 / aspect);

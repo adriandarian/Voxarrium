@@ -1,0 +1,2186 @@
+{
+  "schemaVersion": 1,
+  "blenderVersion": "5.2.1 LTS",
+  "seed": 104729,
+  "source": "assets/source/district-kit.blend",
+  "generator": "tools/blender/district_kit.py",
+  "provenance": "Original local project-authored geometry; accepted rural helper construction; no downloaded/paid assets or image sampling",
+  "license": "Project license unassigned; no third-party source content",
+  "assumptions": [
+    "Canonical 8x7m roof bodies resize coherently; streets and unseen elevations are authored interpretations.",
+    "Closed doors and recessed glazing are full geometry; no explorable interiors are claimed.",
+    "Belfry, guild emblem and market goods are invented coherent street-level details."
+  ],
+  "assets": [
+    {
+      "id": "district.kit",
+      "path": "public/assets/district/district-kit.glb",
+      "sha256": "d083081952497568b8e84f0412c5868d61a9996bcfb5b274f65f8962b420d97c",
+      "bytes": 4674396,
+      "units": "meters",
+      "moduleCount": 24,
+      "triangles": 94244,
+      "textures": 0,
+      "axisConvention": "Blender X/Y/Z -> glTF X/-Z/Y; front +Z; no runtime correction",
+      "collision": "Simplified runtime boxes and stair/bridge proxies owned by parent",
+      "lod": "Shared module/material instance batches; no distance LOD",
+      "modules": [
+        {
+          "id": "district.module.wall",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.5,
+              0,
+              -0.24
+            ],
+            "max": [
+              0.5,
+              1,
+              0
+            ]
+          },
+          "triangles": 12,
+          "vertices": 8,
+          "materials": [
+            "plaster_lime.001"
+          ],
+          "materialCount": 1,
+          "meshObjects": 1,
+          "textures": 0,
+          "groups": [
+            "continuous_plaster"
+          ],
+          "partBounds": {
+            "continuous_plaster": {
+              "min": [
+                -0.5,
+                0,
+                -0.24
+              ],
+              "max": [
+                0.5,
+                1,
+                0
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.stone",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.5,
+              0,
+              -0.5
+            ],
+            "max": [
+              0.5,
+              1,
+              0.5
+            ]
+          },
+          "triangles": 44,
+          "vertices": 24,
+          "materials": [
+            "stone_aged"
+          ],
+          "materialCount": 1,
+          "meshObjects": 1,
+          "textures": 0,
+          "groups": [
+            "stone_block"
+          ],
+          "partBounds": {
+            "stone_block": {
+              "min": [
+                -0.5,
+                0,
+                -0.5
+              ],
+              "max": [
+                0.5,
+                1,
+                0.5
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.post",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.09,
+              0,
+              -0.09
+            ],
+            "max": [
+              0.09,
+              1,
+              0.09
+            ]
+          },
+          "triangles": 44,
+          "vertices": 24,
+          "materials": [
+            "timber_structure"
+          ],
+          "materialCount": 1,
+          "meshObjects": 1,
+          "textures": 0,
+          "groups": [
+            "upright"
+          ],
+          "partBounds": {
+            "upright": {
+              "min": [
+                -0.09,
+                0,
+                -0.09
+              ],
+              "max": [
+                0.09,
+                1,
+                0.09
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.beam",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.5,
+              -0.09,
+              -0.1
+            ],
+            "max": [
+              0.5,
+              0.09,
+              0.1
+            ]
+          },
+          "triangles": 44,
+          "vertices": 24,
+          "materials": [
+            "timber_endgrain"
+          ],
+          "materialCount": 1,
+          "meshObjects": 1,
+          "textures": 0,
+          "groups": [
+            "horizontal"
+          ],
+          "partBounds": {
+            "horizontal": {
+              "min": [
+                -0.5,
+                -0.09,
+                -0.1
+              ],
+              "max": [
+                0.5,
+                0.09,
+                0.1
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.brace",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.53429,
+              -0.03429,
+              -0.07
+            ],
+            "max": [
+              0.53429,
+              1.03429,
+              0.07
+            ]
+          },
+          "triangles": 44,
+          "vertices": 24,
+          "materials": [
+            "timber_structure"
+          ],
+          "materialCount": 1,
+          "meshObjects": 1,
+          "textures": 0,
+          "groups": [
+            "joinery"
+          ],
+          "partBounds": {
+            "joinery": {
+              "min": [
+                -0.53429,
+                -0.03429,
+                -0.07
+              ],
+              "max": [
+                0.53429,
+                1.03429,
+                0.07
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.window",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -1.01,
+              -0.21,
+              -0.2175
+            ],
+            "max": [
+              1.01,
+              1.545,
+              0.36
+            ]
+          },
+          "triangles": 952,
+          "vertices": 528,
+          "materials": [
+            "door_oak_light",
+            "recess_shadow",
+            "stone_light",
+            "timber_endgrain",
+            "timber_structure",
+            "timber_worn",
+            "window_glass",
+            "window_glint"
+          ],
+          "materialCount": 8,
+          "meshObjects": 10,
+          "textures": 0,
+          "groups": [
+            "opening_frames",
+            "shutters",
+            "stone_sills",
+            "window_glazing",
+            "window_mullions",
+            "window_recesses"
+          ],
+          "partBounds": {
+            "window_recesses": {
+              "min": [
+                -0.525,
+                0,
+                -0.2175
+              ],
+              "max": [
+                0.525,
+                1.32,
+                -0.1825
+              ]
+            },
+            "window_glazing": {
+              "min": [
+                -0.5125,
+                0.0125,
+                -0.1685
+              ],
+              "max": [
+                0.5125,
+                1.3075,
+                -0.1415
+              ]
+            },
+            "opening_frames": {
+              "min": [
+                -0.725,
+                -0.09,
+                -0.155
+              ],
+              "max": [
+                0.725,
+                1.545,
+                0.26
+              ]
+            },
+            "window_mullions": {
+              "min": [
+                -0.525,
+                0,
+                -0.125
+              ],
+              "max": [
+                0.525,
+                1.32,
+                -0.035
+              ]
+            },
+            "stone_sills": {
+              "min": [
+                -0.725,
+                -0.21,
+                -0.17
+              ],
+              "max": [
+                0.725,
+                -0.05,
+                0.36
+              ]
+            },
+            "shutters": {
+              "min": [
+                -1.01,
+                0.0594,
+                -0.0225
+              ],
+              "max": [
+                1.01,
+                1.2606,
+                0.0885
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.shop-window",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -1.14,
+              -0.21,
+              -0.2175
+            ],
+            "max": [
+              1.14,
+              1.695,
+              0.36
+            ]
+          },
+          "triangles": 512,
+          "vertices": 288,
+          "materials": [
+            "recess_shadow",
+            "stone_light",
+            "timber_endgrain",
+            "timber_structure",
+            "timber_worn",
+            "window_glass",
+            "window_glint"
+          ],
+          "materialCount": 7,
+          "meshObjects": 7,
+          "textures": 0,
+          "groups": [
+            "opening_frames",
+            "stone_sills",
+            "window_glazing",
+            "window_mullions",
+            "window_recesses"
+          ],
+          "partBounds": {
+            "window_recesses": {
+              "min": [
+                -0.94,
+                0,
+                -0.2175
+              ],
+              "max": [
+                0.94,
+                1.47,
+                -0.1825
+              ]
+            },
+            "window_glazing": {
+              "min": [
+                -0.9275,
+                0.0125,
+                -0.1685
+              ],
+              "max": [
+                0.9275,
+                1.4575,
+                -0.1415
+              ]
+            },
+            "opening_frames": {
+              "min": [
+                -1.14,
+                -0.09,
+                -0.155
+              ],
+              "max": [
+                1.14,
+                1.695,
+                0.26
+              ]
+            },
+            "window_mullions": {
+              "min": [
+                -0.94,
+                0,
+                -0.125
+              ],
+              "max": [
+                0.94,
+                1.47,
+                -0.035
+              ]
+            },
+            "stone_sills": {
+              "min": [
+                -1.14,
+                -0.21,
+                -0.17
+              ],
+              "max": [
+                1.14,
+                -0.05,
+                0.36
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.door",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.805,
+              -0.095,
+              -0.205
+            ],
+            "max": [
+              0.805,
+              2.39,
+              0.38
+            ]
+          },
+          "triangles": 1016,
+          "vertices": 544,
+          "materials": [
+            "brass_worn",
+            "door_oak",
+            "door_oak_light",
+            "iron_aged",
+            "recess_shadow",
+            "stone_light",
+            "timber_endgrain",
+            "timber_structure"
+          ],
+          "materialCount": 8,
+          "meshObjects": 8,
+          "textures": 0,
+          "groups": [
+            "door_ironwork",
+            "doors",
+            "opening_frames",
+            "stone_sills"
+          ],
+          "partBounds": {
+            "doors": {
+              "min": [
+                -0.59,
+                0,
+                -0.205
+              ],
+              "max": [
+                0.59,
+                2.16,
+                -0.0575
+              ]
+            },
+            "opening_frames": {
+              "min": [
+                -0.805,
+                -0.08,
+                -0.1
+              ],
+              "max": [
+                0.805,
+                2.39,
+                0.24
+              ]
+            },
+            "stone_sills": {
+              "min": [
+                -0.79,
+                -0.095,
+                -0.18
+              ],
+              "max": [
+                0.79,
+                0.005,
+                0.38
+              ]
+            },
+            "door_ironwork": {
+              "min": [
+                -0.5212,
+                0.3975,
+                -0.047
+              ],
+              "max": [
+                0.4138,
+                1.7525,
+                0.065
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.doorstep",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.78,
+              0,
+              -0.105
+            ],
+            "max": [
+              0.78,
+              0.18,
+              0.545
+            ]
+          },
+          "triangles": 44,
+          "vertices": 24,
+          "materials": [
+            "stone_light"
+          ],
+          "materialCount": 1,
+          "meshObjects": 1,
+          "textures": 0,
+          "groups": [
+            "threshold"
+          ],
+          "partBounds": {
+            "threshold": {
+              "min": [
+                -0.78,
+                0,
+                -0.105
+              ],
+              "max": [
+                0.78,
+                0.18,
+                0.545
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.stair",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.5,
+              0,
+              -0.15
+            ],
+            "max": [
+              0.5,
+              0.18,
+              0.15
+            ]
+          },
+          "triangles": 44,
+          "vertices": 24,
+          "materials": [
+            "stone_aged"
+          ],
+          "materialCount": 1,
+          "meshObjects": 1,
+          "textures": 0,
+          "groups": [
+            "worn_tread"
+          ],
+          "partBounds": {
+            "worn_tread": {
+              "min": [
+                -0.5,
+                0,
+                -0.15
+              ],
+              "max": [
+                0.5,
+                0.18,
+                0.15
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.gable-cap",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -4.06,
+              -0.06,
+              -0.12
+            ],
+            "max": [
+              4.06,
+              2.27585,
+              0.265
+            ]
+          },
+          "triangles": 184,
+          "vertices": 102,
+          "materials": [
+            "plaster_warm.001",
+            "timber_endgrain",
+            "timber_structure"
+          ],
+          "materialCount": 3,
+          "meshObjects": 4,
+          "textures": 0,
+          "groups": [
+            "gable_plaster",
+            "kingpost",
+            "raking_frame",
+            "tie"
+          ],
+          "partBounds": {
+            "gable_plaster": {
+              "min": [
+                -4,
+                0,
+                -0.12
+              ],
+              "max": [
+                4,
+                2.2,
+                0.12
+              ]
+            },
+            "raking_frame": {
+              "min": [
+                -4.0341,
+                -0.04585,
+                0.05
+              ],
+              "max": [
+                4.0341,
+                2.27585,
+                0.25
+              ]
+            },
+            "tie": {
+              "min": [
+                -4.06,
+                -0.06,
+                0.035
+              ],
+              "max": [
+                4.06,
+                0.14,
+                0.265
+              ]
+            },
+            "kingpost": {
+              "min": [
+                -0.08,
+                0,
+                0.055
+              ],
+              "max": [
+                0.08,
+                2.12,
+                0.245
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.roof-gable",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -4.75,
+              -0.30556,
+              -4.635
+            ],
+            "max": [
+              4.75,
+              2.455,
+              4.635
+            ]
+          },
+          "triangles": 20436,
+          "vertices": 11004,
+          "materials": [
+            "terracotta_aged.001",
+            "terracotta_lit.001",
+            "terracotta_ridge.001",
+            "terracotta_russet.001",
+            "terracotta_umber.001",
+            "terracotta_warm.001",
+            "timber_endgrain",
+            "timber_structure"
+          ],
+          "materialCount": 8,
+          "meshObjects": 9,
+          "textures": 0,
+          "groups": [
+            "clay_roof_courses",
+            "eave_rafters",
+            "ridge_caps",
+            "roof_fascia",
+            "roof_underlay"
+          ],
+          "partBounds": {
+            "roof_underlay": {
+              "min": [
+                -4.65,
+                -0.18615,
+                -4.5
+              ],
+              "max": [
+                4.65,
+                2.19615,
+                4.5
+              ]
+            },
+            "roof_fascia": {
+              "min": [
+                -4.75,
+                -0.21,
+                -4.635
+              ],
+              "max": [
+                4.75,
+                2.22702,
+                4.635
+              ]
+            },
+            "eave_rafters": {
+              "min": [
+                -4.71301,
+                -0.30556,
+                -4.425
+              ],
+              "max": [
+                4.71301,
+                0.18406,
+                4.425
+              ]
+            },
+            "clay_roof_courses": {
+              "min": [
+                -4.675,
+                -0.05229,
+                -4.50389
+              ],
+              "max": [
+                4.675,
+                2.34071,
+                4.50849
+              ]
+            },
+            "ridge_caps": {
+              "min": [
+                -0.2,
+                2.255,
+                -4.555
+              ],
+              "max": [
+                0.2,
+                2.455,
+                4.555
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.roof-hip",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -4.75288,
+              -0.15605,
+              -4.605
+            ],
+            "max": [
+              4.75288,
+              2.38,
+              4.605
+            ]
+          },
+          "triangles": 19068,
+          "vertices": 10584,
+          "materials": [
+            "terracotta_aged.001",
+            "terracotta_lit.001",
+            "terracotta_ridge.001",
+            "terracotta_russet.001",
+            "terracotta_umber.001",
+            "terracotta_warm.001",
+            "timber_endgrain",
+            "timber_structure"
+          ],
+          "materialCount": 8,
+          "meshObjects": 8,
+          "textures": 0,
+          "groups": [
+            "overlapping_clay_courses",
+            "ridge",
+            "roof_edges",
+            "thick_roof_underlay"
+          ],
+          "partBounds": {
+            "thick_roof_underlay": {
+              "min": [
+                -4.65,
+                -0.15605,
+                -4.5
+              ],
+              "max": [
+                4.65,
+                2.2,
+                4.5
+              ]
+            },
+            "overlapping_clay_courses": {
+              "min": [
+                -4.65,
+                -0.01,
+                -4.5
+              ],
+              "max": [
+                4.65,
+                2.29,
+                4.5
+              ]
+            },
+            "roof_edges": {
+              "min": [
+                -4.75288,
+                -0.11034,
+                -4.605
+              ],
+              "max": [
+                4.75288,
+                2.31034,
+                4.605
+              ]
+            },
+            "ridge": {
+              "min": [
+                -1.1,
+                2.1,
+                -0.115
+              ],
+              "max": [
+                1.1,
+                2.38,
+                0.115
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.roof-mansard",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -4.74756,
+              -0.15379,
+              -4.605
+            ],
+            "max": [
+              4.74756,
+              2.38,
+              4.605
+            ]
+          },
+          "triangles": 24988,
+          "vertices": 13864,
+          "materials": [
+            "terracotta_aged.001",
+            "terracotta_lit.001",
+            "terracotta_ridge.001",
+            "terracotta_russet.001",
+            "terracotta_umber.001",
+            "terracotta_warm.001",
+            "timber_endgrain",
+            "timber_structure"
+          ],
+          "materialCount": 8,
+          "meshObjects": 8,
+          "textures": 0,
+          "groups": [
+            "overlapping_clay_courses",
+            "ridge",
+            "roof_edges",
+            "thick_roof_underlay"
+          ],
+          "partBounds": {
+            "thick_roof_underlay": {
+              "min": [
+                -4.65,
+                -0.15379,
+                -4.5
+              ],
+              "max": [
+                4.65,
+                2.2,
+                4.5
+              ]
+            },
+            "overlapping_clay_courses": {
+              "min": [
+                -4.65,
+                -0.01,
+                -4.5
+              ],
+              "max": [
+                4.65,
+                2.29,
+                4.5
+              ]
+            },
+            "roof_edges": {
+              "min": [
+                -4.74756,
+                -0.105,
+                -4.605
+              ],
+              "max": [
+                4.74756,
+                2.3069,
+                4.605
+              ]
+            },
+            "ridge": {
+              "min": [
+                -1,
+                2.1,
+                -0.11
+              ],
+              "max": [
+                1,
+                2.38,
+                0.11
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.chimney",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.46,
+              0,
+              -0.48
+            ],
+            "max": [
+              0.46,
+              1.91,
+              0.48
+            ]
+          },
+          "triangles": 3124,
+          "vertices": 1704,
+          "materials": [
+            "recess_shadow",
+            "stone_aged",
+            "stone_light",
+            "stone_shadow"
+          ],
+          "materialCount": 4,
+          "meshObjects": 6,
+          "textures": 0,
+          "groups": [
+            "cap",
+            "courses",
+            "flue_rim",
+            "mortar",
+            "open_flue"
+          ],
+          "partBounds": {
+            "mortar": {
+              "min": [
+                -0.36,
+                0,
+                -0.38
+              ],
+              "max": [
+                0.36,
+                1.64,
+                0.38
+              ]
+            },
+            "courses": {
+              "min": [
+                -0.4075,
+                0.02,
+                -0.4275
+              ],
+              "max": [
+                0.4075,
+                1.6,
+                0.4275
+              ]
+            },
+            "cap": {
+              "min": [
+                -0.46,
+                1.6,
+                -0.48
+              ],
+              "max": [
+                0.46,
+                1.78,
+                0.48
+              ]
+            },
+            "open_flue": {
+              "min": [
+                -0.275,
+                1.78,
+                -0.3
+              ],
+              "max": [
+                0.275,
+                1.802,
+                0.3
+              ]
+            },
+            "flue_rim": {
+              "min": [
+                -0.42,
+                1.75,
+                -0.41
+              ],
+              "max": [
+                0.42,
+                1.91,
+                0.41
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.balcony",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -1.35,
+              -0.722,
+              -0.06
+            ],
+            "max": [
+              1.35,
+              1.075,
+              1.285
+            ]
+          },
+          "triangles": 1232,
+          "vertices": 672,
+          "materials": [
+            "iron_aged",
+            "timber_endgrain",
+            "timber_structure",
+            "timber_worn"
+          ],
+          "materialCount": 4,
+          "meshObjects": 6,
+          "textures": 0,
+          "groups": [
+            "balusters",
+            "corbels",
+            "deck_planks",
+            "posts",
+            "rails",
+            "side_rails"
+          ],
+          "partBounds": {
+            "deck_planks": {
+              "min": [
+                -1.2935,
+                -0.13,
+                -0.06
+              ],
+              "max": [
+                1.2935,
+                0,
+                1.26
+              ]
+            },
+            "corbels": {
+              "min": [
+                -1.3,
+                -0.722,
+                0.00318
+              ],
+              "max": [
+                1.3,
+                -0.018,
+                1.21682
+              ]
+            },
+            "posts": {
+              "min": [
+                -1.29,
+                -0.04,
+                1.16
+              ],
+              "max": [
+                1.29,
+                1.02,
+                1.28
+              ]
+            },
+            "rails": {
+              "min": [
+                -1.35,
+                0.165,
+                1.155
+              ],
+              "max": [
+                1.35,
+                1.075,
+                1.285
+              ]
+            },
+            "side_rails": {
+              "min": [
+                -1.285,
+                0.165,
+                0.06
+              ],
+              "max": [
+                1.285,
+                1.075,
+                1.26
+              ]
+            },
+            "balusters": {
+              "min": [
+                -1.1625,
+                0.255,
+                1.1975
+              ],
+              "max": [
+                1.1625,
+                0.985,
+                1.2425
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.railing",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -1.07,
+              -0.04,
+              -0.075
+            ],
+            "max": [
+              1.07,
+              1.08,
+              0.075
+            ]
+          },
+          "triangles": 528,
+          "vertices": 288,
+          "materials": [
+            "iron_aged",
+            "timber_endgrain",
+            "timber_structure"
+          ],
+          "materialCount": 3,
+          "meshObjects": 3,
+          "textures": 0,
+          "groups": [
+            "balusters",
+            "posts",
+            "rails"
+          ],
+          "partBounds": {
+            "posts": {
+              "min": [
+                -1.06,
+                -0.04,
+                -0.06
+              ],
+              "max": [
+                1.06,
+                1.04,
+                0.06
+              ]
+            },
+            "rails": {
+              "min": [
+                -1.07,
+                0.16,
+                -0.075
+              ],
+              "max": [
+                1.07,
+                1.08,
+                0.075
+              ]
+            },
+            "balusters": {
+              "min": [
+                -0.8675,
+                0.25,
+                -0.0175
+              ],
+              "max": [
+                0.8775,
+                0.99,
+                0.0175
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.awning",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -1.56,
+              -0.69872,
+              -0.00398
+            ],
+            "max": [
+              1.56,
+              0.18,
+              1.32
+            ]
+          },
+          "triangles": 164,
+          "vertices": 120,
+          "materials": [
+            "cloth_color",
+            "cloth_cream",
+            "timber_endgrain",
+            "timber_structure"
+          ],
+          "materialCount": 4,
+          "meshObjects": 4,
+          "textures": 0,
+          "groups": [
+            "braces",
+            "brow",
+            "canvas"
+          ],
+          "partBounds": {
+            "canvas": {
+              "min": [
+                -1.5,
+                -0.16,
+                0
+              ],
+              "max": [
+                1.5,
+                0.18,
+                1.26
+              ]
+            },
+            "braces": {
+              "min": [
+                -1.425,
+                -0.69872,
+                -0.00398
+              ],
+              "max": [
+                1.425,
+                0.04872,
+                1.26398
+              ]
+            },
+            "brow": {
+              "min": [
+                -1.56,
+                -0.09,
+                1.22
+              ],
+              "max": [
+                1.56,
+                0.01,
+                1.32
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.sign",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.56,
+              -0.92,
+              -0.045
+            ],
+            "max": [
+              0.56,
+              0.03,
+              0.905
+            ]
+          },
+          "triangles": 524,
+          "vertices": 280,
+          "materials": [
+            "brass_worn",
+            "iron_aged",
+            "timber_structure",
+            "timber_worn"
+          ],
+          "materialCount": 4,
+          "meshObjects": 5,
+          "textures": 0,
+          "groups": [
+            "authored_emblem",
+            "board",
+            "bracket",
+            "chains",
+            "frame"
+          ],
+          "partBounds": {
+            "board": {
+              "min": [
+                -0.48,
+                -0.845,
+                0.5625
+              ],
+              "max": [
+                0.48,
+                -0.195,
+                0.6575
+              ]
+            },
+            "frame": {
+              "min": [
+                -0.56,
+                -0.92,
+                0.545
+              ],
+              "max": [
+                0.56,
+                -0.12,
+                0.675
+              ]
+            },
+            "bracket": {
+              "min": [
+                -0.0325,
+                -0.03,
+                -0.045
+              ],
+              "max": [
+                0.0325,
+                0.03,
+                0.905
+              ]
+            },
+            "chains": {
+              "min": [
+                -0.3235,
+                -0.16,
+                0.59441
+              ],
+              "max": [
+                0.3235,
+                0,
+                0.62559
+              ]
+            },
+            "authored_emblem": {
+              "min": [
+                -0.21,
+                -0.71,
+                0.67
+              ],
+              "max": [
+                0.21,
+                -0.29,
+                0.69
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.lantern",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.17,
+              -0.135,
+              -0.06
+            ],
+            "max": [
+              0.17,
+              0.52,
+              0.62
+            ]
+          },
+          "triangles": 352,
+          "vertices": 192,
+          "materials": [
+            "brass_worn",
+            "iron_aged",
+            "window_warm"
+          ],
+          "materialCount": 3,
+          "meshObjects": 5,
+          "textures": 0,
+          "groups": [
+            "bracket",
+            "cap",
+            "foot",
+            "frame",
+            "glass"
+          ],
+          "partBounds": {
+            "bracket": {
+              "min": [
+                -0.03,
+                0.46,
+                -0.06
+              ],
+              "max": [
+                0.03,
+                0.52,
+                0.48
+              ]
+            },
+            "glass": {
+              "min": [
+                -0.105,
+                -0.05,
+                0.345
+              ],
+              "max": [
+                0.105,
+                0.29,
+                0.555
+              ]
+            },
+            "frame": {
+              "min": [
+                -0.1425,
+                -0.065,
+                0.3075
+              ],
+              "max": [
+                0.1425,
+                0.325,
+                0.5925
+              ]
+            },
+            "cap": {
+              "min": [
+                -0.17,
+                0.31,
+                0.28
+              ],
+              "max": [
+                0.17,
+                0.39,
+                0.62
+              ]
+            },
+            "foot": {
+              "min": [
+                -0.145,
+                -0.135,
+                0.305
+              ],
+              "max": [
+                0.145,
+                -0.065,
+                0.595
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.barrel",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.38302,
+              0,
+              -0.36351
+            ],
+            "max": [
+              0.38302,
+              0.82,
+              0.36351
+            ]
+          },
+          "triangles": 1452,
+          "vertices": 868,
+          "materials": [
+            "door_oak",
+            "door_oak_light",
+            "hoop_iron",
+            "timber_endgrain"
+          ],
+          "materialCount": 4,
+          "meshObjects": 4,
+          "textures": 0,
+          "groups": [
+            "barrel_hoops",
+            "barrel_lids",
+            "barrel_staves"
+          ],
+          "partBounds": {
+            "barrel_staves": {
+              "min": [
+                -0.36999,
+                0,
+                -0.36127
+              ],
+              "max": [
+                0.36999,
+                0.82,
+                0.36127
+              ]
+            },
+            "barrel_lids": {
+              "min": [
+                -0.3145,
+                0.785,
+                -0.30661
+              ],
+              "max": [
+                0.3145,
+                0.82,
+                0.30661
+              ]
+            },
+            "barrel_hoops": {
+              "min": [
+                -0.38302,
+                0.1,
+                -0.36351
+              ],
+              "max": [
+                0.38302,
+                0.6626,
+                0.36351
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.crate",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -0.5075,
+              -0.01,
+              -0.3775
+            ],
+            "max": [
+              0.5075,
+              0.69,
+              0.3775
+            ]
+          },
+          "triangles": 924,
+          "vertices": 504,
+          "materials": [
+            "door_oak_light",
+            "timber_endgrain",
+            "timber_structure",
+            "timber_worn"
+          ],
+          "materialCount": 4,
+          "meshObjects": 4,
+          "textures": 0,
+          "groups": [
+            "bottom",
+            "posts",
+            "slats"
+          ],
+          "partBounds": {
+            "posts": {
+              "min": [
+                -0.5075,
+                -0.01,
+                -0.3775
+              ],
+              "max": [
+                0.5075,
+                0.69,
+                0.3775
+              ]
+            },
+            "slats": {
+              "min": [
+                -0.5075,
+                0.025,
+                -0.3775
+              ],
+              "max": [
+                0.5075,
+                0.665,
+                0.3775
+              ]
+            },
+            "bottom": {
+              "min": [
+                -0.47,
+                0,
+                -0.34
+              ],
+              "max": [
+                0.47,
+                0.07,
+                0.34
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.stall",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -1.51,
+              0,
+              -1.05
+            ],
+            "max": [
+              1.51,
+              2.65,
+              1.05
+            ]
+          },
+          "triangles": 3852,
+          "vertices": 2080,
+          "materials": [
+            "cloth_color",
+            "cloth_cream",
+            "door_oak_light",
+            "produce_green",
+            "produce_ochre",
+            "produce_red",
+            "timber_endgrain",
+            "timber_structure",
+            "timber_worn"
+          ],
+          "materialCount": 9,
+          "meshObjects": 11,
+          "textures": 0,
+          "groups": [
+            "canvas_roof",
+            "counter",
+            "front_boards",
+            "produce",
+            "produce_trays",
+            "roof_rails",
+            "uprights"
+          ],
+          "partBounds": {
+            "uprights": {
+              "min": [
+                -1.275,
+                0,
+                -0.745
+              ],
+              "max": [
+                1.275,
+                2.34,
+                0.745
+              ]
+            },
+            "counter": {
+              "min": [
+                -1.31,
+                0.82,
+                -0.73
+              ],
+              "max": [
+                1.31,
+                0.94,
+                0.79
+              ]
+            },
+            "front_boards": {
+              "min": [
+                -1.375,
+                0.085,
+                0.6975
+              ],
+              "max": [
+                1.368,
+                0.835,
+                0.7625
+              ]
+            },
+            "canvas_roof": {
+              "min": [
+                -1.49,
+                2.14,
+                -1
+              ],
+              "max": [
+                1.49,
+                2.64,
+                1
+              ]
+            },
+            "roof_rails": {
+              "min": [
+                -1.51,
+                2.29,
+                -1.05
+              ],
+              "max": [
+                1.51,
+                2.65,
+                1.05
+              ]
+            },
+            "produce_trays": {
+              "min": [
+                -1.17,
+                0.92,
+                -0.295
+              ],
+              "max": [
+                1.17,
+                1.06,
+                0.495
+              ]
+            },
+            "produce": {
+              "min": [
+                -1.12677,
+                1.04,
+                -0.26024
+              ],
+              "max": [
+                1.1302,
+                1.19,
+                0.45024
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        },
+        {
+          "id": "district.module.tower",
+          "units": "meters",
+          "seed": 104729,
+          "bounds": {
+            "min": [
+              -2.63989,
+              0,
+              -2.645
+            ],
+            "max": [
+              2.63989,
+              8.17,
+              2.645
+            ]
+          },
+          "triangles": 14660,
+          "vertices": 8120,
+          "materials": [
+            "brass_worn",
+            "iron_aged",
+            "plaster_lime.001",
+            "recess_shadow",
+            "stone_light",
+            "terracotta_aged.001",
+            "terracotta_lit.001",
+            "terracotta_russet.001",
+            "terracotta_umber.001",
+            "terracotta_warm.001",
+            "timber_endgrain",
+            "timber_structure",
+            "timber_worn",
+            "window_glass",
+            "window_glint"
+          ],
+          "materialCount": 15,
+          "meshObjects": 22,
+          "textures": 0,
+          "groups": [
+            "belfry_headers",
+            "bell",
+            "bell_yoke",
+            "belt_courses",
+            "clapper",
+            "corner_piers",
+            "finial",
+            "opening_frames",
+            "overlapping_clay_courses",
+            "plaster_walls",
+            "roof_edges",
+            "stone_sills",
+            "thick_roof_underlay",
+            "window_glazing",
+            "window_mullions",
+            "window_recesses"
+          ],
+          "partBounds": {
+            "plaster_walls": {
+              "min": [
+                -2.02,
+                0,
+                -2.02
+              ],
+              "max": [
+                2.02,
+                3.1,
+                2.02
+              ]
+            },
+            "window_recesses": {
+              "min": [
+                -1.8175,
+                0.85,
+                -1.8175
+              ],
+              "max": [
+                1.8175,
+                2.41,
+                1.8175
+              ]
+            },
+            "window_glazing": {
+              "min": [
+                -1.8585,
+                0.8625,
+                -1.8585
+              ],
+              "max": [
+                1.8585,
+                2.3975,
+                1.8585
+              ]
+            },
+            "opening_frames": {
+              "min": [
+                -2.26,
+                0.76,
+                -2.26
+              ],
+              "max": [
+                2.26,
+                2.635,
+                2.26
+              ]
+            },
+            "window_mullions": {
+              "min": [
+                -1.965,
+                0.85,
+                -1.965
+              ],
+              "max": [
+                1.965,
+                2.41,
+                1.965
+              ]
+            },
+            "stone_sills": {
+              "min": [
+                -2.36,
+                0.64,
+                -2.36
+              ],
+              "max": [
+                2.36,
+                0.8,
+                2.36
+              ]
+            },
+            "corner_piers": {
+              "min": [
+                -2.1,
+                0,
+                -2.1
+              ],
+              "max": [
+                2.1,
+                5.52,
+                2.1
+              ]
+            },
+            "belt_courses": {
+              "min": [
+                -2.25,
+                0.005,
+                -2.25
+              ],
+              "max": [
+                2.25,
+                5.475,
+                2.25
+              ]
+            },
+            "belfry_headers": {
+              "min": [
+                -2.12,
+                4.955,
+                -2.12
+              ],
+              "max": [
+                2.12,
+                5.225,
+                2.12
+              ]
+            },
+            "bell": {
+              "min": [
+                -0.69591,
+                3.91,
+                -0.69591
+              ],
+              "max": [
+                0.69591,
+                4.6,
+                0.69591
+              ]
+            },
+            "clapper": {
+              "min": [
+                -0.06156,
+                3.65,
+                -0.06156
+              ],
+              "max": [
+                0.06156,
+                4.12,
+                0.06156
+              ]
+            },
+            "bell_yoke": {
+              "min": [
+                -1.125,
+                4.74,
+                -0.1
+              ],
+              "max": [
+                1.125,
+                4.94,
+                0.1
+              ]
+            },
+            "thick_roof_underlay": {
+              "min": [
+                -2.54,
+                5.24589,
+                -2.54
+              ],
+              "max": [
+                2.54,
+                7.6,
+                2.54
+              ]
+            },
+            "overlapping_clay_courses": {
+              "min": [
+                -2.54,
+                5.39,
+                -2.54
+              ],
+              "max": [
+                2.54,
+                7.69,
+                2.54
+              ]
+            },
+            "roof_edges": {
+              "min": [
+                -2.63989,
+                5.295,
+                -2.645
+              ],
+              "max": [
+                2.63989,
+                7.70152,
+                2.645
+              ]
+            },
+            "finial": {
+              "min": [
+                -0.11844,
+                7.6,
+                -0.11265
+              ],
+              "max": [
+                0.11844,
+                8.17,
+                0.11265
+              ]
+            }
+          },
+          "origin": "module-local snap origin; +Y up, front +Z",
+          "axisConvention": "Blender X -> glTF X, Blender Y -> glTF -Z, Blender Z -> glTF Y; front glTF +Z",
+          "collision": "Parent-authored simplified district proxies; decorations noncolliding",
+          "lod": "Shared module geometry, conventional instancing; no distance LOD",
+          "preview": "Parent captures and inspects all sides in actual Three.js runtime; export is not art approval"
+        }
+      ],
+      "exportedMeshes": 111,
+      "exportedPrimitives": 111,
+      "materialCount": 28
+    }
+  ],
+  "preview": "Actual runtime all-side captures by parent are required; export is not owner art approval",
+  "sourceHashes": {
+    "tools/blender/district_kit.py": "059d7a81fa231beb648c2e37b4dd25453a8a61f210bb7f14e8e622c1d77056f7",
+    "tools/blender-district.mjs": "4d4ee1c54d7dbbeddfc722bdbaf6c872e82447877e2cadfc9fb2c380eb3d03ca",
+    "tools/blender/rural_hero.py": "09dd73587e0b8b324f98f25c589b9213be751e1bbacc1a4208ca43034cedeea5",
+    "assets/source/district-kit.blend": "a3848ae53968f1a0d29d9005f00458d3102629fae1aa758e051e3f230da42def"
+  },
+  "referenceHashes": {
+    "city-master.png": "6868b0cbd6a5bcc28a8580ba1b40ff4069f6bb405715fb9ff3a098aaa6abeffd",
+    "experiments/godot-attempt.png": "76fc977dea8500ba0afdb6cf93d50206fd27f976c99948432c43ac0eb1c60f5c",
+    "experiments/unreal-attempt.png": "2301a9e7d5075e308c65307ffd7d65e56d73387106e452133ab495c7690f1300",
+    "experiments/blender-attempt.png": "724a7e967c44fedd2cc4b2f038877b684f4a135c9ee59703f0802f401c711662"
+  },
+  "command": "node tools/blender-district.mjs"
+}

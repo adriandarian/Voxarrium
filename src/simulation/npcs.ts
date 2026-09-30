@@ -1,4 +1,5 @@
 import { RURAL } from './rural-layout';
+import { DISTRICT_NPC_DEFINITIONS, DISTRICT_NPC_EDGES, DISTRICT_NPC_NODES } from './district-npcs';
 import type { Vec3 } from './types';
 
 export interface NpcEnvironment {
@@ -24,7 +25,7 @@ export interface NpcState {
   speed: number;
 }
 
-interface NpcDefinition {
+export interface NpcDefinition {
   id: string;
   name: string;
   dialogue: string;
@@ -157,9 +158,11 @@ export const NPC_DEFINITIONS: readonly NpcDefinition[] = [
   },
 ];
 
-const definitions = new Map(NPC_DEFINITIONS.map(definition => [definition.id, definition]));
+export const DISTRICT_POPULATION_DEFINITIONS = [...NPC_DEFINITIONS, ...DISTRICT_NPC_DEFINITIONS];
+const definitions = new Map(DISTRICT_POPULATION_DEFINITIONS.map(definition => [definition.id, definition]));
+const allNodes = { ...NPC_ROUTE_NODES, ...DISTRICT_NPC_NODES };
 const neighbors = new Map<string, string[]>();
-for (const [a, b] of NPC_ROUTE_EDGES) {
+for (const [a, b] of [...NPC_ROUTE_EDGES, ...DISTRICT_NPC_EDGES]) {
   neighbors.set(a, [...(neighbors.get(a) ?? []), b]);
   neighbors.set(b, [...(neighbors.get(b) ?? []), a]);
 }
@@ -177,7 +180,7 @@ function nextToward(from: string, goal: string): string | null {
     open.delete(current);
     if (current === goal) break;
     for (const neighbor of neighbors.get(current) ?? []) {
-      const proposal = cost.get(current)! + distance(NPC_ROUTE_NODES[current]!, NPC_ROUTE_NODES[neighbor]!);
+      const proposal = cost.get(current)! + distance(allNodes[current]!, allNodes[neighbor]!);
       if (proposal >= (cost.get(neighbor) ?? Infinity)) continue;
       cost.set(neighbor, proposal);
       previous.set(neighbor, current);
@@ -197,9 +200,9 @@ function face(npc: NpcState, x: number, z: number, dt: number) {
   npc.heading += Math.max(-dt * 3.8, Math.min(dt * 3.8, difference));
 }
 
-export function createPopulation(): NpcState[] {
-  return NPC_DEFINITIONS.map(definition => ({
-    id: definition.id, position: { ...NPC_ROUTE_NODES[definition.dayRoute[0]!]! },
+export function createPopulation(district = false): NpcState[] {
+  return (district ? DISTRICT_POPULATION_DEFINITIONS : NPC_DEFINITIONS).map(definition => ({
+    id: definition.id, position: { ...allNodes[definition.dayRoute[0]!]! },
     heading: 0, mode: 'idle', nodeId: definition.dayRoute[0]!, nextNodeId: null,
     routeIndex: 0, wait: definition.initialWait, schedule: 'day', distanceTravelled: 0, speed: 0,
   }));
@@ -264,7 +267,7 @@ export function stepPopulation(
         npc.nextNodeId = nextToward(npc.nodeId, goal);
         if (!npc.nextNodeId) { npc.mode = 'idle'; break; }
       }
-      const target = NPC_ROUTE_NODES[npc.nextNodeId]!;
+      const target = allNodes[npc.nextNodeId]!;
       const length = distance(npc.position, target);
       const speed = definition.walkSpeed * (shelter ? 1.18 : 1);
       const travel = Math.min(length, speed * remaining);

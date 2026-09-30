@@ -1,6 +1,7 @@
 import './style.css';
 import { createCourse } from './simulation/course';
 import { createRuralCourse } from './simulation/rural';
+import { createDistrictCourse } from './simulation/district';
 import { createState } from './simulation/state';
 import { FixedClock } from './simulation/clock';
 import { FIXED_DT, IDLE_INPUT } from './simulation/types';
@@ -33,7 +34,17 @@ const params = new URLSearchParams(location.search);
 
 async function boot() {
   const rural = params.get('scene') !== 'm1';
-  const course = rural ? createRuralCourse() : createCourse(104729);
+  const district = rural && params.get('scene') !== 'm2';
+  const course = district ? createDistrictCourse() : rural ? createRuralCourse() : createCourse(104729);
+  if (district) {
+    document.querySelector('.chapter')!.textContent = 'M4 / THE RIVER MARKET';
+    element('scene-label').textContent = 'RIVER MARKET / RURAL EDGE';
+    element('menu-title').textContent = 'The river market.';
+    document.querySelector('.intro')!.textContent = 'Follow the market street, find the guild bell, and cross the canal to the workshops on the far quay.';
+    document.querySelector('.course-features')!.innerHTML = '<span>Market & upper lane</span><span>Two river bridges</span><span>Living neighborhood</span>';
+    canvas.setAttribute('aria-label', 'Voxarrium playable river market district');
+    document.title = 'Voxarrium · The river market';
+  }
   if (!rural) {
     document.querySelector('.chapter')!.textContent = 'M1 / HUMAN SCALE';
     element('scene-label').textContent = '64 × 64 m / GRAYBOX 01';
@@ -43,7 +54,7 @@ async function boot() {
   const state = createState(course);
   const livingUi = createLivingUi();
   const audioSettings = { ...DEFAULT_AUDIO };
-  const audio = createLivingAudio(audioSettings);
+  const audio = createLivingAudio(audioSettings, district);
   let reducedMotion = false;
   element('living-settings').hidden = !rural;
   if (rural && course.bookmarks.spawn) {
@@ -98,7 +109,7 @@ async function boot() {
     if (state.interaction) state.interaction = null;
     else {
       const target = interactionTarget(state.population, state.player.position, state.environment);
-      if (target) { state.interaction = { id: target.id, name: target.name, text: target.text, position: { ...target.position } }; audio.cue(target.position); }
+      if (target) { state.interaction = { id: target.id, name: target.name, text: target.text, position: { ...target.position } }; audio.cue(target.position, target.id.endsWith('.entrance')); }
     }
     updateInteractionUi();
   }
@@ -200,7 +211,7 @@ async function boot() {
       timings.reset();
       setPaused(false);
       if (!await audioStarted) notice.textContent = 'World ready. Audio is unavailable in this browser session.';
-      startButton.textContent = rural ? 'Return to the garden' : 'Return to the course';
+      startButton.textContent = district ? 'Return to the market' : rural ? 'Return to the garden' : 'Return to the course';
     } catch (error) {
       setPaused(true);
       notice.textContent = 'Controls could not start. Focus the game and try again.';
@@ -250,7 +261,7 @@ async function boot() {
   for (let i = 0; i < 30; i++) tick(IDLE_INPUT);
   state.tick = 0; state.elapsed = 0;
   if (state.environment) state.environment = createEnvironment();
-  state.population = rural ? createPopulation() : [];
+  state.population = rural ? createPopulation(district) : [];
   previousPosition = { ...state.player.position };
   rig.update(0, canvas.clientWidth / canvas.clientHeight);
   try { await renderer.warmup(rig.camera, state); }
@@ -260,7 +271,7 @@ async function boot() {
   element('backend-badge').title = renderer.facts.fallbackReason ?? renderer.facts.requestedBackend;
   notice.textContent = 'Ready. Blender meter and axis checks passed.';
   startButton.disabled = false;
-  startButton.textContent = rural ? 'Explore the garden' : 'Enter the course';
+  startButton.textContent = district ? 'Explore the market' : rural ? 'Explore the garden' : 'Enter the course';
   overlay();
   frameId = requestAnimationFrame(frame);
 
@@ -283,7 +294,7 @@ async function boot() {
     },
     interact,
     recordAudio: (seconds: number) => audio.record(seconds),
-    resetPopulation() { state.population = rural ? createPopulation() : []; state.interaction = null; draw(); overlay(); },
+    resetPopulation() { state.population = rural ? createPopulation(district) : []; state.interaction = null; draw(); overlay(); },
     mode: setMode,
     look(yaw: number, pitch: number) { state.camera.yaw = yaw; state.camera.pitch = pitch; draw(1, 0); overlay(); },
     teleport(position: Vec3) { reset(position); draw(); overlay(); },
@@ -296,7 +307,7 @@ async function boot() {
       for (let i = 0; i < 30; i++) tick(IDLE_INPUT);
       state.tick = 0; state.elapsed = 0; state.resets = 0;
       if (state.environment) state.environment.time = 0;
-      state.population = rural ? createPopulation() : []; state.interaction = null; audio.reset();
+      state.population = rural ? createPopulation(district) : []; state.interaction = null; audio.reset();
       previousPosition = { ...state.player.position };
       draw(1, 0); overlay();
     },

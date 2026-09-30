@@ -5,6 +5,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { NPC_DEFINITIONS } from '../simulation/npcs';
 import type { NpcState } from '../simulation/npcs';
+import type { NpcDefinition } from '../simulation/npcs';
 import type { Vec3 } from '../simulation/types';
 
 interface Figure {
@@ -23,7 +24,7 @@ interface Figure {
  * to one body and four limb meshes; no labels, sprites or camera-facing planes.
  * Every retained geometry/material is in group, owned by scene disposal.
  */
-export function createNpcPresentation() {
+export function createNpcPresentation(definitions: readonly NpcDefinition[] = NPC_DEFINITIONS) {
   const group = new Group();
   group.name = 'living-slice.locals';
   const material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
@@ -64,7 +65,7 @@ export function createNpcPresentation() {
     return mesh;
   }
 
-  for (const [index, definition] of NPC_DEFINITIONS.entries()) {
+  for (const [index, definition] of definitions.entries()) {
     const appearance = definition.appearance;
     const root = new Group();
     root.name = `npc:${definition.id}`;
