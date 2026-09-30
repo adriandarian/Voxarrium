@@ -760,9 +760,11 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
     water: 'opaque depth-colored surface with irregular wet-bank bands, clustered bank plants and corner footings; deterministic shallow geometry waves/current highlights; no simulation or screen-space effect',
     sourceImagesSampled: false,
   };
+  let waterResponse = 1;
   const waterHeight = (x: number, z: number, elapsed: number) =>
-    -1.16 + Math.sin(x * 0.65 + z * 1.6 + elapsed * 0.85) * 0.023 + Math.sin(x * 1.9 - z * 0.5 - elapsed * 0.55) * 0.009;
-  function update(elapsed: number) {
+    -1.16 + (Math.sin(x * 0.65 + z * 1.6 + elapsed * 0.85) * 0.023 + Math.sin(x * 1.9 - z * 0.5 - elapsed * 0.55) * 0.009) * waterResponse;
+  function update(elapsed: number, wind = 0.25, rain = 0) {
+    waterResponse = 1 + Math.max(0, wind - 0.25) * 0.35 + rain * 0.4;
     for (let i = 0; i < waterPositions.count; i++) {
       const x = waterPositions.getX(i), z = waterPositions.getZ(i);
       waterPositions.setY(i, waterHeight(x, z, elapsed));

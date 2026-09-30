@@ -1,3 +1,6 @@
+import type { EnvironmentState } from './environment';
+import type { NpcState } from './npcs';
+import type { Interaction } from './interaction';
 /** Serializable contracts. Coordinates are meters; player.position is at the feet. */
 export interface Vec3 { x: number; y: number; z: number }
 export type CameraMode = 'third-person' | 'first-person' | 'free' | 'eagle-eye';
@@ -16,6 +19,9 @@ export interface GameState {
   resets: number;
   player: PlayerState;
   camera: { mode: CameraMode; yaw: number; pitch: number; debugPosition: Vec3 };
+  environment: EnvironmentState | null;
+  population: NpcState[];
+  interaction: Interaction | null;
 }
 export interface InputFrame {
   forward: number;

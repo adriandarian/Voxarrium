@@ -1,6 +1,30 @@
 # Visual review log
 
-The M2.1 objective explicitly accepts the M2 technical implementation. No owner runtime art acceptance has been recorded for this polish pass; the human M2.1 review remains pending.
+Historical M2/M2.1 reviews below retain their original pending decisions. The owner's M3 objective now explicitly uses the approved rural slice as the fixed world and authorizes the living-slice work; M2 was verified merged as PR #9. M3 itself is ready for human review and does not authorize M4/city expansion.
+
+## 2026-09-29 — M3 living-slice implementation and local review
+
+Scope: `milestone/m3-living-slice`, initially clean at `bbbecaf136e9ba529e86fba99bc434bdda97bb46`, the actual merge commit of [M2 PR #9](https://github.com/adriandarian/Voxarrium/pull/9). GitHub reports merged 2026-09-30 03:04:07 UTC (2026-09-29 in America/Los_Angeles). The owner's objective is retained at `../prompts/03-living-slice-objective.md`; its explicit approved-slice wording supplies acceptance that the older status had not recorded. This entry does not invent an additional earlier owner review or a numerical art score.
+
+Fixed scene `m2-rural-96m`, seed `104729`, 96 × 96 m. Cottage, shed, bridge, terrain, original vegetation and collision layouts remain accepted M2. No GLB/source-image bytes, structural geometry, dependency versions or reference hashes changed. Six solid human figures and a small cloud/rain presentation are new. Names, occupations, routines, unseen shelter conventions and procedural sound timbres are authored assumptions. Day lighting retains the M2 values; dusk/night/rain deliberately change illumination and wetness. No fog, heavy volumetrics, bloom or cinematic post-processing.
+
+Actual evidence: `../../artifacts/m3/baseline/` holds fresh M2 captures and route measurement. `final/` holds canonical day eagle-eye/third-person/first-person, cloudy, dusk, night and rain views, an NPC interaction, timed wind/motion pair, explicit WebGL2, continuous route endpoints, production dialogue/weather and digital audio/lifecycle evidence. `rain/` holds a separate 60-second actual-input traversal. The review viewer is `../../artifacts/m3/review.html`, served at http://127.0.0.1:5173/artifacts/m3/review.html. Exact poses/states: `final/capture-states.json`. Canonical day conditions match the fresh M2 baseline 3/3 for scene/seed/player feet/camera/FOV/aspect/viewport/DPR (`comparison-conditions.json`). Other viewer pairs clearly identify context-only poses.
+
+Headed Chrome 154.0.8037.57, initialized WebGPU on AMD/RDNA2; live Windows inventory RX 6950 XT, driver 32.0.21045.5002. Eagle-eye 900 × 1200, gameplay/idle 1440 × 900, route 1920 × 1080; DPR 1 throughout. Explicit WebGL2 is separately captured/tested. Original master/LEFT rural target and actual day/dusk/night/rain/interaction/motion captures were visually inspected. Continuous movement through bridge, stairs, cottage circuit and crop route passes in both gameplay cameras; running/jumping/pause/resume in rain pass separately.
+
+Observed: the clear/day cottage, stairs, crops, banks and crown language retain the M2 composition. Locals stand and walk at human scale, face the player during interaction, and occupy existing front/rear eaves during rain/night. The identical-camera motion pair shows plant/crown changes and walking locals without displacing the terrace or fence. Rain is readable without obscuring the bridge; night preserves path/structure readability with a modest fill and existing garden lantern. The first night pass was too dark at the doorway, so fill was increased before the final full suite; the interaction capture was also corrected to allow the NPC time to face the player.
+
+Three remaining limitations visible or relevant to review:
+
+1. NPC figures are simple stylized local geometry with straight limbs/short gait. They are nonblocking and have no crowd avoidance, so two locals can pass through each other. All routes remain on the cottage terrace rather than modeling a larger population.
+2. Clouds use a small overlapping-lobe sky batch, rain uses local line streaks and conservative roof bounds, and wetness is a restrained material change. These are inexpensive cues, not a detailed meteorological or water simulation. Low-light entrance views remain intentionally subdued.
+3. The accepted M2 angular plant units, broad cliff outcrops/path negative space and finite outer boundaries remain. This milestone preserves that art decision; it does not claim closer equivalence to the source illustration. The existing player remains the diagnostic capsule.
+
+Verification: final `npm test` 9 Node + 45 simulation/assets/clock PASS; strict `npm run check`, production build, doctor and original reference verification PASS. Full headed browser suite PASS 24/24; a subsequent test-only recovery/disposal addition PASS 1/1. Production uses real W/V/F and rain/dusk menu controls, moves 3.125 m, has no development harness and no errors. Local digital audio emits signal after click, follows listener/source position, has wood footsteps, and produces zero RMS on pause/master mute; a three-second recording is retained. Physical speakers/headphones and subjective audio quality were not listened to by this review.
+
+Fresh M2 / M3 clear / M3 rain 60-second route p95: **8.1 / 7.1 / 8.1 ms**; maximum **111.2 / 80.0 / 79.8 ms** with **9 / 3 / 8** frames above 33.3 ms. All reach waypoint 14 with no error/recovery/pause. Clear mean rises from 5.630 to 6.631 ms, while rain mean is 5.616 ms; local rAF scheduling cadence varies, so these runs do not isolate causal subsystem cost. At the matched idle pose, draws rise 204 → 255 and geometries 124 → 156; textures stay 19. These are local wall-clock/resource observations, not GPU timings or a general performance guarantee.
+
+**Decision: M3 implementation, local checks and evidence are ready for the owner's review. Stop at M3; M4/city generation has not begun.** All requested technical gates have local evidence. Owner review of feel, simplified locals and subjective audio remains pending. No push, PR, hosted CI, deployment, paid service or image generation was performed.
 
 ## 2026-09-29 — M2.1 final art-polish review, human decision pending
 
