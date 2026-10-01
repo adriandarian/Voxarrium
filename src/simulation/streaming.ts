@@ -2,7 +2,8 @@ import { areaDistance, STREAMING_POLICY } from './streaming-contracts';
 import type { AreaHandle, AreaId, StreamingAdapter, StreamingPolicy, WorldArea } from './streaming-contracts';
 import type { Vec3 } from './types';
 
-export type AreaLifecycleState = 'unloaded' | 'loading' | 'active' | 'inactive' | 'failed';
+export type AreaLifecycleState = 'unloaded' | 'requested' | 'preparing' | 'warming' | 'ready' | 'active' | 'inactive' | 'failed';
+const preparing = (state: AreaLifecycleState) => state === 'requested' || state === 'preparing' || state === 'warming';
 export interface StreamingEvent {
   areaId: AreaId;
   type: 'load-start' | 'load-complete' | 'load-cancel' | 'load-error' | 'activate' | 'deactivate' | 'unload' | 'late-release' | 'adapter-error';
@@ -16,6 +17,8 @@ interface Entry {
   area: WorldArea;
   state: AreaLifecycleState;
   distance: number;
+  demandDistance: number;
+  holdWhileStationary?: boolean;
   outsideSeconds: number;
   epoch: number;
   handle?: AreaHandle;
@@ -26,7 +29,10 @@ interface Entry {
   error?: string;
 }
 export interface StreamingController {
-  update(position: Vec3, dt: number): void;
+  update(position: Vec3, dt: number, velocity?: Vec3): void;
+  /** Startup prepares only the known first neighbor. Movement returns to the
+   * normal predictive demand/cancellation/hysteresis policy. */
+  preload(id: AreaId): void;
   /** Await currently relevant loads; a canceled transport may finish later. */
   settled(): Promise<void>;
   ready(id: AreaId): boolean;
@@ -62,7 +68,7 @@ export function createStreamingController(areas: readonly WorldArea[], adapter: 
       policy.preloadRadius >= policy.deactivateRadius || policy.deactivateRadius >= policy.unloadRadius) {
     throw new Error('Streaming radii require preload < deactivate < unload and finite nonnegative values.');
   }
-  const entries: Entry[] = areas.map(area => ({ area, state: 'unloaded', distance: Infinity, outsideSeconds: 0, epoch: 0 }));
+  const entries: Entry[] = areas.map(area => ({ area, state: 'unloaded', distance: Infinity, demandDistance: Infinity, outsideSeconds: 0, epoch: 0 }));
   const events: StreamingEvent[] = [];
   const errors: StreamingEvent[] = [];
   const counts = { loads: 0, cancellations: 0, activations: 0, deactivations: 0, unloads: 0, lateReleases: 0, failures: 0 };
@@ -146,14 +152,17 @@ export function createStreamingController(areas: readonly WorldArea[], adapter: 
     const epoch = ++entry.epoch;
     const start = performance.now();
     entry.abort = abort;
-    entry.state = 'loading';
+    entry.state = 'requested';
     entry.error = undefined;
     counts.loads++;
     record(entry, 'load-start');
     // The microtask also turns synchronous adapter exceptions into handled rejections.
     const pending = Promise.resolve().then(() => {
       if (abort.signal.aborted) throw new DOMException('Area preparation was canceled.', 'AbortError');
-      return adapter.load(entry.area, abort.signal);
+      entry.state = 'preparing';
+      return adapter.load(entry.area, abort.signal, phase => {
+        if (!disposed && entry.epoch === epoch && !abort.signal.aborted) entry.state = phase;
+      });
     }).then(handle => {
       const durationMs = performance.now() - start;
       if (disposed || entry.epoch !== epoch || abort.signal.aborted) {
@@ -161,7 +170,7 @@ export function createStreamingController(areas: readonly WorldArea[], adapter: 
         return;
       }
       entry.handle = handle;
-      entry.state = 'inactive';
+      entry.state = 'ready';
       record(entry, 'load-complete', { durationMs });
       if (entry.distance <= policy.deactivateRadius) activate(entry);
     }).catch(error => {
@@ -175,32 +184,45 @@ export function createStreamingController(areas: readonly WorldArea[], adapter: 
         entry.pending = undefined;
       }
       if (entry.transport === pending) entry.transport = undefined;
-      if (!disposed && entry.state === 'unloaded' && entry.distance <= policy.preloadRadius) load(entry);
+      if (!disposed && entry.state === 'unloaded' && entry.demandDistance <= policy.preloadRadius && hasSlot()) load(entry);
     });
     entry.pending = pending;
     entry.transport = pending;
   }
   const loadedIds = () => entries.filter(entry => entry.handle).map(entry => entry.area.id);
   const activeIds = () => entries.filter(entry => entry.state === 'active').map(entry => entry.area.id);
+  // Predictive preparation still admits only two area instances/transports.
+  // The third waits for the outgoing lease's normal hysteretic unload.
+  const hasSlot = () => policy.preparationLeadSeconds === 0 || entries.filter(entry => entry.handle || entry.transport).length < 2;
   return {
-    update(position, dt) {
+    preload(id) {
+      const entry = entries.find(entry => entry.area.id === id);
+      if (disposed || !entry || entry.handle || entry.transport || !hasSlot()) return;
+      entry.holdWhileStationary = true; entry.demandDistance = 0;
+      load(entry);
+    },
+    update(position, dt, velocity = { x: 0, y: 0, z: 0 }) {
       if (disposed) return;
-      if (![position.x, position.y, position.z, dt].every(Number.isFinite) || dt < 0) {
+      if (![position.x, position.y, position.z, velocity.x, velocity.y, velocity.z, dt].every(Number.isFinite) || dt < 0) {
         throw new Error('Streaming update requires a finite position and nonnegative elapsed seconds.');
       }
       for (const entry of entries) {
         entry.distance = areaDistance(entry.area, position);
-        entry.outsideSeconds = entry.distance > policy.unloadRadius ? entry.outsideSeconds + dt : 0;
-        if (entry.state === 'loading' && entry.distance > policy.deactivateRadius) cancel(entry);
+        const projected = entry.area.assetIds.length ? { x: position.x + velocity.x * policy.preparationLeadSeconds,
+          y: position.y, z: position.z + velocity.z * policy.preparationLeadSeconds } : position;
+        if (Math.hypot(velocity.x, velocity.z) > .01) entry.holdWhileStationary = false;
+        entry.demandDistance = entry.holdWhileStationary ? 0 : Math.min(entry.distance, areaDistance(entry.area, projected));
+        entry.outsideSeconds = entry.distance > policy.unloadRadius && entry.demandDistance > policy.preloadRadius ? entry.outsideSeconds + dt : 0;
+        if (preparing(entry.state) && entry.distance > policy.deactivateRadius && entry.demandDistance > policy.preloadRadius) cancel(entry);
         if (entry.state === 'active' && entry.distance > policy.deactivateRadius) deactivate(entry);
         if (entry.outsideSeconds >= policy.unloadDelaySeconds && entry.distance > policy.unloadRadius) {
           if (entry.handle) unload(entry);
           // A failed area gets one retry only after a true departure and re-entry.
           else if (entry.state === 'failed') { entry.state = 'unloaded'; entry.outsideSeconds = 0; }
         }
-        if (entry.distance <= policy.preloadRadius) {
-          if (entry.state === 'unloaded' && !entry.transport) load(entry);
-          else if (entry.state === 'inactive') activate(entry);
+        if (entry.demandDistance <= policy.preloadRadius) {
+          if (entry.state === 'unloaded' && !entry.transport && hasSlot()) load(entry);
+          else if (entry.distance <= policy.preloadRadius && (entry.state === 'inactive' || entry.state === 'ready')) activate(entry);
         }
       }
     },
@@ -208,7 +230,7 @@ export function createStreamingController(areas: readonly WorldArea[], adapter: 
       // A new relevant load can start while awaiting an earlier one.
       for (;;) {
         const pending = entries.flatMap(entry => entry.pending ? [entry.pending] :
-          entry.state === 'unloaded' && entry.distance <= policy.preloadRadius && entry.transport ? [entry.transport] : []);
+          entry.state === 'unloaded' && entry.demandDistance <= policy.preloadRadius && entry.transport ? [entry.transport] : []);
         if (!pending.length) return;
         await Promise.all(pending);
       }

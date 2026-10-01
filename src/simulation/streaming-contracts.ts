@@ -20,16 +20,19 @@ export interface AreaHandle {
   unload(): void;
 }
 export interface StreamingAdapter {
-  load(area: WorldArea, signal: AbortSignal): Promise<AreaHandle>;
+  load(area: WorldArea, signal: AbortSignal, progress: (phase: PreparationPhase) => void): Promise<AreaHandle>;
 }
+export type PreparationPhase = 'preparing' | 'warming';
 export interface StreamingPolicy {
   preloadRadius: number;
   deactivateRadius: number;
   unloadRadius: number;
   unloadDelaySeconds: number;
+  /** Velocity lookahead for expensive authored areas, without widening residency. */
+  preparationLeadSeconds: number;
 }
 export const STREAMING_POLICY: StreamingPolicy = {
-  preloadRadius: 36, deactivateRadius: 44, unloadRadius: 52, unloadDelaySeconds: 1.5,
+  preloadRadius: 36, deactivateRadius: 44, unloadRadius: 52, unloadDelaySeconds: 1.5, preparationLeadSeconds: 0,
 };
 export function areaDistance(area: WorldArea, position: Vec3): number {
   const b = area.bounds;

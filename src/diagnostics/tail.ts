@@ -1,3 +1,6 @@
+import { boundedDetail, TransitionTelemetry } from './transition';
+import type { TransitionHandle } from './transition';
+
 /** Opt-in, bounded CPU/browser wall-time evidence. These records are never GPU timings. */
 export interface TailRecord {
   name: string;
@@ -52,20 +55,6 @@ class Ring<T> {
   reset() { this.items = []; this.next = 0; this.dropped = 0; }
 }
 
-// Telemetry must not keep a render object, an exception graph or an unbounded caller payload alive.
-function boundedDetail(value: unknown, depth = 0, seen = new WeakSet<object>()): unknown {
-  if (value == null || typeof value === 'boolean') return value;
-  if (typeof value === 'number') return Number.isFinite(value) ? value : String(value);
-  if (typeof value === 'string') return value.slice(0, 500);
-  if (typeof value !== 'object') return String(value).slice(0, 80);
-  if (depth >= 3 || seen.has(value)) return '[bounded]';
-  seen.add(value);
-  if (Array.isArray(value)) return value.slice(0, 16).map(item => boundedDetail(item, depth + 1, seen));
-  const result: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(value).slice(0, 16)) result[key.slice(0, 80)] = boundedDetail(item, depth + 1, seen);
-  return result;
-}
-
 function optedIn() {
   return typeof location !== 'undefined' && new URLSearchParams(location.search).get('diagnostics') === 'tail';
 }
@@ -93,6 +82,7 @@ export class TailTelemetry {
   private readonly observers: PerformanceObserver[] = [];
   private readonly removers: (() => void)[] = [];
   private readonly support: Record<string, string> = {};
+  private readonly transitions: TransitionTelemetry;
 
   constructor(options: TailOptions = {}) {
     this.enabled = options.enabled ?? optedIn();
@@ -108,10 +98,16 @@ export class TailTelemetry {
     this.gaps = new Ring(Math.min(capacity, 128));
     this.recent = new Ring(Math.min(capacity, 128));
     this.resetAtMs = this.now();
+    this.transitions = new TransitionTelemetry({ enabled: this.enabled, now: this.now, timeOrigin: this.timeOrigin });
     if (this.enabled && options.observe !== false) this.installObservers();
   }
 
   private get active() { return this.enabled && !this.disposed; }
+
+  beginTransition(areaId: string, requestId: string | number, detail?: unknown): TransitionHandle {
+    return this.transitions.begin(areaId, requestId, detail);
+  }
+  discardExportedTransitions() { this.transitions.discardExportedCompleted(); }
 
   event(name: string, detail?: unknown) {
     if (!this.active) return;
@@ -157,6 +153,7 @@ export class TailTelemetry {
     this.maxRafTimestampAgeMs = Math.max(this.maxRafTimestampAgeMs, age);
     if (this.previousRaf !== null && now > this.previousRaf) {
       const intervalMs = now - this.previousRaf;
+      this.transitions.frame(this.previousRaf, now);
       this.maxIntervalMs = Math.max(this.maxIntervalMs, intervalMs);
       if (intervalMs > this.longFrameMs) {
         const gap: FrameGap = {
@@ -250,6 +247,7 @@ export class TailTelemetry {
       capacity: { records: this.records.capacity, importantRecords: this.important.capacity, frameGaps: this.gaps.capacity, nearbyRecordsPerGap: 24, spanNames: 65 },
       dropped: { records: this.records.dropped, importantRecords: this.important.dropped, frameGaps: this.gaps.dropped },
       spans: structuredClone(this.aggregates), records: structuredClone(records), importantRecords: structuredClone(importantRecords),
+      transitions: this.transitions.snapshot(),
       frameGaps: structuredClone(this.gaps.snapshot().map(gap => ({ ...gap,
         overlappingRecords: retained.filter(record => record.startMs <= gap.callbackStartMs && record.startMs + record.durationMs >= gap.startMs).slice(-32),
       }))),
@@ -266,6 +264,7 @@ export class TailTelemetry {
 
   dispose() {
     if (this.disposed) return;
+    this.transitions.dispose();
     for (const observer of this.observers) observer.disconnect();
     this.observers.length = 0;
     for (const remove of this.removers) remove();

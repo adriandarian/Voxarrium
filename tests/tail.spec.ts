@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { TailTelemetry } from '../src/diagnostics/tail';
+import { TransitionTelemetry } from '../src/diagnostics/transition';
 
 test('tail is opt-in and preserves return values, throws and asynchronous rejection', async () => {
   const disabled = new TailTelemetry({ enabled: false, observe: false });
@@ -100,4 +101,105 @@ test('PerformanceObserver entries retain distinct wall-time meanings and disconn
     telemetry.dispose();
     expect(observers.every(observer => observer.disconnected)).toBe(true);
   } finally { globalThis.PerformanceObserver = original; }
+});
+
+test('complete transition chronology survives noisy span eviction and capture reset', async () => {
+  let now = 100;
+  const telemetry = new TailTelemetry({ enabled: true, now: () => now, timeOrigin: 1234, capacity: 3, slowSpanMs: 0, observe: false });
+  const transition = telemetry.beginTransition('river-market', 2, { source: 'preload' });
+  let finish!: () => void;
+  const preparation = transition.asyncSpan('preparation', () => new Promise<void>(resolve => { finish = resolve; }));
+  now = 110;
+  transition.span('asset-lookup', () => { now = 112; });
+  transition.work({ name: 'terrain', startMs: 113, durationMs: 7, budgetMs: 4, yielded: true });
+  for (let index = 0; index < 100; index++) telemetry.span('noisy-render', () => { now++; });
+  telemetry.reset();
+  now = 300; finish(); await preparation;
+  transition.event('ready');
+  telemetry.frame(310); now = 320; transition.event('boundary-crossed');
+  transition.event('activation-complete');
+  telemetry.frame(400); now = 400; transition.event('first-visible-frame');
+  now = 500; transition.end('unloaded');
+  const report = telemetry.snapshot().transitions.reports[0];
+  expect(report).toMatchObject({ areaId: 'river-market', requestId: 2, startedAtMs: 100, endedAtMs: 500, outcome: 'unloaded',
+    readyAtMs: 300, requestToReadyMs: 200, preparationDurationMs: 200, readyBeforeBoundary: true, readyLeadBeforeBoundaryMs: 20,
+    activationFrameMaximumMs: 90, largestSchedulerJob: { durationMs: 7, detail: { name: 'terrain', budgetMs: 4, yielded: true } },
+    completeChronology: true, droppedRecords: 0, pendingSpans: 0 });
+  expect(report.records.map(record => record.name)).toEqual(['request-received', 'preparation', 'asset-lookup', 'asset-lookup',
+    'scheduler-job', 'scheduler-job', 'preparation', 'ready', 'boundary-crossed', 'activation-complete', 'first-visible-frame', 'unloaded']);
+  expect(report.records.filter(record => record.name === 'scheduler-job').map(record => record.timeMs)).toEqual([113, 120]);
+  expect(telemetry.snapshot().records).toEqual([]);
+});
+
+test('transition cancellation retains a rejected late span and request identities distinguish reentry', async () => {
+  let now = 0;
+  const ledger = new TransitionTelemetry({ enabled: true, now: () => now, timeOrigin: 0 });
+  const cancelled = ledger.begin('rural', 1);
+  let reject!: (reason: Error) => void;
+  const pending = cancelled.asyncSpan('asset-load', () => new Promise<void>((_resolve, fail) => { reject = fail; }));
+  now = 5; cancelled.end('cancelled');
+  now = 9; reject(new Error('abort')); await expect(pending).rejects.toThrow('abort');
+  const reentry = ledger.begin('rural', 2);
+  now = 20; reentry.event('boundary-crossed'); now = 30; reentry.event('ready');
+  reentry.end('unloaded');
+  const reports = ledger.snapshot().reports;
+  expect(reports[0]).toMatchObject({ outcome: 'cancelled', pendingSpans: 0, requestToReadyMs: null, readyBeforeBoundary: null });
+  expect(reports[0].records.at(-1)).toMatchObject({ name: 'asset-load', kind: 'span-end', timeMs: 9, durationMs: 9, detail: { failed: true } });
+  expect(reports[1]).toMatchObject({ requestId: 2, readyBeforeBoundary: false, readyLeadBeforeBoundaryMs: -10 });
+  expect(cancelled.id).not.toBe(reentry.id);
+});
+
+test('transition retention evicts ended lifecycles as units and exposes every bound', () => {
+  let now = 0;
+  const ledger = new TransitionTelemetry({ enabled: true, now: () => now, timeOrigin: 0, maxActive: 1, maxCompleted: 2, maxRecordsPerTransition: 3 });
+  const first = ledger.begin('rural', 1);
+  const unretained = ledger.begin('river-market', 2);
+  expect(unretained.span('transparent', () => 7)).toBe(7);
+  const payload: Record<string, unknown> = { text: 'x'.repeat(1000) }; payload.self = payload;
+  first.event('context', payload); payload.text = 'mutated';
+  expect(ledger.snapshot().reports[0].records[1].detail).toEqual({ text: 'x'.repeat(500), self: '[bounded]' });
+  for (let index = 0; index < 5; index++) { now++; first.event(`step-${index}`); }
+  first.end('unloaded');
+  let report = ledger.snapshot().reports[0];
+  expect(report.records.map(record => record.name)).toEqual(['request-received', 'step-4', 'unloaded']);
+  expect(report.completeChronology).toBe(false); expect(report.droppedRecords).toBe(5);
+  ledger.begin('river-market', 3).end('unloaded'); ledger.begin('rural', 4).end('failed');
+  expect(ledger.snapshot()).toMatchObject({ dropped: { completedLifecycles: 1, rejectedRequests: 1, records: 0 } });
+  expect(ledger.snapshot().reports.map(report => report.requestId)).toEqual([3, 4]);
+  ledger.dispose(); ledger.begin('rural', 5).event('ignored');
+  expect(ledger.snapshot().reports).toHaveLength(2);
+});
+
+test('exported completed telemetry can be released before heap sampling without losing active or late spans', async () => {
+  const ledger = new TransitionTelemetry({ enabled: true, now: () => 1, timeOrigin: 0 });
+  ledger.begin('river-market', 1).end('unloaded');
+  const active = ledger.begin('rural', 2);
+  const pending = ledger.begin('neighbor-shell', 3);
+  let complete!: () => void;
+  const work = pending.asyncSpan('late-native-wait', () => new Promise<void>(resolve => { complete = resolve; }));
+  pending.end('cancelled');
+  ledger.discardExportedCompleted();
+  expect(ledger.snapshot().reports.map(report => report.requestId).sort()).toEqual([2,3]);
+  complete(); await work;
+  ledger.discardExportedCompleted();
+  expect(ledger.snapshot().reports.map(report => report.requestId)).toEqual([2]);
+  expect(ledger.snapshot().drainedLifecycles).toBe(2);
+  active.event('ready'); expect(ledger.snapshot().reports[0].readyAtMs).toBe(1);
+});
+
+test('scheduler telemetry coalesces jobs within a slice while preserving CPU totals and guard lead', () => {
+  let now = 0;
+  const ledger = new TransitionTelemetry({ enabled: true, now: () => now, timeOrigin: 0, maxRecordsPerTransition: 12 });
+  const transition = ledger.begin('river-market', 1);
+  transition.event('preparing');
+  for (let index = 0; index < 1000; index++) transition.work({ name: `modules-${index % 2}`, startMs: index / 1000, durationMs: .001, budgetMs: 4, yielded: index === 999 });
+  now = 2; transition.event('warming'); now = 3; transition.event('boundary-needed');
+  now = 4; transition.event('ready'); now = 5; transition.event('boundary-crossed');
+  const report = ledger.snapshot().reports[0];
+  expect(report.records.map(record => record.name)).toEqual(['request-received', 'preparing', 'scheduler-job', 'scheduler-job', 'warming', 'boundary-needed', 'ready', 'boundary-crossed']);
+  expect(report).toMatchObject({ completeChronology: true, totalSchedulerJobs: 1000, readyBeforeBoundary: true,
+    readyBeforeBoundaryNeeded: false, readyLeadBeforeBoundaryNeededMs: -1, largestSchedulerJob: { durationMs: .001 } });
+  expect(report.totalSchedulerCpuMs).toBeCloseTo(1, 8);
+  expect(report.records[3].detail).toMatchObject({ context: { name: '[mixed jobs]', labels: ['modules-0', 'modules-1'],
+    jobs: 1000, cpuTotalMs: expect.any(Number), largestJobMs: .001, yielded: true } });
 });

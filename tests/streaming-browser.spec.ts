@@ -4,7 +4,7 @@ import type { Page } from '@playwright/test';
 import { createStreamingWorld } from '../src/simulation/streaming-world';
 import type { Vec3 } from '../src/simulation/types';
 
-const directory = 'artifacts/m5/browser';
+const directory = process.env.VOXARRIUM_STREAMING_CAPTURE_DIR ?? 'artifacts/m5-1/browser';
 mkdirSync(directory, { recursive: true });
 const world = createStreamingWorld();
 const records: Record<string, unknown> = {};
@@ -54,6 +54,7 @@ test('M5 streamed circuits keep collision, identities, environment, audio and re
   expect(baseline.state.population).toHaveLength(42);
   const identities=baseline.state.population.map(n=>n.id);
   const endpoints=[];
+  let plateau: typeof baseline | null = null;
   for(let cycle=0;cycle<3;cycle++) {
     for(const [index,target] of world.route.slice(1).entries()) {
       const result=await walk(page,target);
@@ -91,11 +92,17 @@ test('M5 streamed circuits keep collision, identities, environment, audio and re
     const endpoint=await page.evaluate(()=>window.__VOXARRIUM__!.snapshot());
     writeFileSync(`${directory}/cycle-${cycle}-resource-audit.json`,JSON.stringify({baseline,endpoint},null,2));
     expect(endpoint.streaming!.loadedIds).toEqual(['rural']);
-    expect(endpoint.render.streamingResources!.render).toEqual(baseline.render.streamingResources!.render);
+    // The finite immutable cache fills on the first circuit. Compare every
+    // subsequent equivalent return against that exact owned/GPU plateau.
+    if (!plateau) plateau = endpoint;
+    expect(endpoint.render.streamingResources!.render).toEqual(plateau.render.streamingResources!.render);
     expect(endpoint.render.streamingResources!.assets).toEqual(baseline.render.streamingResources!.assets);
     expect(endpoint.physics).toEqual(baseline.physics);
-    expect(endpoint.render.geometries).toBe(baseline.render.geometries);
-    expect(endpoint.render.textures).toBe(baseline.render.textures);
+    expect(endpoint.render.geometries).toBe(plateau.render.geometries);
+    expect(endpoint.render.textures).toBe(plateau.render.textures);
+    expect(endpoint.render.streamingResources!.cache.entries).toBe(plateau.render.streamingResources!.cache.entries);
+    expect(endpoint.render.streamingResources!.cache.resources).toBe(plateau.render.streamingResources!.cache.resources);
+    expect(endpoint.render.streamingResources!.cache.entries).toBeLessThanOrEqual(endpoint.render.streamingResources!.cache.capacity);
     expect(endpoint.render.visibleMaterials).toBe(baseline.render.visibleMaterials);
     expect(endpoint.render.textureEvents.filter(event=>event.event==='recreated' && event.area)).toEqual([]);
     for(const npc of endpoint.state.population)
@@ -148,4 +155,64 @@ test('M5 initial area failure is visible without an unhandled rejection or retry
   expect(errors.length).toBeGreaterThan(0);
   for(const error of errors) expect(error).toMatch(/404|Initial area failed|Voxarrium startup\/runtime failure/);
   errors.length=0;
+});
+
+test('M5.1 actual input cancels an early approach and reentry prepares the unchanged market', async ({ page }) => {
+  test.setTimeout(120_000);
+  await ready(page, '&diagnostics=tail');
+  await page.locator('#start').click();
+  const initial = await page.evaluate(() => window.__VOXARRIUM__!.snapshot());
+  const ids = initial.state.population.map(npc => npc.id);
+  async function steerTo(x: number, z: number) {
+    return page.evaluate(([x, z]) => {
+      const h = window.__VOXARRIUM__!, p = h.position();
+      h.steer(Math.atan2(p.x - x, p.z - z), -.08);
+      return Math.hypot(p.x - x, p.z - z);
+    }, [x, z]);
+  }
+  // Release the first neighbor prepared during startup using ordinary movement
+  // and the normal departure delay, then exercise an actual unfinished reload.
+  for (const [x, z] of [[5,-1],[-6,1.5]]) {
+    const started = Date.now();
+    await page.keyboard.down('ShiftLeft'); await page.keyboard.down('KeyW');
+    while (await steerTo(x!, z!) > .55) {
+      expect(Date.now() - started).toBeLessThan(15_000);
+      await page.waitForTimeout(80);
+    }
+    await page.keyboard.up('KeyW'); await page.keyboard.up('ShiftLeft');
+  }
+  await page.waitForFunction(() => !window.__VOXARRIUM__!.snapshot().streaming!.loadedIds.includes('river-market'), undefined, { timeout: 10_000 });
+  await steerTo(5, -1);
+  await page.keyboard.down('ShiftLeft'); await page.keyboard.down('KeyW');
+  await page.waitForFunction(() => window.__VOXARRIUM__!.snapshot().streaming!.pendingIds.includes('river-market'), undefined, { timeout: 10_000 });
+  await steerTo(-9, 1.5);
+  await page.waitForFunction(() => window.__VOXARRIUM__!.snapshot().streaming!.counts.cancellations > 0, undefined, { timeout: 10_000 });
+  await page.keyboard.up('KeyW'); await page.keyboard.up('ShiftLeft');
+  await page.evaluate(() => window.__VOXARRIUM__!.settleStreaming());
+  const cancelled = await page.evaluate(() => window.__VOXARRIUM__!.snapshot());
+  expect(cancelled.streaming!.errors).toEqual([]);
+  expect(cancelled.streaming!.activeIds).toEqual(['rural']);
+  expect(cancelled.streaming!.loadedIds).toEqual(['rural']);
+  expect(cancelled.state.resets).toBe(0);
+  for (const [x, z] of [[5,-1],[5,-10],[38,-10],[52,-10],[69,-9]]) {
+    const start = Date.now();
+    await page.keyboard.down('ShiftLeft'); await page.keyboard.down('KeyW');
+    while (await steerTo(x!, z!) > .55) {
+      expect(Date.now() - start, `actual-input leg ${x},${z}`).toBeLessThan(35_000);
+      await page.waitForTimeout(80);
+    }
+    await page.keyboard.up('KeyW'); await page.keyboard.up('ShiftLeft');
+  }
+  const returned = await page.evaluate(() => window.__VOXARRIUM__!.snapshot());
+  expect(returned.streaming!.activeIds).toContain('river-market');
+  expect(returned.streaming!.errors).toEqual([]);
+  expect(returned.state.resets).toBe(0);
+  expect(returned.state.player.grounded).toBe(true);
+  expect(returned.state.population.map(npc => npc.id)).toEqual(ids);
+  expect(returned.npcTiers.uniqueIds).toBe(42);
+  expect(returned.audio.activeLoops).toBe(5);
+  expect(returned.streaming!.loadedIds.length + returned.streaming!.pendingIds.length).toBeLessThanOrEqual(2);
+  expect(returned.render.textureEvents.filter(event => event.event === 'recreated' && event.area)).toEqual([]);
+  writeFileSync(`${directory}/actual-cancellation.json`, JSON.stringify({ initial, cancelled, returned }, null, 2));
+  await page.screenshot({ path: `${directory}/actual-cancellation.png` });
 });

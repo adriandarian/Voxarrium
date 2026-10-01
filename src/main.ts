@@ -21,6 +21,8 @@ import { createLivingAudio, DEFAULT_AUDIO } from './audio/audio';
 import type { AudioSettings } from './audio/audio';
 import { createStreamingWorld } from './simulation/streaming-world';
 import { createStreamingController } from './simulation/streaming';
+import { areaDistance } from './simulation/streaming-contracts';
+import type { AreaId } from './simulation/streaming-contracts';
 import { createNpcResidency, stepResidentPopulation, npcTierCounts } from './simulation/npc-residency';
 import { DISTRICT_ENTRANCES } from './simulation/district';
 
@@ -85,23 +87,73 @@ async function boot() {
   try { renderer = await tail.asyncSpan('renderer.initialize', () => createGameRenderer(canvas, course, params.get('backend') === 'webgl', params.get('stage') === 'blockout')); }
   catch (error) { physics.dispose(); throw error; }
   const rig = createCameraRig(state, physics);
+  const transitions = new Map<AreaId, ReturnType<typeof tail.beginTransition>>();
+  const crossed = new Map<AreaId, string>();
+  const boundaryNeeded = new Map<AreaId, string>();
+  let residencyKey = '';
+  let requestId = 0;
   const streaming = streamedWorld ? createStreamingController(streamedWorld.areas, {
-    async load(area, signal) {
-      const presentation = await renderer.prepareArea(area, signal, rig.camera, state);
-      return {
-        activate() { physics.loadArea(area.id, area.course); presentation.activate(); },
-        deactivate() { presentation.deactivate(); physics.unloadArea(area.id); },
-        unload() { physics.unloadArea(area.id); presentation.unload(); },
-      };
+    async load(area, signal, progress) {
+      const transition = tail.beginTransition(area.id, ++requestId, { position: { ...state.player.position }, runSpeed: 5.4 });
+      transitions.set(area.id, transition);
+      transition.event('request-received');
+      const cancelled = () => transition.end('cancelled');
+      signal.addEventListener('abort', cancelled, { once: true });
+      let presentation: Awaited<ReturnType<typeof renderer.prepareArea>> | undefined;
+      let collision: Awaited<ReturnType<typeof physics.prepareArea>> | undefined;
+      try {
+        transition.span('data-preparation', () => { if (!area.course.boxes || !area.course.surfaces) throw new Error('Missing authored area data.'); });
+        presentation = await renderer.prepareArea(area, signal, rig.camera, state, transition, progress);
+        collision = await transition.asyncSpan('collider-creation', () => physics.prepareArea(area.id, area.course, signal, work => transition.work(work)));
+        transition.event('ready');
+        signal.removeEventListener('abort', cancelled);
+        let released = false;
+        return {
+          activate() {
+            transition.span('collider-activation', () => collision!.activate());
+            presentation!.activate(); transition.event('activation-complete');
+          },
+          deactivate() { presentation!.deactivate(); collision!.deactivate(); transition.event('deactivated'); },
+          unload() {
+            if (released) return; released = true;
+            collision!.unload(); presentation!.unload(); transition.end('unloaded', { released: true });
+            if (transitions.get(area.id) === transition) transitions.delete(area.id);
+          },
+        };
+      } catch (error) {
+        signal.removeEventListener('abort', cancelled);
+        collision?.unload(); presentation?.unload();
+        transition.end(signal.aborted ? 'cancelled' : 'failed', { error: String(error) });
+        if (transitions.get(area.id) === transition) transitions.delete(area.id);
+        throw error;
+      }
     },
-  }) : null;
+  // The measured rural return needs its slot about 0.6 s earlier. Retiring an
+  // already inactive lease 6 m sooner adds 1.1 s at the 5.4 m/s run speed,
+  // retaining the 36/44 m entry/deactivation band and 1.5 s departure delay.
+  }, { preparationLeadSeconds: 10, unloadRadius: 46 }) : null;
   let marketAudioActive = false;
   function updateStreaming(dt: number) {
     if (!streaming || disposed) return;
-    streaming.update(state.player.position, dt);
+    streaming.update(state.player.position, dt, state.player.velocity);
+    for (const area of streamedWorld!.areas) {
+      const transition = transitions.get(area.id);
+      const distance = areaDistance(area, state.player.position);
+      if (transition && distance <= 1 && boundaryNeeded.get(area.id) !== transition.id) {
+        boundaryNeeded.set(area.id, transition.id); transition.event('boundary-needed');
+      }
+      if (transition && distance === 0 && crossed.get(area.id) !== transition.id) {
+        crossed.set(area.id, transition.id); transition.event('boundary-crossed');
+      }
+    }
     physics.streamingGates(streaming.activeIds(), state.player.position);
     const marketActive = streaming.activeIds().includes('river-market');
-    if (marketActive !== marketAudioActive) { marketAudioActive = marketActive; audio.districtActive(marketActive); }
+    if (marketActive !== marketAudioActive) {
+      marketAudioActive = marketActive;
+      const transition = transitions.get('river-market');
+      if (transition) transition.span('audio-emitter-setup', () => audio.districtActive(marketActive));
+      else audio.districtActive(marketActive);
+    }
   }
   const clock = new FixedClock();
   const timings = new FrameTimings();
@@ -180,9 +232,16 @@ async function boot() {
     physics.step(state, debugging ? IDLE_INPUT : frame, FIXED_DT);
     if (state.environment) {
       stepEnvironment(state.environment, FIXED_DT);
-      if (streaming && state.npcResidency) stepResidentPopulation(state.population, state.npcResidency, FIXED_DT,
-        state.environment, state.player.position, streaming.loadedIds(), streaming.activeIds(), state.interaction?.id ?? null);
-      else stepPopulation(state.population, FIXED_DT, state.environment, state.player.position, state.interaction?.id);
+      if (streaming && state.npcResidency) {
+        const loaded = streaming.loadedIds(), active = streaming.activeIds();
+        const nextKey = `${loaded.join(',')}/${active.join(',')}`;
+        const updatePopulation = () => stepResidentPopulation(state.population, state.npcResidency!, FIXED_DT,
+          state.environment!, state.player.position, loaded, active, state.interaction?.id ?? null);
+        const transition = [...transitions.values()].at(-1);
+        if (transition && nextKey !== residencyKey) transition.span('npc-tier-transition', updatePopulation, { loaded, active, persistentIds: state.population.length });
+        else updatePopulation();
+        residencyKey = nextKey;
+      } else stepPopulation(state.population, FIXED_DT, state.environment, state.player.position, state.interaction?.id);
       if (state.interaction) {
         const npc = state.population.find(n => n.id === state.interaction!.id);
         const source = npc?.position ?? state.interaction.position;
@@ -314,6 +373,11 @@ async function boot() {
       rig.update(0, canvas.clientWidth / canvas.clientHeight);
       updateStreaming(0); await streaming.settled(); updateStreaming(0);
       if (!streaming.ready('rural')) throw new Error(`Initial area failed: ${JSON.stringify(streaming.snapshot().errors)}`);
+      // The cold market's measured 14s preparation exceeds the ~10s straight
+      // run from natural spawn. Prepare this one known neighbor before Explore;
+      // the shell stays unloaded and normal movement releases the startup hint.
+      streaming.preload('river-market'); await streaming.settled(); updateStreaming(0);
+      if (!streaming.ready('river-market')) throw new Error(`Initial neighbor failed: ${JSON.stringify(streaming.snapshot().errors)}`);
     }
   } catch (error) { dispose(); throw error; }
   for (let i = 0; i < 30; i++) tick(IDLE_INPUT);
@@ -384,6 +448,7 @@ async function boot() {
     },
     resetTimings() { timings.reset(); },
     resetTail() { tail.reset(); },
+    discardExportedTransitions() { tail.discardExportedTransitions(); },
     async settleStreaming() { updateStreaming(0); await streaming?.settled(); updateStreaming(0); },
     dispose,
   };

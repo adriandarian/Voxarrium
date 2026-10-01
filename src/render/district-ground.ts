@@ -1,9 +1,14 @@
+import { finishPreparation } from './preparation-scheduler';
+import { preparationResources } from './preparation-cache';
+import type { PreparationResources } from './preparation-cache';
 import { AdditiveBlending, BufferGeometry, Color, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial } from 'three';
 import { DISTRICT, DISTRICT_BUILDINGS, DISTRICT_STREETS } from '../simulation/district-layout';
 import { randomSequence } from './rural-geometry';
 
 /** Selective small paving, facade aprons, gutters and quay wear; collision stays on M4 ground. */
-export function createDistrictGround() {
+export function createDistrictGround() { return finishPreparation(districtGroundJobs()); }
+export function* districtGroundJobs(scope?: PreparationResources) {
+  const ownership = preparationResources(scope);
   const group=new Group(); group.name='district.ground.street-craft';
   const vertices:number[]=[],colors:number[]=[],indices:number[]=[];
   const pigment=new Color();
@@ -30,6 +35,7 @@ export function createDistrictGround() {
     rect((a.x+b.x)/2,a.y+.031,(a.z+b.z)/2,street.width+.05,length,0x968a74,yaw);
     const cross=Math.max(3,Math.ceil(street.width/.52)),rows=Math.ceil(length/.58);
     for(let row=0;row<rows;row++){
+      if (row % 8 === 0) yield 'market.ground-street';
       const t=(row+.5)/rows,cx=a.x+dx*t,cz=a.z+dz*t;
       if(street.id==='market-street'&&cx<48)continue;
       if(cx>80&&cx<98&&cz>-21&&cz<-3)continue;
@@ -54,6 +60,7 @@ export function createDistrictGround() {
   // Plaza: a crosswise pedestrian band between irregular patches and occupied stall aprons.
   rect(89,4.033,-12,18,18,0x978d77);
   for(let row=0;row<30;row++)for(let c=0;c<29;c++){
+    if (c === 0) yield 'market.ground-plaza';
     const x=80.25+c*.62+(row%2?.17:0),z=-20.76+row*.60;
     if(x>97.8||z>-3.15)continue;
     const crossing=Math.abs(x-89)<1.62 || Math.abs(z+11.2)<1.5;
@@ -63,6 +70,7 @@ export function createDistrictGround() {
   }
   // Individually edged door/work aprons, rather than unoccupied full-width setbacks.
   for(const [i,b] of DISTRICT_BUILDINGS.entries()){
+    yield 'market.ground-facade';
     const world=(x:number,z:number):[number,number]=>[b.position.x+Math.cos(b.yaw)*x+Math.sin(b.yaw)*z,
       b.position.z-Math.sin(b.yaw)*x+Math.cos(b.yaw)*z];
     for(let c=0;c<Math.ceil(b.width/.69);c++)for(let r=0;r<2;r++){
@@ -82,21 +90,29 @@ export function createDistrictGround() {
     for(let row=0;row<4;row++)for(let c=0;c<6;c++)rect(x-1.5+c*.62+(row%2?.15:0),.051,1.4+row*.55,
       .598,.53,0xafa188,0,.91+rng()*.09,true);
   }
-  const geometry=new BufferGeometry();geometry.setAttribute('position',new Float32BufferAttribute(vertices,3));
-  geometry.setAttribute('color',new Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();
-  const paving=new Mesh(geometry,new MeshStandardMaterial({vertexColors:true,roughness:.94}));
+  yield 'market.ground-position-buffer';
+  const geometry=ownership.own(new BufferGeometry());geometry.setAttribute('position',new Float32BufferAttribute(vertices,3));
+  yield 'market.ground-color-buffer';
+  geometry.setAttribute('color',new Float32BufferAttribute(colors,3));
+  yield 'market.ground-index-buffer';
+  geometry.setIndex(indices);
+  yield 'market.ground-normals';
+  geometry.computeVertexNormals();
+  yield 'market.ground-mesh';
+  const paving=new Mesh(geometry,ownership.own(new MeshStandardMaterial({vertexColors:true,roughness:.94})));
   paving.name='district.paving.cobbles-aprons-drainage';paving.receiveShadow=true;group.add(paving);
   // A damp, irregular base band on the water-facing walls. No alteration to canal topology.
   const stainVertices:number[]=[],stainColors:number[]=[];
   for(const bank of [12.01,25.99])for(let i=0;i<98;i++){
+    if (i % 16 === 0) yield 'market.ground-waterline';
     const x=48+i,top=-.35+.12*Math.sin(i*.39)+.06*Math.sin(i*1.13);
     const coords=[[x,-1.15,bank],[x+1,-1.15,bank],[x+1,top,bank],[x,top,bank]];
     const order=bank<19?[0,1,2,0,2,3]:[0,2,1,0,3,2];
     for(const n of order){stainVertices.push(...coords[n]!);const col=new Color(0x52675b).multiplyScalar(.88+Math.sin(i*.42)*.09);stainColors.push(col.r,col.g,col.b);}
   }
-  const stainGeo=new BufferGeometry();stainGeo.setAttribute('position',new Float32BufferAttribute(stainVertices,3));
+  const stainGeo=ownership.own(new BufferGeometry());stainGeo.setAttribute('position',new Float32BufferAttribute(stainVertices,3));
   stainGeo.setAttribute('color',new Float32BufferAttribute(stainColors,3));stainGeo.computeVertexNormals();
-  const stains=new Mesh(stainGeo,new MeshStandardMaterial({vertexColors:true,roughness:.91}));
+  const stains=new Mesh(stainGeo,ownership.own(new MeshStandardMaterial({vertexColors:true,roughness:.91})));
   stains.name='district.quay.waterline-patina';group.add(stains);
   // Low-cost feathered warm pavement bounce under selected shop lamps (not dynamic lights).
   const pools=new Group();pools.name='district.lighting.shop-pavement-bounce';group.add(pools);
@@ -107,11 +123,12 @@ export function createDistrictGround() {
       p.push(x!+Math.cos(angle!)*r!*rx!,y!+.073,z!+Math.sin(angle!)*r!*rz!);
       const col=new Color(0xeab776).multiplyScalar(r===0?1:0);c.push(col.r,col.g,col.b);
     }
-    const geo=new BufferGeometry();geo.setAttribute('position',new Float32BufferAttribute(p,3));geo.setAttribute('color',new Float32BufferAttribute(c,3));
+    const geo=ownership.own(new BufferGeometry());geo.setAttribute('position',new Float32BufferAttribute(p,3));geo.setAttribute('color',new Float32BufferAttribute(c,3));
     // Up-facing triangle winding.
     const idx:number[]=[];for(let i=0;i<p.length/3;i+=3)idx.push(i,i+2,i+1);geo.setIndex(idx);
     const mat=new MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0,depthWrite:false,blending:AdditiveBlending});
-    poolMaterials.push(mat);pools.add(new Mesh(geo,mat));
+    ownership.own(mat); poolMaterials.push(mat);pools.add(new Mesh(geo,mat));
+    yield 'market.ground-light-pool';
   }
   return {group,paving,updateWarmth(warmth:number){for(const mat of poolMaterials)mat.opacity=warmth*.24;},
     facts:{pavingTriangles:indices.length/3,groundDetail:'Authored street ribbons, staggered cobbles, low edge courses, drains, facade aprons and waterline patina; surface relief <= 7.3cm.'}};

@@ -4,11 +4,17 @@ import {
 } from 'three';
 import type { Object3D } from 'three';
 import { randomSequence } from './rural-geometry';
+import { finishPreparation } from './preparation-scheduler';
+import { preparationResources } from './preparation-cache';
+import type { PreparationResources } from './preparation-cache';
 
 type SurfaceKind = 'plaster' | 'timber' | 'clay' | 'stone';
 
 /** Authored washes and tool marks, independent of the reference pixels or GLB geometry. */
-function surfacePigment(kind: SurfaceKind) {
+function* surfacePigment(kind: SurfaceKind, scope?: PreparationResources) {
+  const ownership = preparationResources(scope);
+  const cached = ownership.cache?.get<CanvasTexture>(`hero.texture.${kind}`);
+  if (cached) return ownership.own(cached);
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 512;
   const ctx = canvas.getContext('2d');
@@ -23,6 +29,7 @@ function surfacePigment(kind: SurfaceKind) {
   }[kind];
   // Medium washes; no dense speckle or photorealistic grunge.
   for (let i = 0; i < 110; i++) {
+    if (i % 8 === 0) yield `hero.${kind}.washes`;
     const x = random() * 512, y = random() * 512, radius = 12 + random() * 76;
     for (const ox of [-512, 0, 512]) for (const oy of [-512, 0, 512]) {
       const wash = ctx.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, radius);
@@ -34,6 +41,7 @@ function surfacePigment(kind: SurfaceKind) {
   if (kind === 'timber') {
     // Long interrupted grain follows the length of each connected timber piece.
     for (let i = 0; i < 160; i++) {
+      if (i % 32 === 0) yield `hero.${kind}.grain`;
       const x = random() * 512, y = random() * 420;
       ctx.strokeStyle = i % 3 ? '#74604730' : '#e1cba546';
       ctx.lineWidth = 0.8 + random() * 2.8;
@@ -47,20 +55,22 @@ function surfacePigment(kind: SurfaceKind) {
     }
   } else {
     for (let i = 0; i < 130; i++) {
+      if (i % 32 === 0) yield `hero.${kind}.marks`;
       const x = random() * 512, y = random() * 512;
       ctx.fillStyle = `${colors[i % 3]}${kind === 'plaster' ? '0c' : '28'}`;
       ctx.beginPath(); ctx.ellipse(x, y, 3 + random() * 20, 1.5 + random() * 8, random() * 0.5, 0, Math.PI * 2); ctx.fill();
     }
   }
-  const map = new CanvasTexture(canvas);
+  const map = ownership.own(new CanvasTexture(canvas));
   map.name = `rural.hero.${kind}.pigment.512`;
   map.wrapS = map.wrapT = RepeatWrapping;
   map.colorSpace = SRGBColorSpace; map.anisotropy = 4;
+  ownership.cache?.retain(`hero.texture.${kind}`, map, [map]);
   return map;
 }
 
 /** Find the long axis of disconnected pieces in material-merged timber GLBs. */
-function timberAxes(mesh: Mesh) {
+function* timberAxes(mesh: Mesh) {
   const positions = mesh.geometry.getAttribute('position');
   const parent = Array.from({ length: positions.count }, (_, i) => i);
   const find = (i: number): number => {
@@ -70,47 +80,57 @@ function timberAxes(mesh: Mesh) {
   const index = mesh.geometry.index;
   const count = index?.count ?? positions.count;
   for (let i = 0; i < count; i += 3) {
+    if (i % 1536 === 0) yield 'hero.timber.connectivity';
     const a = index ? index.getX(i) : i;
     for (let k = 1; k < 3; k++) parent[find(index ? index.getX(i + k) : i + k)] = find(a);
   }
   const bounds = new Map<number, { min: Vector3; max: Vector3 }>();
   const point = new Vector3();
   for (let i = 0; i < positions.count; i++) {
+    if (i % 512 === 0) yield 'hero.timber.bounds';
     const root = find(i); point.fromBufferAttribute(positions, i);
     const box = bounds.get(root);
     if (box) { box.min.min(point); box.max.max(point); }
     else bounds.set(root, { min: point.clone(), max: point.clone() });
   }
-  return parent.map((_, i) => {
+  const axes: number[] = [];
+  for (let i = 0; i < parent.length; i++) {
+    if (i % 512 === 0) yield 'hero.timber.axes';
     const box = bounds.get(find(i))!;
     const size = box.max.clone().sub(box.min);
-    return size.y >= size.x && size.y >= size.z ? 1 : size.x >= size.z ? 0 : 2;
-  });
+    axes.push(size.y >= size.x && size.y >= size.z ? 1 : size.x >= size.z ? 0 : 2);
+  }
+  return axes;
 }
 
 /** Changes only render attributes/materials: original positions, indices and proxies survive. */
-export function enrichRuralHero(root: Object3D) {
+export function enrichRuralHero(root: Object3D) { return finishPreparation(heroMaterialJobs(root)); }
+export function* heroMaterialJobs(root: Object3D, scope?: PreparationResources) {
+  const ownership = preparationResources(scope);
   const maps = new Map<SurfaceKind, CanvasTexture>();
   root.updateMatrixWorld(true);
-  root.traverse(object => {
-    if (!(object instanceof Mesh) || !(object.material instanceof MeshStandardMaterial)) return;
-    const material = object.material;
+  const meshes: Mesh[] = []; root.traverse(object => { if (object instanceof Mesh && object.material instanceof MeshStandardMaterial) meshes.push(object); });
+  for (const object of meshes) {
+    const current = object.material;
+    if (!(current instanceof MeshStandardMaterial)) continue;
+    const material = current;
     const name = material.name;
     const kind: SurfaceKind | null = name.startsWith('plaster') ? 'plaster'
       : /^(timber|door_oak|bridge_oak)/.test(name) ? 'timber'
       : /^(terracotta|teal_)/.test(name) ? 'clay'
       : name.startsWith('stone') ? 'stone' : null;
-    if (!kind) return;
-    if (!maps.has(kind)) maps.set(kind, surfacePigment(kind));
+    if (!kind) continue;
+    if (!maps.has(kind)) maps.set(kind, yield* surfacePigment(kind, scope));
     material.map = maps.get(kind)!;
     material.vertexColors = true;
     material.roughness = kind === 'clay' ? 0.86 : 0.96;
     const position = object.geometry.getAttribute('position');
     const normal = object.geometry.getAttribute('normal');
-    const axes = kind === 'timber' ? timberAxes(object) : null;
+    const axes = kind === 'timber' ? yield* timberAxes(object) : null;
     const uv: number[] = [], colors: number[] = [];
     const point = new Vector3(), direction = new Vector3();
     for (let i = 0; i < position.count; i++) {
+      if (i % 256 === 0) yield 'hero.attributes';
       point.fromBufferAttribute(position, i).applyMatrix4(object.matrixWorld);
       direction.fromBufferAttribute(normal, i).transformDirection(object.matrixWorld);
       const { x, y, z } = point;
@@ -134,6 +154,8 @@ export function enrichRuralHero(root: Object3D) {
     object.geometry.setAttribute('uv', new Float32BufferAttribute(uv, 2));
     object.geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
     material.needsUpdate = true;
-  });
+    ownership.own(material); ownership.own(object.geometry);
+    yield 'hero.material';
+  }
   root.userData.materialTreatment = 'M2.1 deterministic plaster washes, lengthwise timber grain, clay pigment, stone mottling and ground contact; original GLB geometry unchanged';
 }

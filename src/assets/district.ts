@@ -1,8 +1,8 @@
 import { Box3, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import type { Object3D } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { enrichRuralHero } from '../render/hero-materials';
-import { loadAbortableGlb } from './abortable-glb';
+import { preparedGlbScene } from './abortable-glb';
+import type { PreparationScheduler } from '../render/preparation-scheduler';
+import type { PreparationResources } from '../render/preparation-cache';
 
 export const DISTRICT_MODULE_IDS = ['wall', 'stone', 'post', 'beam', 'brace', 'window', 'shop-window',
   'door', 'doorstep', 'stair', 'gable-cap', 'roof-gable', 'roof-hip', 'roof-mansard', 'chimney',
@@ -38,10 +38,9 @@ export function inspectDistrictKit(root: Object3D) {
       min: value.bounds.min.toArray(), max: value.bounds.max.toArray() })) };
 }
 
-export async function loadDistrictKit(signal?: AbortSignal) {
+export async function loadDistrictKit(signal?: AbortSignal, scheduler?: PreparationScheduler, scope?: PreparationResources) {
   const url = '/assets/district/district-kit.glb';
-  const root = (signal ? await loadAbortableGlb(url, signal) : await new GLTFLoader().loadAsync(url)).scene;
+  const root = await preparedGlbScene(url, 'district.kit', signal, scheduler, scope);
   const facts = inspectDistrictKit(root);
-  enrichRuralHero(root);
   return { root, facts };
 }

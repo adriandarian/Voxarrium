@@ -1,6 +1,33 @@
 # Testing and visual review
 
+## M5.1 streaming latency procedures
+
+The objective is retained in `prompts/05-1-streaming-latency.md`. Run `npm test`, `npm run check`, `npm run build`, `npm run doctor`, `npm run references:verify`, then `VOXARRIUM_HEADED=1 npm run test:browser`. These test the preserved resident scenes and both initialized backends, actual-input cancellation/reentry, staged scheduler/cache ownership, and repeated real-physics streaming. Startup prepares the first market neighbor; cancellation coverage first retires that lease through ordinary movement and departure delay, then reverses an unfinished reload. Save `artifacts/test-results.json` before another runner invocation.
+
+Freeze runtime source and stop competing rendering/build work before measuring. Run the following sequentially in PowerShell:
+
+```powershell
+$env:VOXARRIUM_WEATHER = 'clear'
+$env:VOXARRIUM_LIGHT = 'day'
+node tools/stress-streaming.mjs
+$env:VOXARRIUM_WEATHER = 'rain'
+$env:VOXARRIUM_LIGHT = 'dusk'
+node tools/stress-streaming.mjs
+```
+
+Each bounded run completes three actual W+Shift circuits from natural spawn, alternating gameplay cameras, without teleports or deterministic stepping. Separate preset directories under `artifacts/m5-1/stress/` retain full rAF samples, p50/p95/p99/max, transition-window maxima, largest individual job, preparation/request-to-ready duration, readiness before exact crossing and before the safety guard is needed. Chronology remains attached to each exported endpoint. Startup prepared collision can exceed final rural-only collision; compare all three equivalent rural returns to the first return's exact finite cache/physics/GPU plateau, while retaining startup values and the allocation difference explicitly. Visible material counts, enabled collision groups, 42 unique NPC IDs, environment/audio continuity and bounded loaded areas remain checked throughout.
+
+Raw and forced-GC endpoint JavaScript heaps are separate from VRAM. Finished diagnostic reports are exported outside the page, then released before endpoint heap sampling so the capture ledger is not confused with gameplay retention. Unfinished requests and late spans are kept. These bounded circuits do not prove a long soak or lower-end hardware performance.
+
+The headed measurement tab must remain focused with pointer capture. The driver brings it forward once before starting, records startup capture state, and checks pause/focus/visibility/capture at checkpoints. A bounded 128-event focus/pointer-lock log is retained in newer reports. A pause or capture rejection fails the run; do not resume automatically or include that partial attempt in the performance comparison. Periodic checkpoints and waypoint assertions transfer aggregate tail data, while complete request chronology is exported at stationary returns after interval sampling ends. Preserve failed attempts and diagnose their cause before another invocation.
+
+When a significant unexplained gap remains, `node tools/trace-streaming.mjs` runs one actual-input approach with a finite native trace buffer and 45 s trace cap. It uses explicit categories observed in this host's prior trace when Chromium category discovery is incomplete. Inspect its coverage and failed/pre-recording attempts; the M5.1 investigation trace starts after early preparation but captures activation. `node tools/summarize-tail.mjs <trace-directory>` reports native CPU compilation unions and main/GC overlap. Native CPU time, browser wall spans and GPU execution remain distinct.
+
+Production readiness/controls use the built local preview and `node tools/smoke-streaming-production.mjs`; this is not a production soak. M5 evidence stays preserved. Current M5.1 captures and exact outcomes are linked from STATUS.md; stop at its review gate.
+
 ## M5 streaming proof procedures
+
+This section describes retained M5 procedures/results under `artifacts/m5/`. The current stress and production tools default to M5.1 directories; use the procedures above for current validation. The original report is preserved at `history/M5_STATUS.md`.
 
 M5 is the default; prior district tests and measurement tools explicitly select `?scene=m4`. Run `npm test`, `npm run check`, `npm run build`, `npm run references:verify` and `npm run doctor`. The browser command includes the preserved M1-M4 projects plus `streaming-browser`. Set `VOXARRIUM_HEADED=1` for the local hardware evidence. Exact outcomes and limitations belong in STATUS.md; the historical results below describe their original milestones.
 

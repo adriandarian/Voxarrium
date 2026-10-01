@@ -41,6 +41,9 @@ export class ResourceReferences {
     return { resources: this.references.size, references,
       byType: Object.fromEntries(Object.entries(byType).sort(([a], [b]) => a.localeCompare(b))) };
   }
+
+  /** Read-only identity accounting for the finite immutable preparation cache. */
+  referenceCount(resource: DisposableResource) { return this.references.get(resource) ?? 0; }
 }
 
 /** Stable manifest identities are tracked independently of render objects. */

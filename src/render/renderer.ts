@@ -2,9 +2,9 @@ import {
   ACESFilmicToneMapping, BoxGeometry, BufferGeometry, CanvasTexture, Float32BufferAttribute, InstancedMesh,
   CapsuleGeometry, Color, DirectionalLight, Group, HemisphereLight, Material,
   Mesh, MeshStandardMaterial, PCFShadowMap, Scene, SphereGeometry, Sprite,
-  SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, REVISION,
+  SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, REVISION, RenderTarget, HalfFloatType, LinearSRGBColorSpace,
 } from 'three';
-import type { PerspectiveCamera } from 'three';
+import type { Object3D, PerspectiveCamera } from 'three';
 import { WebGPURenderer } from 'three/webgpu';
 import { loadScaleFixture } from '../assets/fixture';
 import { loadRuralAssets } from '../assets/rural';
@@ -21,6 +21,8 @@ import { tail } from '../diagnostics/tail';
 import { ResourceReferences, AssetReferences } from '../assets/resource-references';
 import { createAreaPresentation, throwIfAborted } from './streaming-areas';
 import type { WorldArea } from '../simulation/streaming-contracts';
+import { PreparationScheduler } from './preparation-scheduler';
+import { PreparationCache } from './preparation-cache';
 
 // Runtime backends expose these fields in the installed Three.js r186 source;
 // @types/three deliberately omits device/gl internals. Read only for diagnostics.
@@ -172,8 +174,14 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
   let livingEnvironment: ReturnType<typeof createEnvironmentPresentation> | null = null;
   const resourceReferences = new ResourceReferences();
   const assetReferences = new AssetReferences();
+  const preparationCache = new PreparationCache(resourceReferences);
+  // Match r186's linear HDR scene buffer formats and samples. Size is not a
+  // pipeline key. Warmup never presents an incomplete destination on the canvas.
+  const warmupTarget = new RenderTarget(4, 4, { type: HalfFloatType, samples: renderer.samples, colorSpace: LinearSRGBColorSpace });
   const areaPresentations = new Map<string, Awaited<ReturnType<typeof createAreaPresentation>>>();
   const activeAreas = new Set<string>();
+  const firstFrames = new Map<string, ReturnType<typeof tail.beginTransition>>();
+  const keyedTransientMaterials = new WeakSet<Material>();
   // Preserve the native fallback, but record the failure that triggered it.
   const primaryBackend = renderer.backend;
   const initializeBackend = primaryBackend.init.bind(primaryBackend);
@@ -356,27 +364,47 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
         lastWaterUpdate = waterUpdate;
       }
       renderer.info.reset();
-      tail.span('renderer.submitCpu', () => renderer.render(scene, camera));
+      const previousRenderObject = renderer.getRenderObjectFunction();
+      const visibleAreas = new Set<string>();
+      if (firstFrames.size) renderer.setRenderObjectFunction((...args: Parameters<typeof renderer.renderObject>) => {
+        if (args[2] === camera) for (let object: Object3D | null = args[0]; object; object = object.parent) {
+          if (object.name.startsWith('streaming.area.')) { visibleAreas.add(object.name.slice('streaming.area.'.length)); break; }
+        }
+        renderer.renderObject(...args);
+      });
+      try { tail.span('renderer.submitCpu', () => renderer.render(scene, camera)); }
+      finally { if (firstFrames.size) renderer.setRenderObjectFunction(previousRenderObject); }
+      for (const id of visibleAreas) {
+        firstFrames.get(id)?.event('first-visible-frame', { scope: 'Main-pass mesh submitted after frustum/visibility filtering; physical presentation not measured.' });
+        firstFrames.delete(id);
+      }
     }
     resize();
     return {
       facts,
       render,
       resize,
-      async prepareArea(area: WorldArea, signal: AbortSignal, camera: PerspectiveCamera, state: GameState) {
+      async prepareArea(area: WorldArea, signal: AbortSignal, camera: PerspectiveCamera, state: GameState,
+        transition: ReturnType<typeof tail.beginTransition>, progress: (phase: 'preparing' | 'warming') => void) {
         if (!streaming || disposed) throw new Error('Area preparation requires the active M5 renderer.');
-        const presentation = await createAreaPresentation(area, signal, blockout, resourceReferences, assetReferences);
+        progress('preparing');
+        const presentation = await transition.asyncSpan('object-construction', () =>
+          createAreaPresentation(area, signal, blockout, resourceReferences, assetReferences, {
+            cache: preparationCache, transition,
+          }));
+        const scheduler = new PreparationScheduler(signal, { onWork: work => transition.work(work) });
         let attachedHooks = false, released = false;
         function unload() {
           if (released) return; released = true;
-          activeAreas.delete(area.id); areaPresentations.delete(area.id);
+          activeAreas.delete(area.id); areaPresentations.delete(area.id); firstFrames.delete(area.id);
           if (attachedHooks) livingEnvironment?.detachArea(area.id);
           presentation.dispose(); facts.loadedAssetCount = 1 + assetReferences.snapshot().assets;
+          transition.event('render-resources-released');
           tail.event('streaming.renderDisposed', { areaId: area.id });
         }
         try {
           throwIfAborted(signal);
-          livingEnvironment?.attachArea(area.id, presentation.group, presentation.roofEnvelopes); attachedHooks = true;
+          transition.span('environment-hooks', () => livingEnvironment?.attachArea(area.id, presentation.group, presentation.roofEnvelopes)); attachedHooks = true;
           // r186's initial cached sampled-texture binding can still point at an
           // unloaded area's disposed map. The M5 diagnostic captured its later
           // recreation in Bindings._createBindings. Keep transient mapped
@@ -387,8 +415,9 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
             if (!(object instanceof Mesh)) return;
             for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
               const map = (material as Material & { map?: Texture }).map;
-              if (!(map instanceof Texture) || keyedMaterials.has(material)) continue;
+              if (!(map instanceof Texture) || keyedMaterials.has(material) || keyedTransientMaterials.has(material)) continue;
               keyedMaterials.add(material);
+              keyedTransientMaterials.add(material);
               const existingKey = material.customProgramCacheKey.bind(material);
               material.customProgramCacheKey = () => `${existingKey()}:streaming-map:${map.uuid}`;
             }
@@ -396,7 +425,72 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
           presentation.update(state, false);
           const culling = new Map<Mesh, boolean>();
           presentation.group.traverse(object => { if (object instanceof Mesh) { culling.set(object, object.frustumCulled); object.frustumCulled = false; } });
-          try { await tail.asyncSpan('streaming.compileAsync', () => renderer.compileAsync(presentation.group, camera, scene)); }
+          progress('warming'); transition.event('warming');
+          try {
+            await transition.asyncSpan('renderer-compile-async', () => tail.asyncSpan('streaming.compileAsync', () => renderer.compileAsync(presentation.group, camera, scene)));
+            // Real shadow updates are skipped by compileAsync. Warm the new
+            // geometry/material layouts in small actual passes, yielding and
+            // draining the submitted queue between them. No mutable renderer or
+            // scene state survives an await.
+            const meshes = [...culling.keys()];
+            // ShadowNode skips a second update for the same camera in one
+            // animation frame. The live player camera may already have drawn
+            // before this scheduler callback; use a separate camera identity.
+            // Two submissions share a queue fence, but retain distinct camera
+            // identities so both real shadow passes run even within one frame.
+            const warmupCameras = [camera.clone(), camera.clone()];
+            // Instance.js emits count-sized buffers; seemingly identical meshes
+            // with different instance counts/color buffers can have distinct
+            // native shaders. Warm each actual mesh rather than guessing a
+            // representative from geometry/material layout alone.
+            const staticSignatures = new Set<string>();
+            const representatives = meshes.filter(mesh => {
+              if (mesh instanceof InstancedMesh) return true;
+              const layout = Object.entries(mesh.geometry.attributes).sort(([a], [b]) => a.localeCompare(b)).map(([name, attribute]) => {
+                const interleaved = attribute as typeof attribute & { data?: { stride: number }; offset?: number };
+                return `${name}:${attribute.itemSize}:${attribute.normalized}:${attribute.array.constructor.name}:${interleaved.data?.stride}:${interleaved.offset}`;
+              }).join(',');
+              const materials = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).map(material => material.uuid).join(',');
+              const key = `${materials}/${layout}/${mesh.geometry.index?.array.constructor.name}/${mesh.castShadow}/${mesh.receiveShadow}/${mesh.matrixWorld.determinant() < 0}`;
+              // No animated/skinned/morph geometry in the authored slice; if
+              // one is later introduced it must keep its actual warmup job.
+              if (Object.keys(mesh.geometry.morphAttributes).length || 'skeleton' in mesh) return true;
+              if (staticSignatures.has(key)) return false;
+              staticSignatures.add(key); return true;
+            });
+            transition.event('warmup-plan', { meshes: meshes.length, representatives: representatives.length, submissionsPerQueueWait: 2 });
+            const visible = new Map(meshes.map(mesh => [mesh, mesh.visible]));
+            for (const [index, mesh] of representatives.entries()) {
+              if (index % 2 === 0) await scheduler.yieldFrame();
+              const warmupCamera = warmupCameras[index % 2]!;
+              await scheduler.job('renderer-shadow-submit', () => {
+                const oldTarget = renderer.getRenderTarget();
+                const parent = presentation.group.parent;
+                try {
+                  for (const object of meshes) object.visible = false;
+                  // NPC child meshes need their mesh ancestors in the render tree.
+                  for (let object: Object3D | null = mesh; object && object !== presentation.group; object = object.parent) object.visible = true;
+                  scene.add(presentation.group);
+                  warmupCamera.copy(camera);
+                  renderer.setRenderTarget(warmupTarget);
+                  transition.span('renderer-shadow-submit', () => renderer.render(scene, warmupCamera));
+                } finally {
+                  renderer.setRenderTarget(oldTarget);
+                  visible.forEach((value, object) => { object.visible = value; });
+                  presentation.group.removeFromParent();
+                  if (parent) parent.add(presentation.group);
+                }
+              });
+              const backend = renderer.backend as typeof renderer.backend & BackendDiagnostics;
+              if (backend.device) {
+                if (index % 2 === 1 || index === representatives.length - 1) {
+                  await transition.asyncSpan('renderer-queue-wait', () => backend.device!.queue.onSubmittedWorkDone());
+                }
+              }
+              else transition.span('renderer-gl-flush', () => backend.gl?.flush());
+              throwIfAborted(signal);
+            }
+          }
           finally { culling.forEach((value, object) => { object.frustumCulled = value; }); }
           throwIfAborted(signal);
           if (disposed) throw new DOMException('Renderer disposed during preparation', 'AbortError');
@@ -405,8 +499,9 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
           return {
             activate() {
               if (released) throw new Error('Cannot activate a released area.');
-              scene.add(presentation.group); presentation.group.visible = true;
+              transition.span('scene-attachment', () => scene.add(presentation.group)); presentation.group.visible = true;
               activeAreas.add(area.id); livingEnvironment?.areaActive(area.id, true);
+              firstFrames.set(area.id, transition);
               tail.event('streaming.renderActivated', { areaId: area.id });
             },
             deactivate() {
@@ -465,6 +560,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
           living: { environment: livingEnvironment?.stats() ?? null, population: locals?.stats() ?? null,
             activeNpcs: streaming ? [...activeAreas].reduce((sum, id) => sum + (areaPresentations.get(id)?.npcStats()?.count ?? 0), 0) : locals ? statePopulationCount : 0 },
           streamingResources: streaming ? { render: resourceReferences.snapshot(), assets: assetReferences.snapshot(),
+            cache: preparationCache.snapshot(),
             preparedAreas: [...areaPresentations.keys()], activeAreas: [...activeAreas],
             npcs: Object.fromEntries([...areaPresentations].map(([id, presentation]) => [id, presentation.npcStats()])) } : null,
         };
@@ -474,6 +570,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
         disposed = true;
         for (const [id, presentation] of areaPresentations) { livingEnvironment?.detachArea(id); presentation.dispose(); }
         areaPresentations.clear(); activeAreas.clear();
+        preparationCache.dispose(); warmupTarget.dispose();
         livingEnvironment?.dispose();
         disposeScene(scene);
         void renderer.dispose().catch(error => {

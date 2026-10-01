@@ -36,6 +36,66 @@ function deferredAdapter(actions: string[]) {
 }
 async function flushMicrotasks() { for (let i = 0; i < 10; i++) await Promise.resolve(); }
 
+test('requested preparing warming phases remain cancellable and obsolete progress cannot reinstall an area', async () => {
+  let phase: (phase: 'preparing' | 'warming') => void = () => {};
+  let finish: (handle: AreaHandle) => void = () => {};
+  const actions: string[] = [];
+  const streaming = createStreamingController(testAreas(), { load(_area, _signal, progress) {
+    phase = progress;
+    return new Promise(resolve => { finish = resolve; });
+  } });
+  streaming.update(position(5), 0);
+  expect(streaming.snapshot().areas[0].state).toBe('requested');
+  await flushMicrotasks();
+  expect(streaming.snapshot().areas[0].state).toBe('preparing');
+  phase('warming');
+  expect(streaming.snapshot().areas[0].state).toBe('warming');
+  streaming.update(position(-60), 0);
+  phase('preparing');
+  expect(streaming.snapshot().areas[0].state).toBe('unloaded');
+  finish(handle('obsolete', actions));
+  await flushMicrotasks();
+  expect(actions).toEqual(['obsolete:unload']);
+  expect(streaming.ready('rural')).toBe(false);
+  streaming.dispose();
+});
+
+test('velocity lookahead prepares early, cancels reversal, and keeps at most two area transports', async () => {
+  const actions: string[] = [];
+  const { adapter, requests } = deferredAdapter(actions);
+  const areas = testAreas().map(area => ({ ...area, assetIds: ['fixture.immutable'] }));
+  const streaming = createStreamingController(areas, adapter, { preparationLeadSeconds: 10 });
+  streaming.update(position(50), 0, { x: 5.4, y: 0, z: 0 });
+  await flushMicrotasks();
+  expect(requests.map(request => request.id)).toEqual(['river-market']);
+  expect(streaming.snapshot().areas[1].distance).toBe(50);
+  streaming.update(position(50), 0, { x: -5.4, y: 0, z: 0 });
+  expect(requests[0].signal.aborted).toBe(true);
+  await flushMicrotasks();
+  requests[0].resolve(handle('obsolete-market', actions));
+  await flushMicrotasks();
+  expect(actions).toContain('obsolete-market:unload');
+  expect(streaming.activeIds()).toEqual([]);
+  expect(streaming.snapshot().pendingIds.length + streaming.loadedIds().length).toBeLessThanOrEqual(2);
+  streaming.dispose();
+});
+
+test('startup prepares only one neighbor, retains it while idle, and normal departure releases the hint', async () => {
+  const actions: string[] = [];
+  const streaming = createStreamingController(testAreas(), { async load(area) { return handle(area.id, actions); } }, { preparationLeadSeconds: 10 });
+  streaming.update(position(5), 0); await streaming.settled();
+  streaming.preload('river-market'); await streaming.settled();
+  streaming.preload('neighbor-shell'); await streaming.settled();
+  streaming.update(position(5), 30);
+  expect(streaming.loadedIds()).toEqual(['rural','river-market']);
+  expect(streaming.activeIds()).toEqual(['rural']);
+  expect(streaming.snapshot().counts.loads).toBe(2);
+  streaming.update(position(5), 1.5, { x: -5.4, y: 0, z: 0 });
+  expect(streaming.loadedIds()).toEqual(['rural']);
+  expect(streaming.snapshot().counts.unloads).toBe(1);
+  streaming.dispose();
+});
+
 test('preload preparation, activation and readiness are idempotent and measured', async () => {
   const actions: string[] = [];
   const { adapter, requests } = deferredAdapter(actions);
@@ -64,6 +124,25 @@ test('preload preparation, activation and readiness are idempotent and measured'
   expect(actions).toEqual(['rural:load', 'rural:activate', 'rural:deactivate', 'rural:unload']);
   expect(streaming.loadedIds()).toEqual([]);
   expect(streaming.snapshot().counts.unloads).toBe(1);
+});
+
+test('measured earlier retirement retains boundary hysteresis and a full departure delay', async () => {
+  const actions: string[] = [];
+  const streaming = createStreamingController(testAreas(), { async load(area) { return handle(area.id, actions); } },
+    { preparationLeadSeconds: 10, unloadRadius: 46 });
+  streaming.update(position(5), 0); await streaming.settled();
+  streaming.update(position(55), 0); // 45 m: inactive, retained below retirement radius.
+  expect(streaming.activeIds()).toEqual([]);
+  expect(streaming.ready('rural')).toBe(true);
+  streaming.update(position(57), 1.49);
+  expect(streaming.ready('rural')).toBe(true);
+  streaming.update(position(56), 1); // Exact 46 m resets the continuous departure timer.
+  streaming.update(position(57), 1.49);
+  expect(streaming.ready('rural')).toBe(true);
+  streaming.update(position(57), .02);
+  expect(streaming.ready('rural')).toBe(false);
+  expect(actions).toEqual(['rural:activate','rural:deactivate','rural:unload']);
+  streaming.dispose();
 });
 
 test('boundary oscillation retains prepared resources until real delayed departure', async () => {

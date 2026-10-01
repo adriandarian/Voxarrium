@@ -1,3 +1,7 @@
+import { finishPreparation } from './preparation-scheduler';
+import type { PreparationScheduler } from './preparation-scheduler';
+import { preparationResources } from './preparation-cache';
+import type { PreparationResources } from './preparation-cache';
 import {
   Box3, BufferGeometry, Color, Float32BufferAttribute, Group, InstancedMesh,
   Matrix4, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, Vector3,
@@ -12,18 +16,20 @@ import type { DistrictBuilding } from '../simulation/district-layout';
 import { DISTRICT_DRESSING, DISTRICT_FACADES, DISTRICT_LAMPS, DISTRICT_STALLS, FACADE_PROFILES } from '../simulation/district-art';
 import type { EnvironmentState } from '../simulation/environment';
 import type { CourseSpec } from '../simulation/types';
-import { createLandscapeMaterials } from './landscape-materials';
-import { registerEcology } from './rural-ecology';
+import { landscapeMaterialJobs } from './landscape-materials';
+import { ecologyRegistrationJobs } from './rural-ecology';
 import { randomSequence } from './rural-geometry';
-import { createDistrictGround } from './district-ground';
+import { districtGroundJobs } from './district-ground';
 
 type Placement = { matrix: Matrix4; plaster: number; clay: number; cloth: number; tint: number; owner: string };
 type Envelope = { min: [number, number, number]; max: [number, number, number] };
 type Opening = { x: number; y: number; width: number; height: number; module: 'door' | 'window' | 'shop-window'; shutter?: number };
 
 /** All four elevations partition around actual voids; no repeated per-panel Object3Ds. */
-export function composeDistrictArchitecture(root: Object3D) {
-  const group = new Group(); group.name = 'district.architecture';
+export function composeDistrictArchitecture(root: Object3D) { return finishPreparation(districtArchitectureJobs(root)); }
+export function* districtArchitectureJobs(root: Object3D, scope?: PreparationResources, target?: Group) {
+  const ownership = preparationResources(scope);
+  const group = target ?? new Group(); group.name = 'district.architecture';
   const templates = new Map<DistrictModuleId, Mesh[]>();
   root.updateMatrixWorld(true);
   root.traverse(object => {
@@ -43,6 +49,7 @@ export function composeDistrictArchitecture(root: Object3D) {
       cloth, tint, owner }); placements.set(id, entries);
   };
   for (const [index, building] of DISTRICT_BUILDINGS.entries()) {
+    yield 'market.building';
     const { width, depth, floors, floorHeight } = building;
     const profile = FACADE_PROFILES[DISTRICT_FACADES[building.id]!];
     const height = floors * floorHeight;
@@ -60,6 +67,7 @@ export function composeDistrictArchitecture(root: Object3D) {
       { yaw: -Math.PI / 2, length: depth, distance: width / 2, front: false, back: false },
     ];
     for (const elevation of elevations) {
+      yield 'market.building-elevation';
       faceTransform.position.set(Math.sin(elevation.yaw) * elevation.distance, 0,
         Math.cos(elevation.yaw) * elevation.distance); faceTransform.rotation.set(0, elevation.yaw, 0);
       faceTransform.scale.set(1, 1, 1); faceTransform.updateMatrix();
@@ -250,10 +258,11 @@ export function composeDistrictArchitecture(root: Object3D) {
   const usedGeometry = new Set<BufferGeometry>(), usedMaterials = new Set<Material>();
   for (const [id, entries] of placements) for (const prototype of templates.get(id) ?? []) {
     const material = prototype.material as MeshStandardMaterial;
-    const mesh = new InstancedMesh(prototype.geometry, material, entries.length);
+    const mesh = ownership.own(new InstancedMesh(prototype.geometry, material, entries.length));
     mesh.name = `district.instances.${id}.${material.name}`;
     mesh.castShadow = !/^(window_|recess_shadow)/.test(material.name); mesh.receiveShadow = true;
     for (const [i, p] of entries.entries()) {
+      if (i % 64 === 0) yield 'market.module-transforms';
       mesh.setMatrixAt(i, p.matrix.clone().multiply(prototype.matrixWorld));
       const tint = material.name.startsWith('plaster') ? new Color(p.plaster)
         : material.name.startsWith('terracotta') ? new Color(p.clay)
@@ -264,11 +273,12 @@ export function composeDistrictArchitecture(root: Object3D) {
     mesh.userData.buildingIds = entries.map(p => p.owner);
     mesh.computeBoundingSphere(); mesh.computeBoundingBox(); group.add(mesh);
     instances[mesh.name] = mesh.count; usedGeometry.add(prototype.geometry); usedMaterials.add(material);
+    yield 'market.module-bounds';
   }
   root.traverse(object => {
     if (!(object instanceof Mesh)) return;
-    if (!usedGeometry.has(object.geometry)) object.geometry.dispose();
-    for (const mat of Array.isArray(object.material) ? object.material : [object.material]) if (!usedMaterials.has(mat)) mat.dispose();
+    if (!usedGeometry.has(object.geometry)) ownership.release(object.geometry);
+    for (const mat of Array.isArray(object.material) ? object.material : [object.material]) if (!usedMaterials.has(mat)) ownership.release(mat);
   });
   return { group, facts: { ...inspectDistrictKit(root), buildings: DISTRICT_BUILDINGS.length,
     archetypes: [...new Set(DISTRICT_BUILDINGS.map(b => b.archetype))],
@@ -280,9 +290,16 @@ export function composeDistrictArchitecture(root: Object3D) {
     assumptions: 'Unseen elevations, guild belfry and local trade dressing are authored interpretations; closed doors have future interior hooks.' } };
 }
 
-export async function createDistrictPresentation(_course?: CourseSpec, signal?: AbortSignal) {
-  const loaded = await loadDistrictKit(signal);
-  const architecture = composeDistrictArchitecture(loaded.root);
+export async function createDistrictPresentation(_course?: CourseSpec, signal?: AbortSignal,
+  scheduler?: PreparationScheduler, scope?: PreparationResources, target?: Group) {
+  const loaded = await loadDistrictKit(signal, scheduler, scope);
+  const architecture = scheduler ? await scheduler.run('market.architecture', districtArchitectureJobs(loaded.root, scope, target))
+    : finishPreparation(districtArchitectureJobs(loaded.root, scope, target));
+  return scheduler ? scheduler.run('market.decoration', districtDecorationJobs(architecture, loaded, scope))
+    : finishPreparation(districtDecorationJobs(architecture, loaded, scope));
+}
+function* districtDecorationJobs(architecture: ReturnType<typeof composeDistrictArchitecture>, loaded: Awaited<ReturnType<typeof loadDistrictKit>>, scope?: PreparationResources) {
+  const ownership = preparationResources(scope);
   const group = architecture.group;
   // Plaster spans are partitioned at genuine openings. World-coordinate pigment
   // keeps their wash continuous instead of restarting the texture at every panel.
@@ -293,7 +310,7 @@ export async function createDistrictPresentation(_course?: CourseSpec, signal?: 
     if (!source.name.startsWith('plaster') || !source.map) return;
     let nodeMaterial = plasterNodes.get(source);
     if (!nodeMaterial) {
-      nodeMaterial = new MeshStandardNodeMaterial().copy(source) as MeshStandardNodeMaterial;
+      nodeMaterial = ownership.own(new MeshStandardNodeMaterial().copy(source) as MeshStandardNodeMaterial);
       nodeMaterial.name = source.name; nodeMaterial.vertexColors = false;
       const across = positionWorld.x.mul(normalWorld.z.abs()).add(positionWorld.z.mul(normalWorld.x.abs()));
       nodeMaterial.colorNode = texture(source.map, vec2(across.div(4), positionWorld.y.div(4))).mul(materialColor);
@@ -301,10 +318,10 @@ export async function createDistrictPresentation(_course?: CourseSpec, signal?: 
     }
     object.material = nodeMaterial;
   });
-  for (const source of plasterNodes.keys()) source.dispose();
-  const ground = createDistrictGround(); group.add(ground.group);
-  const landscape = createLandscapeMaterials();
-  const waterGeometry = new PlaneGeometry(98, 14, 65, 10);
+  for (const source of plasterNodes.keys()) ownership.release(source);
+  const ground = yield* districtGroundJobs(scope); group.add(ground.group);
+  const landscape = yield* landscapeMaterialJobs(scope);
+  const waterGeometry = ownership.own(new PlaneGeometry(98, 14, 65, 10));
   waterGeometry.rotateX(-Math.PI / 2); waterGeometry.translate(97, -1.16, 19);
   const positions = waterGeometry.getAttribute('position');
   const colors: number[] = [];
@@ -322,11 +339,11 @@ export async function createDistrictPresentation(_course?: CourseSpec, signal?: 
   pavingMat.map = landscape.stone.map;
   const uv: number[] = [];
   const p = paving.geometry.getAttribute('position');
-  for (let i = 0; i < p.count; i++) uv.push(p.getX(i) / 8, p.getZ(i) / 8);
+  for (let i = 0; i < p.count; i++) { if (i % 512 === 0) yield 'market.paving-uv'; uv.push(p.getX(i) / 8, p.getZ(i) / 8); }
   paving.geometry.setAttribute('uv', new Float32BufferAttribute(uv, 2));
   // Only intentional garden pockets are added; no props fill the route or plaza center.
   const ecology = new Map<string, {geometry: BufferGeometry; shadows: boolean}>();
-  registerEcology((name, geometry, shadows = false) => { ecology.set(name, { geometry, shadows }); });
+  yield* ecologyRegistrationJobs((name, geometry, shadows = false) => { ecology.set(name, { geometry, shadows }); }, scope);
   const pockets: [string, number, number, number, number][] = DISTRICT_GARDENS
     .filter(garden => garden.tree).map(garden => [garden.tree, garden.x, garden.y, garden.z, garden.scale]);
   for (const [index, building] of DISTRICT_BUILDINGS.entries()) if (building.floors > 1 && index % 3 === 1) {
@@ -337,9 +354,10 @@ export async function createDistrictPresentation(_course?: CourseSpec, signal?: 
         building.position.z - Math.sin(building.yaw) * x + Math.cos(building.yaw) * z, .55]);
     }
   }
-  const gardenGround = new BufferGeometry(), gardenVertices: number[] = [], gardenColors: number[] = [];
+  const gardenGround = ownership.own(new BufferGeometry()), gardenVertices: number[] = [], gardenColors: number[] = [];
   const gardenRandom = randomSequence(104749);
   for (const [index, garden] of DISTRICT_GARDENS.entries()) {
+    yield 'market.garden';
     const radius = (angle: number) => 1 + Math.sin(angle * 3 + index) * .09 + Math.cos(angle * 5 - index) * .05;
     for (let sector = 0; sector < 18; sector++) {
       const a = sector / 18 * Math.PI * 2, b = (sector + 1) / 18 * Math.PI * 2;
@@ -366,19 +384,20 @@ export async function createDistrictPresentation(_course?: CourseSpec, signal?: 
   for (const name of new Set(pockets.map(pocket => pocket[0]))) {
     const source = ecology.get(name)!;
     const items = pockets.filter(pocket => pocket[0] === name);
-    const mesh = new InstancedMesh(source.geometry, new MeshStandardMaterial({vertexColors:true, roughness:.97}), items.length);
+    const mesh = ownership.own(new InstancedMesh(source.geometry, ownership.own(new MeshStandardMaterial({vertexColors:true, roughness:.97})), items.length));
     mesh.name = `district.instances.${name}`; mesh.castShadow = source.shadows; mesh.receiveShadow = true;
     const object = new Object3D();
     for (const [i, [,x,y,z,scale]] of items.entries()) {
+      if (i % 128 === 0) yield 'market.garden-transforms';
       object.position.set(x,y,z); object.scale.setScalar(scale); object.rotation.y = i * 1.7;
       object.updateMatrix(); mesh.setMatrixAt(i,object.matrix);
     }
     mesh.computeBoundingSphere(); group.add(mesh);
   }
-  for (const [name, source] of ecology) if (!pockets.some(pocket => pocket[0] === name)) source.geometry.dispose();
+  for (const [name, source] of ecology) if (!pockets.some(pocket => pocket[0] === name)) ownership.release(source.geometry);
   // The three landscape materials not retained by district paving never enter the scene.
   for (const material of [landscape.grass, landscape.path, landscape.soil, landscape.stone]) {
-    if (material !== landscape.stone) material.map?.dispose(); material.dispose();
+    if (material !== landscape.stone && material.map) ownership.release(material.map); ownership.release(material);
   }
   const surfaces = new Map<MeshStandardMaterial, {color: Color; roughness: number}>();
   group.traverse(object => {
