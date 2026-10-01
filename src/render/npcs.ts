@@ -7,6 +7,9 @@ import { NPC_DEFINITIONS } from '../simulation/npcs';
 import type { NpcState } from '../simulation/npcs';
 import type { NpcDefinition } from '../simulation/npcs';
 import type { Vec3 } from '../simulation/types';
+import { finishPreparation } from './preparation-scheduler';
+import { preparationResources } from './preparation-cache';
+import type { PreparationResources } from './preparation-cache';
 
 interface Figure {
   root: Group;
@@ -25,14 +28,18 @@ interface Figure {
  * Every retained geometry/material is in group, owned by scene disposal.
  */
 export function createNpcPresentation(definitions: readonly NpcDefinition[] = NPC_DEFINITIONS) {
+  return finishPreparation(npcPresentationJobs(definitions));
+}
+export function* npcPresentationJobs(definitions: readonly NpcDefinition[] = NPC_DEFINITIONS, scope?: PreparationResources) {
+  const ownership = preparationResources(scope);
   const group = new Group();
   group.name = 'living-slice.locals';
-  const material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
+  const material = ownership.own(new MeshStandardMaterial({ vertexColors: true, roughness: 0.92 }));
   material.name = 'local.cloth-skin-pigment';
-  const cube = new BoxGeometry(1, 1, 1);
-  const sphere = new SphereGeometry(1, 12, 8);
-  const cylinder = new CylinderGeometry(1, 1, 1, 10);
-  const torso = new CylinderGeometry(0.78, 1, 1, 10);
+  const cube = ownership.own(new BoxGeometry(1, 1, 1));
+  const sphere = ownership.own(new SphereGeometry(1, 12, 8));
+  const cylinder = ownership.own(new CylinderGeometry(1, 1, 1, 10));
+  const torso = ownership.own(new CylinderGeometry(0.78, 1, 1, 10));
   const geometries = [cube, sphere, cylinder, torso];
   const figures = new Map<string, Figure>();
   let triangles = 0;
@@ -56,7 +63,7 @@ export function createNpcPresentation(definitions: readonly NpcDefinition[] = NP
     const geometry = mergeGeometries(parts);
     parts.forEach(item => item.dispose());
     if (!geometry) throw new Error(`Could not combine NPC figure parts: ${name}`);
-    geometry.computeBoundingSphere();
+    ownership.own(geometry); geometry.computeBoundingSphere();
     triangles += (geometry.index?.count ?? geometry.getAttribute('position').count) / 3;
     const mesh = new Mesh(geometry, material);
     mesh.name = name;
@@ -108,6 +115,7 @@ export function createNpcPresentation(definitions: readonly NpcDefinition[] = NP
     );
     const body = baked(bodyParts, `${definition.id}.body`);
     root.add(body);
+    yield 'npc.body';
 
     function leg(side: number) {
       const pivot = new Group();
@@ -138,9 +146,10 @@ export function createNpcPresentation(definitions: readonly NpcDefinition[] = NP
       root, body, leftLeg: leg(-1), rightLeg: leg(1), leftArm: arm(-1), rightArm: arm(1),
       phase: index * 1.37, nextPoseTime: -Infinity,
     });
+    yield 'npc.limbs';
   }
   // Source primitives were only construction helpers; merged meshes own copies.
-  geometries.forEach(geometry => geometry.dispose());
+  geometries.forEach(geometry => ownership.release(geometry));
 
   return {
     group,

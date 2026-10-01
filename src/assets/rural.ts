@@ -1,9 +1,9 @@
 import { Box3, Group, Mesh, Vector3 } from 'three';
 import type { Material, MeshStandardMaterial, Object3D } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RURAL } from '../simulation/rural-layout';
-import { enrichRuralHero } from '../render/hero-materials';
-import { loadAbortableGlb } from './abortable-glb';
+import { preparedGlbScene } from './abortable-glb';
+import type { PreparationScheduler } from '../render/preparation-scheduler';
+import type { PreparationResources } from '../render/preparation-cache';
 
 export function inspectRuralAsset(root: Object3D, id: string) {
   root.updateMatrixWorld(true);
@@ -33,19 +33,18 @@ export function inspectRuralAsset(root: Object3D, id: string) {
     meshes, triangles, materials: [...materials.values()] };
 }
 
-export async function loadRuralAssets(target: Group, signal?: AbortSignal) {
+export async function loadRuralAssets(target: Group, signal?: AbortSignal, scheduler?: PreparationScheduler, scope?: PreparationResources) {
   const facts = [];
   // Add each loaded scene immediately so renderer failure cleanup owns it too.
   for (const name of ['cottage', 'shed', 'bridge'] as const) {
     const url = `/assets/rural/${name}.glb`;
-    const gltf = signal ? await loadAbortableGlb(url, signal) : await new GLTFLoader().loadAsync(url);
-    target.add(gltf.scene);
-    facts.push(inspectRuralAsset(gltf.scene, name));
-    enrichRuralHero(gltf.scene);
+    const scene = await preparedGlbScene(url, `rural.${name}`, signal, scheduler, scope);
+    target.add(scene);
+    facts.push(inspectRuralAsset(scene, name));
     const p = RURAL[name];
-    gltf.scene.name = `rural.${name}`;
-    gltf.scene.position.set(p.x, p.y + (name === 'bridge' ? 0.08 : 0), p.z);
-    gltf.scene.traverse(object => {
+    scene.name = `rural.${name}`;
+    scene.position.set(p.x, p.y + (name === 'bridge' ? 0.08 : 0), p.z);
+    scene.traverse(object => {
       if (object instanceof Mesh) { object.castShadow = true; object.receiveShadow = true; }
     });
   }

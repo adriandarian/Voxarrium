@@ -1,6 +1,8 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { PLAYER } from '../simulation/types';
 import type { CourseSpec, GameState, InputFrame, Vec3 } from '../simulation/types';
+import { PreparationScheduler } from '../render/preparation-scheduler';
+import type { PreparationWorkEvent } from '../render/preparation-scheduler';
 
 export interface Physics {
   step(state: GameState, input: InputFrame, dt: number): void;
@@ -8,6 +10,9 @@ export interface Physics {
   cameraCast(origin: Vec3, target: Vec3, radius: number): number;
   loadArea(id: string, course: CourseSpec): void;
   unloadArea(id: string): void;
+  prepareArea(id: string, course: CourseSpec, signal: AbortSignal, onWork?: (event: PreparationWorkEvent) => void): Promise<{
+    activate(): void; deactivate(): void; unload(): void;
+  }>;
   streamingGates(ready: readonly string[], position: Vec3): void;
   stats(): { colliders: number; bodies: number; areas: Record<string, number>; safetyGateCount: number };
   dispose(): void;
@@ -125,6 +130,45 @@ export async function createPhysics(course: CourseSpec): Promise<Physics> {
     },
     reset,
     loadArea, unloadArea,
+    async prepareArea(id, data, signal, onWork) {
+      const colliders: RAPIER.Collider[] = [];
+      let released = false;
+      const scheduler = new PreparationScheduler(signal, { onWork });
+      function unload() {
+        if (released) return;
+        released = true; areas.delete(id);
+        if (!disposed) for (const proxy of colliders) world.removeCollider(proxy, true);
+        colliders.length = 0;
+      }
+      try {
+        // Disabled proxies cannot affect the resident player's support or camera.
+        // Mutation stays on the main thread between simulation/render callbacks.
+        for (const surface of data.surfaces ?? []) await scheduler.job('collider-terrain-create', () => {
+          if (disposed) throw new DOMException('Physics disposed', 'AbortError');
+          const proxy = world.createCollider(RAPIER.ColliderDesc.trimesh(new Float32Array(surface.vertices), new Uint32Array(surface.indices)));
+          proxy.setEnabled(false); colliders.push(proxy);
+        });
+        for (const box of data.boxes) if (box.collides) await scheduler.job('collider-box-create', () => {
+          if (disposed) throw new DOMException('Physics disposed', 'AbortError');
+          const sx = Math.sin((box.rotationX ?? 0) / 2), cx = Math.cos((box.rotationX ?? 0) / 2);
+          const sy = Math.sin((box.rotationY ?? 0) / 2), cy = Math.cos((box.rotationY ?? 0) / 2);
+          const proxy = world.createCollider(RAPIER.ColliderDesc.cuboid(box.size.x / 2, box.size.y / 2, box.size.z / 2)
+            .setTranslation(box.position.x, box.position.y, box.position.z)
+            .setRotation({ x: sx * cy, y: cx * sy, z: sx * sy, w: cx * cy }));
+          proxy.setEnabled(false); colliders.push(proxy);
+        });
+        signal.throwIfAborted();
+        return {
+          activate() {
+            if (released || disposed) throw new Error('Cannot activate released physics.');
+            for (const proxy of colliders) proxy.setEnabled(true);
+            areas.set(id, colliders); world.step();
+          },
+          deactivate() { if (!released && !disposed) for (const proxy of colliders) proxy.setEnabled(false); areas.delete(id); },
+          unload,
+        };
+      } catch (error) { unload(); throw error; }
+    },
     streamingGates(ready, position) {
       const xs: number[] = [];
       if (!ready.includes(position.x < 48 ? 'river-market' : 'rural')) xs.push(position.x < 48 ? 47.55 : 48.45);

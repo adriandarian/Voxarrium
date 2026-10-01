@@ -2,6 +2,9 @@ import { BufferGeometry, Float32BufferAttribute, Vector3 } from 'three';
 import { RURAL_TREES } from '../simulation/rural';
 import { blade, branch, combined, lobe, pigment, randomSequence } from './rural-geometry';
 import type { EcologyContext, EnvironmentPut, EnvironmentRegister } from './rural-geometry';
+import { finishPreparation } from './preparation-scheduler';
+import { preparationResources } from './preparation-cache';
+import type { PreparationResources } from './preparation-cache';
 
 const TAU = Math.PI * 2;
 const TREE_FAMILIES = ['oak', 'hornbeam', 'orchard', 'alder', 'ash', 'pine'] as const;
@@ -40,12 +43,13 @@ function curvedGrass(height: number, width: number, bend: number, color: number)
 }
 
 /** Overlapping leafy branch islands retain crown voids without knife-shaped fans. */
-function leafSpray(parts: BufferGeometry[], center: Vector3, radius: number, family: TreeFamily, random: () => number) {
+function* leafSpray(parts: BufferGeometry[], center: Vector3, radius: number, family: TreeFamily, random: () => number) {
   const colors = family === 'pine' ? [0x445d32, 0x526a36, 0x667840] :
     family === 'alder' ? [0x536b35, 0x708044, 0x808b49] :
     family === 'orchard' ? [0x526535, 0x6d7c3e, 0x858b49] : [0x4c6330, 0x627739, 0x788440];
   const spread = family === 'hornbeam' ? 0.78 : family === 'pine' ? 1.28 : family === 'ash' ? 1.17 : 1.14;
   for (let island = 0; island < 6; island++) {
+    yield 'ecology.tree.crown-island';
     const a = island * 2.399963 + random() * 0.45;
     const reach = radius * (0.20 + random() * 0.56), size = radius * (0.56 + random() * 0.32);
     const volume = lobe(0, 0, 0, size * spread,
@@ -56,6 +60,7 @@ function leafSpray(parts: BufferGeometry[], center: Vector3, radius: number, fam
       center.z + Math.sin(a) * reach); parts.push(volume);
   }
   for (let leafIndex = 0; leafIndex < 8; leafIndex++) {
+    if (leafIndex % 4 === 0) yield 'ecology.tree.leaves';
     const a = leafIndex * 2.399963 + random() * 0.4;
     const size = radius * (0.23 + random() * 0.18);
     const leaf = softLeaf(size, size * (family === 'ash' ? 0.36 : 0.62), size * 0.16, colors[leafIndex % 3]!);
@@ -65,9 +70,11 @@ function leafSpray(parts: BufferGeometry[], center: Vector3, radius: number, fam
   }
 }
 
-function treeGeometry(family: TreeFamily, variant: number) {
+function* treeGeometry(family: TreeFamily, variant: number) {
   const random = randomSequence(13031 + TREE_FAMILIES.indexOf(family) * 1777 + variant * 931);
   const parts: BufferGeometry[] = [];
+  let completed = false;
+  try {
   const bark = family === 'alder' ? 0x6d6b4e : family === 'pine' ? 0x66513b : 0x62503a;
   const fork = new Vector3(0.07, 3.13, -0.04);
   // All botanical families keep the existing central 3.1 m collision-aligned trunk.
@@ -91,15 +98,15 @@ function treeGeometry(family: TreeFamily, variant: number) {
       const elbow = new Vector3(Math.cos(a) * reach * 0.50, 3.75 + random() * 1.15, Math.sin(a) * reach * 0.5);
       const tip = new Vector3(Math.cos(a) * reach, height - 1 + random() * 1.3, Math.sin(a) * reach);
       parts.push(branch(new Vector3(fork.x, 3.25 + arm % 3 * 0.4, fork.z), elbow, 0.14, 0.085, bark)); twig(elbow, tip, 0.086);
-      if (arm % 3 !== 1) spray(elbow.clone().lerp(tip, 0.57).add(new Vector3(0, 0.38, 0)), orchard ? 0.83 : 1.04);
+      if (arm % 3 !== 1) yield* spray(elbow.clone().lerp(tip, 0.57).add(new Vector3(0, 0.38, 0)), orchard ? 0.83 : 1.04);
       for (let end = 0; end < 4; end++) {
         const angle = a + (end - 1.3) * 0.62;
         const p = tip.clone().add(new Vector3(Math.cos(angle) * (0.35 + random() * 0.65),
           (end % 2) * 0.65 - 0.15, Math.sin(angle) * (0.4 + random() * 0.45)));
-        twig(tip, p); spray(p, orchard ? 0.66 + random() * 0.27 : 0.82 + random() * 0.32);
+        twig(tip, p); yield* spray(p, orchard ? 0.66 + random() * 0.27 : 0.82 + random() * 0.32);
       }
     }
-    spray(leader.clone().add(new Vector3(0, 0.5, 0)), orchard ? 0.75 : 1.0);
+    yield* spray(leader.clone().add(new Vector3(0, 0.5, 0)), orchard ? 0.75 : 1.0);
   } else if (family === 'hornbeam') {
     // Unequal ascending forks form a serrated upright silhouette.
     for (let leader = 0; leader < 3; leader++) {
@@ -110,10 +117,10 @@ function treeGeometry(family: TreeFamily, variant: number) {
         const t = 0.28 + tier * 0.16, start = fork.clone().lerp(top, t), angle = a + tier * 2.23;
         const width = (1.45 - t * 0.85) * (0.8 + random() * 0.4);
         const tip = start.clone().add(new Vector3(Math.cos(angle) * width, 0.6, Math.sin(angle) * width));
-        twig(start, tip, 0.058); spray(tip, 0.55 + random() * 0.23);
-        spray(tip.clone().add(new Vector3(-Math.sin(angle) * 0.43, 0.35, Math.cos(angle) * 0.43)), 0.50);
+        twig(start, tip, 0.058); yield* spray(tip, 0.55 + random() * 0.23);
+        yield* spray(tip.clone().add(new Vector3(-Math.sin(angle) * 0.43, 0.35, Math.cos(angle) * 0.43)), 0.50);
       }
-      spray(top, 0.58);
+      yield* spray(top, 0.58);
     }
   } else if (family === 'alder') {
     // Three separate coppice leaders with broad horizontal leaf fans.
@@ -125,11 +132,11 @@ function treeGeometry(family: TreeFamily, variant: number) {
       for (let arm = 0; arm < 6; arm++) {
         const t = 0.40 + arm / 6 * 0.51, angle = a + arm * 2.399963, start = fork.clone().lerp(top, t);
         const tip = start.clone().add(new Vector3(Math.cos(angle) * 1.18, 0.38 + random() * 0.48, Math.sin(angle) * 1.15));
-        twig(start, tip, 0.065); spray(tip, 0.82);
-        if (arm % 2 === 0) spray(start.clone().lerp(tip, 0.48).add(new Vector3(0, 0.2, 0)), 0.73);
-        spray(tip.clone().add(new Vector3(Math.cos(angle) * 0.5, 0.2, Math.sin(angle) * 0.5)), 0.52);
+        twig(start, tip, 0.065); yield* spray(tip, 0.82);
+        if (arm % 2 === 0) yield* spray(start.clone().lerp(tip, 0.48).add(new Vector3(0, 0.2, 0)), 0.73);
+        yield* spray(tip.clone().add(new Vector3(Math.cos(angle) * 0.5, 0.2, Math.sin(angle) * 0.5)), 0.52);
       }
-      spray(top, 0.80);
+      yield* spray(top, 0.80);
     }
   } else if (family === 'ash') {
     // Swept leaders and feathered terminal twigs leave the middle open.
@@ -141,13 +148,13 @@ function treeGeometry(family: TreeFamily, variant: number) {
       for (let arm = 0; arm < 6; arm++) {
         const start = elbow.clone().lerp(top, arm / 6), a = arm * 2.399963 + leader;
         const tip = start.clone().add(new Vector3(Math.cos(a) * 1.4, 0.34, Math.sin(a) * 1.4)); twig(start, tip, 0.065);
-        if (arm % 3 !== 1) spray(start.clone().lerp(tip, 0.45).add(new Vector3(0, 0.35, 0)), 0.90);
+        if (arm % 3 !== 1) yield* spray(start.clone().lerp(tip, 0.45).add(new Vector3(0, 0.35, 0)), 0.90);
         for (let end = 0; end < 3; end++) {
           const p = tip.clone().add(new Vector3(Math.cos(a + end * 0.7) * 0.62, end * 0.15, Math.sin(a + end * 0.7) * 0.62));
-          twig(tip, p, 0.033); spray(p, 0.74 + random() * 0.23);
+          twig(tip, p, 0.033); yield* spray(p, 0.74 + random() * 0.23);
         }
       }
-      spray(top, 0.8);
+      yield* spray(top, 0.8);
     }
   } else {
     // Uneven pine shelves with exposed undersides, rather than a cone or blob.
@@ -159,15 +166,16 @@ function treeGeometry(family: TreeFamily, variant: number) {
         const a = arm * 1.67 + tier * 0.92 + variant * 0.73;
         const tip = hub.clone().add(new Vector3(Math.cos(a) * width, 0.13 + random() * 0.22, Math.sin(a) * width));
         twig(hub, tip, 0.087 - tier * 0.011);
-        if (arm % 2 === 0) spray(hub.clone().lerp(tip, 0.50).add(new Vector3(0, 0.14, 0)), 0.68 - tier * 0.025);
+        if (arm % 2 === 0) yield* spray(hub.clone().lerp(tip, 0.50).add(new Vector3(0, 0.14, 0)), 0.68 - tier * 0.025);
         for (let end = 0; end < 3; end++) {
-          spray(tip.clone().add(new Vector3(Math.cos(a + end * 0.62) * 0.54, 0.18, Math.sin(a + end * 0.62) * 0.54)), 0.67 - tier * 0.042);
+          yield* spray(tip.clone().add(new Vector3(Math.cos(a + end * 0.62) * 0.54, 0.18, Math.sin(a + end * 0.62) * 0.54)), 0.67 - tier * 0.042);
         }
       }
     }
-    spray(top, 0.64);
+    yield* spray(top, 0.64);
   }
-  return combined(parts);
+  const result = combined(parts); completed = true; return result;
+  } finally { if (!completed) for (const part of parts) part.dispose(); }
 }
 
 type ShrubKind = 'spreading' | 'wiry' | 'upright';
@@ -300,14 +308,27 @@ function plantGeometry(kind: 'short' | 'tall' | 'reed' | 'wheat' | 'white' | 'ye
   return combined(parts);
 }
 
-export function registerEcology(register: EnvironmentRegister) {
-  for (const family of TREE_FAMILIES) for (let variant = 0; variant < 2; variant++) register(`tree-${family}-${variant}`, treeGeometry(family, variant), true);
-  for (const kind of ['short', 'tall', 'reed', 'wheat', 'white', 'yellow', 'weed', 'dry'] as const) register(kind, plantGeometry(kind), kind === 'wheat');
-  register('shrub', shrubGeometry('spreading'), true); register('shrub-spreading', shrubGeometry('spreading', 1), true);
-  register('shrub-wiry', shrubGeometry('wiry'), true); register('shrub-upright', shrubGeometry('upright'), true);
-  register('fern', fernGeometry()); register('ecology-groundcover', groundcoverGeometry(false)); register('ecology-clover', groundcoverGeometry(true));
-  register('ecology-earth', earthVeneer(0x787044, 619)); register('ecology-duff', earthVeneer(0x6a6540, 137)); register('ecology-moss', earthVeneer(0x627637, 193));
-  register('ecology-stone', lobe(0, 0.026, 0, 0.20, 0.11, 0.13, 0x8a876b, 0)); register('ecology-debris', debrisGeometry());
+export function registerEcology(register: EnvironmentRegister) { finishPreparation(ecologyRegistrationJobs(register)); }
+export function* ecologyRegistrationJobs(register: EnvironmentRegister, scope?: PreparationResources) {
+  const ownership = preparationResources(scope);
+  function* add(name: string, make: () => BufferGeometry | Generator<string, BufferGeometry, unknown>, shadows = false) {
+    let geometry = ownership.cache?.get<BufferGeometry>(`ecology.geometry.${name}`);
+    if (!geometry) {
+      const built = make(); geometry = built instanceof BufferGeometry ? built : yield* built;
+      ownership.cache?.retain(`ecology.geometry.${name}`, geometry, [geometry]);
+    }
+    register(name, ownership.own(geometry), shadows);
+    yield `ecology.register.${name}`;
+  }
+  for (const family of TREE_FAMILIES) for (let variant = 0; variant < 2; variant++)
+    yield* add(`tree-${family}-${variant}`, () => treeGeometry(family, variant), true);
+  for (const kind of ['short', 'tall', 'reed', 'wheat', 'white', 'yellow', 'weed', 'dry'] as const)
+    yield* add(kind, () => plantGeometry(kind), kind === 'wheat');
+  yield* add('shrub', () => shrubGeometry('spreading'), true); yield* add('shrub-spreading', () => shrubGeometry('spreading', 1), true);
+  yield* add('shrub-wiry', () => shrubGeometry('wiry'), true); yield* add('shrub-upright', () => shrubGeometry('upright'), true);
+  yield* add('fern', fernGeometry); yield* add('ecology-groundcover', () => groundcoverGeometry(false)); yield* add('ecology-clover', () => groundcoverGeometry(true));
+  yield* add('ecology-earth', () => earthVeneer(0x787044, 619)); yield* add('ecology-duff', () => earthVeneer(0x6a6540, 137)); yield* add('ecology-moss', () => earthVeneer(0x627637, 193));
+  yield* add('ecology-stone', () => lobe(0, 0.026, 0, 0.20, 0.11, 0.13, 0x8a876b, 0)); yield* add('ecology-debris', debrisGeometry);
 }
 
 export function placeTrees(put: EnvironmentPut) {
@@ -321,7 +342,8 @@ export function placeTrees(put: EnvironmentPut) {
 
 type Community = 'meadow' | 'woodland' | 'dry' | 'ledge';
 type Patch = [number, number, number, number, Community];
-export function addGroundEcology({ random, groundHeight, pathDistance, reserved, put }: EcologyContext) {
+export function addGroundEcology(context: EcologyContext) { finishPreparation(groundEcologyJobs(context)); }
+export function* groundEcologyJobs({ random, groundHeight, pathDistance, reserved, put }: EcologyContext) {
   const veneerFits = (x: number, y: number, z: number, scale: number) =>
     !reserved(x, z, y, scale * 1.15) &&
     [[-1.1, 0], [1.1, 0], [0, -0.65], [0, 0.65]].every(([dx, dz]) =>
@@ -347,6 +369,7 @@ export function addGroundEcology({ random, groundHeight, pathDistance, reserved,
   // Cluster centres define low-frequency growth; small plants share their local community.
   for (const [patchIndex, [cx, cz, rx, rz, community]] of patches.entries()) {
     for (let cluster = 0; cluster < (community === 'ledge' ? 14 : 20); cluster++) {
+      yield 'ecology.ground-cluster';
       const a = random() * TAU, r = Math.sqrt(random()), px = cx + Math.cos(a) * r * rx, pz = cz + Math.sin(a) * r * rz;
       const py = groundHeight(px, pz), spread = 0.8 + random() * 1.35;
       if (reserved(px, pz, py, spread * 0.45)) continue;
@@ -387,6 +410,7 @@ export function addGroundEcology({ random, groundHeight, pathDistance, reserved,
     [-24, 31], [-16, 40], [21, 36], [32, 31], [-5, 41], [31, 42],
   ];
   for (const [pocketIndex, [cx, cz]] of shrubPockets.entries()) {
+    yield 'ecology.shrub-pocket';
     const cy = groundHeight(cx!, cz!);
     for (let shrub = 0; shrub < 5; shrub++) {
       const a = shrub * 2.399963 + pocketIndex, r = shrub === 0 ? 0 : 0.85 + random() * 0.85;
@@ -400,6 +424,7 @@ export function addGroundEcology({ random, groundHeight, pathDistance, reserved,
   }
   // Earth, low shade plants and restrained fallen twigs specifically nest at tree roots.
   for (const [treeIndex, [tx, ty, tz, treeScale]] of RURAL_TREES.entries()) for (let pocket = 0; pocket < 5; pocket++) {
+    yield 'ecology.tree-ground';
     const a = pocket * 2.399963 + treeIndex, radius = (0.8 + random() * 1.2) * treeScale;
     const x = tx + Math.cos(a) * radius, z = tz + Math.sin(a) * radius, y = groundHeight(x, z);
     if (Math.abs(y - ty) > 0.1 || reserved(x, z, y, 0.75)) continue;

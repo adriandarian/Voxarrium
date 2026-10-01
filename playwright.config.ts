@@ -16,7 +16,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'simulation', testMatch: /(?:simulation|clock|renderer|rural|rural-assets|environment|npcs|living|district|district-assets|district-npcs|tail|streaming|residency)\.spec\.ts/ },
+    { name: 'simulation', testMatch: /(?:simulation|clock|renderer|rural|rural-assets|environment|npcs|living|district|district-assets|district-npcs|tail|streaming|residency|preparation)\.spec\.ts/ },
     { name: 'browser', testMatch: '**/browser.spec.ts', use: {
       channel: process.env.VOXARRIUM_BROWSER ?? 'chrome',
       headless: process.env.VOXARRIUM_HEADED !== '1',

@@ -1,5 +1,17 @@
 # Visual review log
 
+## 2026-09-30 — M5.1 streaming latency regression review, owner decision pending
+
+Scope: local uncommitted `milestone/m5-1-streaming-latency`, base `640e67a` (merged M5 #12), default `m5-streaming-proof`, seed 104729. The milestone changes preparation and resource lifetime in the same rural slice, River Market and eastern workshop shell. No geometry, layout, density, material palette, source reference or shipped GLB was replaced to improve timings. The four source-image hashes and five shipped-asset checksums pass.
+
+Actually captured and opened: rural `artifacts/m5-1/rural-regression/eagle-eye-day.png`, `third-person-day.png` and `first-person-day.png`; market `artifacts/m5-1/market-regression/eagle-eye.png`, `third-person-alley.png` and `first-person-doorway.png`; shell `artifacts/m5-1/browser/shell-eagle-eye.png`, `shell-third-person.png` and `shell-first-person.png`. The headed browser regression suite produced these after the final runtime changes. Rural eagle-eye is 900x1200, market eagle-eye 1600x1100, gameplay/shell 1440x900, all DPR1. Rural and market views are clear/day; shell is rain/dusk at approximately (206.02,4.01,-10). Capture-state JSON files retain exact camera/environment state. These fixed/manual-step captures show art and geometry; separate actual-input stress reports measure timing. No video or physical presentation timing is claimed.
+
+Observed rural views retain the terracotta cottage, teal shed, garden, wheat terrace, irregular bank, bridge, vegetation and dimensional openings. Market views retain complete sides/roofs, varied facade details, paved service lanes and canal/bridge layout. Shell views retain the same three solid workshop masses and grounded player. No new visual defect was observed in these nine views; this is a qualitative regression inspection, not a pixel-identical proof or owner art approval.
+
+The three largest existing limitations remain visible: repeated foliage/carpentry/figure units at gameplay distance; the market's parallel rows and broad quay shelves compared with the master's layered vertical density; and the shell's blank walls/flat ground with exposed finite residency edges. The diagnostic player remains a capsule. M5.1 preserves these accepted inputs rather than extending their content. Long-distance pop-in, subjective art/audio/feel, lower-end hardware and city-scale capability remain outside the measured gate.
+
+**Decision: art regression evidence recorded for the M5.1 owner review gate. Technical completion and timing evidence are recorded in STATUS.md; no M6 or full-city generation is authorized.**
+
 ## 2026-09-30 — M5 bounded streaming review, owner decision pending
 
 Scope: local uncommitted `milestone/m5-streaming-proof`, base `ab6b657125a9ba77fb2e6884b495fee8f5e71a46`; default `m5-streaming-proof`, seed 104729. Existing rural/River Market art is preserved. Exactly one eastern transition shell adds three workshop masses, without new gameplay or locals. Source references and shipped asset hashes pass verification. The original city master was opened as art direction, not traced geometry or an image-similarity target.

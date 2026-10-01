@@ -6,9 +6,12 @@ import {
 import { RURAL } from '../simulation/rural-layout';
 import { RURAL_FENCES } from '../simulation/rural';
 import type { CourseSpec } from '../simulation/types';
-import { applyLandscapeUV, createLandscapeMaterials } from './landscape-materials';
+import { applyLandscapeUV, createLandscapeMaterials, landscapeMaterialJobs } from './landscape-materials';
 import { blade, combined, lobe, pigment, randomSequence } from './rural-geometry';
-import { addGroundEcology, placeTrees, registerEcology } from './rural-ecology';
+import { groundEcologyJobs, placeTrees, ecologyRegistrationJobs } from './rural-ecology';
+import { finishPreparation } from './preparation-scheduler';
+import { preparationResources } from './preparation-cache';
+import type { PreparationResources } from './preparation-cache';
 
 type PathPoint = readonly [number, number];
 type Lane = { points: PathPoint[]; width: number; y: number; name: string };
@@ -103,17 +106,21 @@ function pathMesh(points: readonly PathPoint[], width: number, y: number, materi
 
 /** Stage one: composition massing. Detailed ecology is deliberately gated by review. */
 export function createRuralEnvironment(course: CourseSpec, blockout: boolean) {
-  const group = new Group();
+  return finishPreparation(ruralEnvironmentJobs(course, blockout));
+}
+export function* ruralEnvironmentJobs(course: CourseSpec, blockout: boolean, scope?: PreparationResources, target?: Group) {
+  const ownership = preparationResources(scope);
+  const group = target ?? new Group();
   group.name = 'rural.environment';
   const palette = RURAL.palette;
-  const material = (color: number) => new MeshStandardMaterial({ color, roughness: 0.95 });
-  const landscape = createLandscapeMaterials();
+  const material = (color: number) => ownership.own(new MeshStandardMaterial({ color, roughness: 0.95 }));
+  const landscape = yield* landscapeMaterialJobs(scope);
   const path = landscape.path;
   path.vertexColors = true;
   path.polygonOffset = true;
   path.polygonOffsetFactor = -1;
   path.polygonOffsetUnits = -2;
-  const cube = new BoxGeometry(1, 1, 1);
+  const cube = ownership.own(new BoxGeometry(1, 1, 1));
   const addBox = (name: string, x: number, y: number, z: number, sx: number, sy: number, sz: number, color: number) => {
     const mesh = new Mesh(cube, material(color));
     mesh.name = name;
@@ -124,10 +131,10 @@ export function createRuralEnvironment(course: CourseSpec, blockout: boolean) {
     group.add(mesh);
     return mesh;
   };
-  for (const lane of LANES) group.add(pathMesh(lane.points, lane.width, lane.y, path, `path.${lane.name}`));
+  for (const lane of LANES) { group.add(pathMesh(lane.points, lane.width, lane.y, path, `path.${lane.name}`)); yield 'rural.path'; }
   for (let bed = 0; bed < 4; bed++) {
     const mesh = addBox(`garden.bed.${bed}`, 10, 4.06, -5 + bed * 1.7, 6.8, 0.12, 1.15, palette.soil);
-    mesh.material = landscape.soil;
+    ownership.release(mesh.material as MeshStandardMaterial); mesh.material = landscape.soil;
   }
 
   if (blockout) {
@@ -166,7 +173,7 @@ export function createRuralEnvironment(course: CourseSpec, blockout: boolean) {
     }
     return { group, update(_elapsed: number) { /* Static composition evidence. */ } };
   }
-  return addDetailedEnvironment(group, course, landscape);
+  return yield* detailedEnvironmentJobs(group, course, landscape, scope);
 }
 
 function fracturedRockGeometry(variant: number) {
@@ -234,7 +241,8 @@ function groundPatch(color: number) {
 type Placement = { x: number; y: number; z: number; sx: number; sy: number; sz: number; yaw: number; tint: number };
 type Batch = { geometry: BufferGeometry; positions: Placement[]; shadows: boolean };
 
-function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: ReturnType<typeof createLandscapeMaterials>) {
+function* detailedEnvironmentJobs(group: Group, course: CourseSpec, landscape: ReturnType<typeof createLandscapeMaterials>, scope?: PreparationResources) {
+  const ownership = preparationResources(scope);
   const random = randomSequence(RURAL.seed);
   const surfaces = course.surfaces ?? [];
   const ground = surfaces.filter(surface => surface.id.endsWith('.top'));
@@ -275,11 +283,11 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
     return occupied(x, z, y, extra) || pathDistance(x, z, y) < extra;
   }
   const library = new Map<string, Batch>();
-  function register(name: string, geometry: BufferGeometry, shadows = false) { library.set(name, { geometry, shadows, positions: [] }); }
+  function register(name: string, geometry: BufferGeometry, shadows = false) { library.set(name, { geometry: ownership.own(geometry), shadows, positions: [] }); }
   function put(name: string, x: number, y: number, z: number, sx = 1, sy = sx, sz = sx, yaw = random() * Math.PI * 2, tint = 0.91 + random() * 0.18) {
     library.get(name)!.positions.push({ x, y, z, sx, sy, sz, yaw, tint });
   }
-  registerEcology(register);
+  yield* ecologyRegistrationJobs(register, scope);
   register('rock', lobe(0, 0, 0, 1, 0.8, 0.75, 0x7d7c61), true);
   register('fracture-0', fracturedRockGeometry(0), true);
   register('fracture-1', fracturedRockGeometry(1), true);
@@ -300,6 +308,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
   register('wood', pigment(new BoxGeometry(1, 1, 1), 0x715437, 0.15), true);
   register('edging', pigment(new BoxGeometry(1, 1, 1), 0x76684b, 0.13), true);
 
+  yield 'rural.library';
   placeTrees(put);
 
   // Rows are purposeful agriculture; the heads and stalks vary within each row.
@@ -322,16 +331,18 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
     polygon = clip(polygon, 1, RURAL.wheat.z - 5.5, true); polygon = clip(polygon, 1, RURAL.wheat.z + 5.5, false);
     for (let j = 1; j < polygon.length - 1; j++) for (const p of [polygon[0]!, polygon[j]!, polygon[j + 1]!]) fieldVertices.push(p[0], 7.42, p[1]);
   }
-  const fieldGeometry = new BufferGeometry(); fieldGeometry.setAttribute('position', new Float32BufferAttribute(fieldVertices, 3)); fieldGeometry.computeVertexNormals(); applyLandscapeUV(fieldGeometry, 'ground');
+  const fieldGeometry = ownership.own(new BufferGeometry()); fieldGeometry.setAttribute('position', new Float32BufferAttribute(fieldVertices, 3)); fieldGeometry.computeVertexNormals(); applyLandscapeUV(fieldGeometry, 'ground');
   const field = new Mesh(fieldGeometry, landscape.soil);
   field.name = 'crop.tilled-earth'; field.receiveShadow = true; group.add(field);
   for (let row = 0; row < 30; row++) for (let plant = 0; plant < 52; plant++) {
+    if (plant % 16 === 0) yield 'rural.wheat-row';
     const x = RURAL.wheat.x - 8.65 + plant * 0.337 + (random() - 0.5) * 0.15;
     const z = RURAL.wheat.z - 5.10 + row * 0.35 + (random() - 0.5) * 0.12;
     if (groundHeight(x, z) > 7.3) put('wheat', x, 7.44, z, 0.88 + random() * 0.27, 0.8 + random() * 0.4, 0.9 + random() * 0.24);
   }
 
   for (const fence of RURAL_FENCES) {
+    yield 'rural.fence';
     const dx = fence.b[0] - fence.a[0], dz = fence.b[1] - fence.a[1];
     const length = Math.hypot(dx, dz), yaw = Math.atan2(dx, dz);
     const panels = Math.ceil(length / 1.65);
@@ -363,13 +374,14 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
   const lanternGlass = new Mesh(new BoxGeometry(0.34, 0.30, 0.34), new MeshStandardMaterial({ color: 0xc0a561, roughness: 0.45 }));
   lanternGlass.name = 'garden.lantern.inferred'; lanternGlass.position.set(15.35, 5.4, -3.8); group.add(lanternGlass);
 
-  addGroundEcology({ random, groundHeight, pathDistance, reserved, put });
+  yield* groundEcologyJobs({ random, groundHeight, pathDistance, reserved, put });
 
   // Verge growth follows long unequal patches; isolated inset pebbles stay flush with the soil.
   for (const lane of laneSamples) {
     const phase = lane.points[0]![0] * 0.61 + lane.points[0]![1] * 0.27;
     let distance = 0;
     for (let i = 1; i < lane.samples.length - 1; i++) {
+      if (i % 8 === 0) yield 'rural.verge';
       const p = lane.samples[i]!, before = lane.samples[i - 1]!, after = lane.samples[i + 1]!;
       distance += Math.hypot(p[0] - before[0], p[1] - before[1]);
       if (random() < 0.42) continue;
@@ -411,6 +423,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
     const base = run === 'main' ? 0 : 4;
     const supportVertices: number[] = [], supportIndices: number[] = [];
     for (const step of steps) {
+      yield 'rural.stair';
       const top = step.position.y + step.size.y / 2;
       const height = run === 'main' ? 0.205 : 0.208;
       const widths = [step.size.x * (0.26 + random() * 0.10), step.size.x * (0.30 + random() * 0.09)];
@@ -446,7 +459,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
         }
       }
     }
-    const supportGeometry = new BufferGeometry();
+    const supportGeometry = ownership.own(new BufferGeometry());
     supportGeometry.setAttribute('position', new Float32BufferAttribute(supportVertices, 3)); supportGeometry.setIndex(supportIndices); supportGeometry.computeVertexNormals(); applyLandscapeUV(supportGeometry, 'cliff');
     const support = new Mesh(supportGeometry, landscape.stone); support.name = `stairs.${run}.aged-side-core`; support.castShadow = true; support.receiveShadow = true; group.add(support);
     for (const step of [steps[0]!, steps.at(-1)!]) for (const sign of [-1, 1]) {
@@ -467,6 +480,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
   // Soil hangs beneath the real grass edge, then breaks into asymmetrical bedrock and lower scree.
   for (const surface of surfaces.filter(item => item.id.endsWith('.cliff'))) {
     for (let edge = 0; edge < surface.vertices.length; edge += 12) {
+      yield 'rural.cliff-edge';
       const ax = surface.vertices[edge]!, top = surface.vertices[edge + 1]!, az = surface.vertices[edge + 2]!;
       const bx = surface.vertices[edge + 3]!, bz = surface.vertices[edge + 5]!, bottom = surface.vertices[edge + 7]!;
       const length = Math.hypot(bx - ax, bz - az);
@@ -501,6 +515,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
       }
       let stride = 1.8;
       for (let distance = 0.4; distance < length; distance += stride) {
+        yield 'rural.cliff-layer';
         stride = 1.7 + random() * 1.7;
         const t = distance / length, x = ax + (bx - ax) * t, z = az + (bz - az) * t;
         const outsideHeight = groundHeight(x + nx * 0.7, z + nz * 0.7);
@@ -597,7 +612,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
     }
   }
 
-  const soilLipGeometry = new BufferGeometry();
+  const soilLipGeometry = ownership.own(new BufferGeometry());
   soilLipGeometry.setAttribute('position', new Float32BufferAttribute(soilLipVertices, 3)); soilLipGeometry.setAttribute('color', new Float32BufferAttribute(soilLipColors, 3)); soilLipGeometry.setIndex(soilLipIndices); soilLipGeometry.computeVertexNormals(); applyLandscapeUV(soilLipGeometry, 'cliff');
   const soilLipMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 1 }); soilLipMaterial.name = 'landscape.layered-soil-lip';
   const soilLips = new Mesh(soilLipGeometry, soilLipMaterial); soilLips.name = 'terrain.layered-soil-lips'; soilLips.receiveShadow = true; group.add(soilLips);
@@ -607,6 +622,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
   const shoreHeight = (offset: number) => offset < 0 ? 0 : offset < 0.55 ? -0.04 - offset / 0.55 * 0.36 : -0.40 - (offset - 0.55) / 0.95 * 1.12;
   const bankBands = [-0.14, 0.08, 0.30, 0.55, 0.85, 1.13, 1.52];
   for (const shore of shores) for (let edge = 0; edge < shore.vertices.length; edge += 3) {
+    yield 'rural.shore-edge';
     const next = (edge + 3) % shore.vertices.length;
     const ax = shore.vertices[edge]!, az = shore.vertices[edge + 2]!, bx = shore.vertices[next]!, bz = shore.vertices[next + 2]!;
     if (Math.abs(ax) > 47.9 && Math.abs(bx) > 47.9 || az < 0 || bz < 0 || az > 30 || bz > 30) continue;
@@ -635,6 +651,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
     }
     const sections = Math.ceil(length / 0.8);
     for (let section = 0; section <= sections; section++) {
+      if (section % 16 === 0) yield 'rural.bank-wash';
       const d = section / sections * length, x = ax + (bx - ax) * d / length, z = az + (bz - az) * d / length;
       for (const [band, basis] of bankBands.entries()) {
         const variation = Math.sin(x * 0.63 + z * 0.46 + band * 1.37) * (band === 0 ? 0.095 : band === 3 ? 0 : 0.055);
@@ -677,7 +694,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
       }
     }
   }
-  const bankGeometry = new BufferGeometry();
+  const bankGeometry = ownership.own(new BufferGeometry());
   bankGeometry.setAttribute('position', new Float32BufferAttribute(bankVertices, 3)); bankGeometry.setAttribute('color', new Float32BufferAttribute(bankColors, 3)); bankGeometry.setIndex(bankIndices); bankGeometry.computeVertexNormals();
   const banks = new Mesh(bankGeometry, new MeshStandardMaterial({ vertexColors: true, roughness: 1 })); banks.name = 'water.irregular-wet-bank-washes'; banks.receiveShadow = true; group.add(banks);
 
@@ -692,7 +709,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
     }
   }
 
-  const colored = new MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.96 });
+  const colored = ownership.own(new MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.96 }));
   colored.name = 'rural.library.vertex-pigment';
   const transform = new Object3D();
   const instances: Record<string, number> = {};
@@ -703,16 +720,18 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
       const uv = batch.geometry.getAttribute('uv');
       for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 7, uv.getY(i) * 7);
     }
-    const mesh = new InstancedMesh(batch.geometry, isStone ? landscape.stone : colored, batch.positions.length);
+    const mesh = ownership.own(new InstancedMesh(batch.geometry, isStone ? landscape.stone : colored, batch.positions.length));
     mesh.name = `rural.instances.${name}`; mesh.castShadow = batch.shadows; mesh.receiveShadow = true;
     for (const [i, p] of batch.positions.entries()) {
+      if (i % 128 === 0) yield 'rural.instance-transforms';
       transform.position.set(p.x, p.y, p.z); transform.rotation.set(0, p.yaw, 0); transform.scale.set(p.sx, p.sy, p.sz); transform.updateMatrix();
       mesh.setMatrixAt(i, transform.matrix); mesh.setColorAt(i, new Color(p.tint, p.tint, p.tint));
     }
     mesh.computeBoundingSphere(); group.add(mesh); instances[name] = batch.positions.length;
+    yield 'rural.instance-bounds';
   }
 
-  const waterGeometry = new PlaneGeometry(96, 29, 96, 29);
+  const waterGeometry = ownership.own(new PlaneGeometry(96, 29, 96, 29));
   waterGeometry.rotateX(-Math.PI / 2); waterGeometry.translate(0, -1.16, 18.5);
   const waterPositions = waterGeometry.getAttribute('position');
   const waterColors: number[] = [];
@@ -729,6 +748,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
     return nearest;
   }
   for (let i = 0; i < waterPositions.count; i++) {
+    if (i % 128 === 0) yield 'rural.water-pigment';
     const z = waterPositions.getZ(i), x = waterPositions.getX(i);
     const edgeDepth = bankDistance(x, z) + Math.sin(x * 0.53 + z * 0.74) * 0.22 + Math.sin(x * 0.22 - z * 1.7) * 0.15;
     const mix = Math.max(0, Math.min(1, (edgeDepth - 0.6) / 3.9));
@@ -739,7 +759,7 @@ function addDetailedEnvironment(group: Group, course: CourseSpec, landscape: Ret
   waterGeometry.setAttribute('color', new Float32BufferAttribute(waterColors, 3));
   const water = new Mesh(waterGeometry, new MeshStandardMaterial({ vertexColors: true, roughness: 0.29, metalness: 0.08 }));
   water.name = 'water.turquoise-current'; water.receiveShadow = true; group.add(water);
-  const crestGeometry = new BufferGeometry();
+  const crestGeometry = ownership.own(new BufferGeometry());
   crestGeometry.setAttribute('position', new Float32BufferAttribute([-0.6, 0, 0, -0.15, 0, -0.068, 0.5, 0, -0.025, 0.6, 0, 0, 0.1, 0, 0.056, -0.4, 0, 0.036], 3));
   crestGeometry.setIndex([0, 2, 1, 0, 3, 2, 0, 4, 3, 0, 5, 4]); crestGeometry.computeVertexNormals();
   const crests = new InstancedMesh(crestGeometry, new MeshStandardMaterial({ color: 0x46978f, roughness: 0.45 }), 240);

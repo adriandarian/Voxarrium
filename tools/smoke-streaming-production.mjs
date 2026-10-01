@@ -2,7 +2,7 @@ import { chromium } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 
-const directory='artifacts/m5/production';
+const directory=process.env.VOXARRIUM_PRODUCTION_CAPTURE_DIR ?? 'artifacts/m5-1/production';
 mkdirSync(directory,{recursive:true});
 const browser=await chromium.launch({channel:process.env.VOXARRIUM_BROWSER ?? 'chrome',headless:false});
 const page=await browser.newPage({viewport:{width:1440,height:900},deviceScaleFactor:1});
