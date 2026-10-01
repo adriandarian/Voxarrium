@@ -23,6 +23,9 @@ import { createAreaPresentation, throwIfAborted } from './streaming-areas';
 import type { WorldArea } from '../simulation/streaming-contracts';
 import { PreparationScheduler } from './preparation-scheduler';
 import { PreparationCache } from './preparation-cache';
+import { createCityPresentation } from './city-blueprint';
+import type { CityDebugLayer } from './city-blueprint';
+import type { CityBlueprint } from '../simulation/city-contracts';
 
 // Runtime backends expose these fields in the installed Three.js r186 source;
 // @types/three deliberately omits device/gl internals. Read only for diagnostics.
@@ -131,8 +134,9 @@ function disposeScene(scene: Scene) {
   scene.clear();
 }
 
-export async function createGameRenderer(canvas: HTMLCanvasElement, course: CourseSpec, forceWebGL: boolean, blockout = false) {
-  const streaming = course.id === 'm5-streaming-proof';
+export async function createGameRenderer(canvas: HTMLCanvasElement, course: CourseSpec, forceWebGL: boolean, blockout = false,
+  city?: { blueprint: CityBlueprint; acceptedCourses: CourseSpec[] }) {
+  const streaming = course.id === 'm5-streaming-proof' || !!city;
   const district = course.id === 'm4-market-district' || streaming;
   const rural = course.id === 'm2-rural-96m' || district;
   const renderer = new WebGPURenderer({ canvas, antialias: true, alpha: false, forceWebGL, powerPreference: 'high-performance' });
@@ -172,6 +176,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
   let primaryStartupError: string | null = null;
   let rendererInitialized = false;
   let livingEnvironment: ReturnType<typeof createEnvironmentPresentation> | null = null;
+  let cityPresentation: ReturnType<typeof createCityPresentation> | null = null;
   const resourceReferences = new ResourceReferences();
   const assetReferences = new AssetReferences();
   const preparationCache = new PreparationCache(resourceReferences);
@@ -229,6 +234,10 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       sun.shadow.camera.left = -110; sun.shadow.camera.right = 110;
       sun.shadow.camera.top = 90; sun.shadow.camera.bottom = -90;
       sun.shadow.camera.far = 300;
+    }
+    if (city) {
+      cityPresentation = createCityPresentation(city.blueprint, city.acceptedCourses);
+      scene.add(cityPresentation.group);
     }
 
     const boxGeometry = new BoxGeometry(1, 1, 1);
@@ -355,6 +364,18 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
         locals?.update(state.population, state.environment.time, state.player.position, reduced);
         districtPresentation?.updateEnvironment(state.environment);
       }
+      if (city) {
+        const overview = state.camera.mode === 'eagle-eye';
+        const target = overview ? { x: 150, y: 20, z: -320 } : state.player.position;
+        sun.target.position.set(target.x, target.y, target.z);
+        const source = state.environment?.lighting.sunPosition ?? { x: -30, y: 65, z: 24 };
+        sun.position.set(target.x + source.x * (overview ? 12 : 1), target.y + source.y * (overview ? 12 : 1), target.z + source.z * (overview ? 12 : 1));
+        const extent = overview ? 500 : 65;
+        sun.shadow.camera.left = -extent; sun.shadow.camera.right = extent;
+        sun.shadow.camera.top = extent; sun.shadow.camera.bottom = -extent;
+        sun.shadow.camera.far = overview ? 1800 : 300; sun.shadow.camera.updateProjectionMatrix();
+        cityPresentation?.update(state, [...activeAreas]);
+      }
       for (const [id, presentation] of areaPresentations) if (activeAreas.has(id)) presentation.update(state, reduced);
       const waterTime = state.environment?.time ?? state.elapsed;
       const waterUpdate = reduced ? Math.floor(waterTime * 15) / 15 : waterTime;
@@ -384,6 +405,10 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       facts,
       render,
       resize,
+      cityDebug(layer: CityDebugLayer) {
+        if (!import.meta.env.DEV || !cityPresentation) throw new Error('City debug visualization requires the development city scene.');
+        cityPresentation.setDebug(layer);
+      },
       async prepareArea(area: WorldArea, signal: AbortSignal, camera: PerspectiveCamera, state: GameState,
         transition: ReturnType<typeof tail.beginTransition>, progress: (phase: 'preparing' | 'warming') => void) {
         if (!streaming || disposed) throw new Error('Area preparation requires the active M5 renderer.');
@@ -557,6 +582,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
           viewport: { width: canvas.clientWidth, height: canvas.clientHeight },
           dpr: renderer.getPixelRatio(),
           countScope: 'draw calls and triangles include shadow passes; visibleMeshes counts visible flags, not frustum visibility',
+          city: cityPresentation?.stats() ?? null,
           living: { environment: livingEnvironment?.stats() ?? null, population: locals?.stats() ?? null,
             activeNpcs: streaming ? [...activeAreas].reduce((sum, id) => sum + (areaPresentations.get(id)?.npcStats()?.count ?? 0), 0) : locals ? statePopulationCount : 0 },
           streamingResources: streaming ? { render: resourceReferences.snapshot(), assets: assetReferences.snapshot(),
@@ -572,6 +598,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
         areaPresentations.clear(); activeAreas.clear();
         preparationCache.dispose(); warmupTarget.dispose();
         livingEnvironment?.dispose();
+        cityPresentation?.dispose();
         disposeScene(scene);
         void renderer.dispose().catch(error => {
           facts.errors.push(`Renderer disposal failed: ${String(error)}`);
@@ -581,6 +608,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
     };
   } catch (error) {
     livingEnvironment?.dispose();
+    cityPresentation?.dispose();
     disposeScene(scene);
     const cleanupErrors: string[] = [];
     if (rendererInitialized) {

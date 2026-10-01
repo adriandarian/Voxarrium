@@ -29,7 +29,7 @@ interface Entry {
   error?: string;
 }
 export interface StreamingController {
-  update(position: Vec3, dt: number, velocity?: Vec3): void;
+  update(position: Vec3, dt: number, velocity?: Vec3, demandIds?: readonly AreaId[]): void;
   /** Startup prepares only the known first neighbor. Movement returns to the
    * normal predictive demand/cancellation/hysteresis policy. */
   preload(id: AreaId): void;
@@ -59,9 +59,23 @@ export interface StreamingController {
  */
 export function createStreamingController(areas: readonly WorldArea[], adapter: StreamingAdapter,
   options: Partial<StreamingPolicy> = {}): StreamingController {
-  if (areas.length !== 3 || new Set(areas.map(area => area.id)).size !== 3 ||
+  const cityGraph = areas.length >= 10 && areas.length <= 16 && areas.every(area => area.neighbors && area.footprint);
+  if ((!cityGraph && areas.length !== 3) || new Set(areas.map(area => area.id)).size !== areas.length ||
       !['rural', 'river-market', 'neighbor-shell'].every(id => areas.some(area => area.id === id))) {
     throw new Error('M5 requires exactly rural, river-market and neighbor-shell areas.');
+  }
+  if (cityGraph && areas.some(area => area.neighbors!.some(id => !areas.some(neighbor => neighbor.id === id && neighbor.neighbors!.includes(area.id))))) {
+    throw new Error('City streaming adjacency must reference reciprocal existing districts.');
+  }
+  if (cityGraph) {
+    const visited = new Set<AreaId>();
+    const queue = [areas[0]!.id];
+    while (queue.length) {
+      const id = queue.pop()!;
+      if (visited.has(id)) continue;
+      visited.add(id); queue.push(...areas.find(area => area.id === id)!.neighbors!);
+    }
+    if (visited.size !== areas.length) throw new Error('City streaming graph must be connected.');
   }
   const policy = { ...STREAMING_POLICY, ...options };
   if (!Object.values(policy).every(value => Number.isFinite(value) && value >= 0) ||
@@ -193,7 +207,7 @@ export function createStreamingController(areas: readonly WorldArea[], adapter: 
   const activeIds = () => entries.filter(entry => entry.state === 'active').map(entry => entry.area.id);
   // Predictive preparation still admits only two area instances/transports.
   // The third waits for the outgoing lease's normal hysteretic unload.
-  const hasSlot = () => policy.preparationLeadSeconds === 0 || entries.filter(entry => entry.handle || entry.transport).length < 2;
+  const hasSlot = () => (!cityGraph && policy.preparationLeadSeconds === 0) || entries.filter(entry => entry.handle || entry.transport).length < 2;
   return {
     preload(id) {
       const entry = entries.find(entry => entry.area.id === id);
@@ -201,21 +215,26 @@ export function createStreamingController(areas: readonly WorldArea[], adapter: 
       entry.holdWhileStationary = true; entry.demandDistance = 0;
       load(entry);
     },
-    update(position, dt, velocity = { x: 0, y: 0, z: 0 }) {
+    update(position, dt, velocity = { x: 0, y: 0, z: 0 }, demandIds) {
       if (disposed) return;
       if (![position.x, position.y, position.z, velocity.x, velocity.y, velocity.z, dt].every(Number.isFinite) || dt < 0) {
         throw new Error('Streaming update requires a finite position and nonnegative elapsed seconds.');
       }
+      // Authored city demand selects a current district and one route neighbor,
+      // adding graph departure at close forks. The same cancellation, two-lease
+      // transport bound and continuous departure timer remain authoritative.
       for (const entry of entries) {
+        const graphDeparture = !!(cityGraph && demandIds && !demandIds.includes(entry.area.id));
         entry.distance = areaDistance(entry.area, position);
-        const projected = entry.area.assetIds.length ? { x: position.x + velocity.x * policy.preparationLeadSeconds,
+        const projected = entry.area.assetIds.length || cityGraph ? { x: position.x + velocity.x * policy.preparationLeadSeconds,
           y: position.y, z: position.z + velocity.z * policy.preparationLeadSeconds } : position;
         if (Math.hypot(velocity.x, velocity.z) > .01) entry.holdWhileStationary = false;
-        entry.demandDistance = entry.holdWhileStationary ? 0 : Math.min(entry.distance, areaDistance(entry.area, projected));
-        entry.outsideSeconds = entry.distance > policy.unloadRadius && entry.demandDistance > policy.preloadRadius ? entry.outsideSeconds + dt : 0;
-        if (preparing(entry.state) && entry.distance > policy.deactivateRadius && entry.demandDistance > policy.preloadRadius) cancel(entry);
-        if (entry.state === 'active' && entry.distance > policy.deactivateRadius) deactivate(entry);
-        if (entry.outsideSeconds >= policy.unloadDelaySeconds && entry.distance > policy.unloadRadius) {
+        entry.demandDistance = demandIds && !demandIds.includes(entry.area.id) ? Infinity :
+          entry.holdWhileStationary ? 0 : Math.min(entry.distance, areaDistance(entry.area, projected));
+        entry.outsideSeconds = graphDeparture || entry.distance > policy.unloadRadius && entry.demandDistance > policy.preloadRadius ? entry.outsideSeconds + dt : 0;
+        if (preparing(entry.state) && (graphDeparture || entry.distance > policy.deactivateRadius && entry.demandDistance > policy.preloadRadius)) cancel(entry);
+        if (entry.state === 'active' && (graphDeparture || entry.distance > policy.deactivateRadius)) deactivate(entry);
+        if (entry.outsideSeconds >= policy.unloadDelaySeconds && (graphDeparture || entry.distance > policy.unloadRadius)) {
           if (entry.handle) unload(entry);
           // A failed area gets one retry only after a true departure and re-entry.
           else if (entry.state === 'failed') { entry.state = 'unloaded'; entry.outsideSeconds = 0; }

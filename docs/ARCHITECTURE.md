@@ -73,7 +73,17 @@ Physics creates disabled destination proxies in measured jobs, keeping simulatio
 
 No worker was added: the demonstrated construction work is Three.js/canvas/resource adaptation, and the resulting pure placement jobs have not established a meaningful worker benefit. No off-thread rendering, WebAudio or Rapier operations are claimed. M5.1 measurements and gate status belong in STATUS.md; historical M5 evidence is preserved in `history/M5_STATUS.md`.
 
-The following full-city infrastructure remains a proposal:
+### M6 authored city topology
+
+`simulation/city-contracts.ts` and `city-blueprint.ts` define fourteen stable districts, polygon footprints, nine terrace elevations, a continuous water endpoint graph, twenty-six roads, seventeen connections, eight landmark bodies and bounded representative block massing. `city-world.ts` anchors the accepted three courses verbatim. The city is selected with `?scene=m6`; the default M5.1 corridor remains the comparable baseline.
+
+The cheap terrain skeleton, roads, bridge handoffs/rails and landmark proxies are resident. Eleven grouped terrain trimeshes preserve the authored cutouts; a shared boundary-derived collision mesh closes terrace sides. Inclined roads have short level landings at each join; rendered and collision triangles come from the same surface data, with actual grades tested at or below 1:5. Rendered waterways remain at the accepted source datum. New district leases contain only representative masses, with no new GLBs or locals. `render/city-blueprint.ts` batches the macro presentation, closes visible terrace sides and supplies overview-only masses, capped landmarks, clipped bridge structures and development debug layers. `city-navigation.ts` shares exact river-crossing spans between visual structures and resident rail collision.
+
+City demand selects the nearest district and a connected velocity-directed neighbor. A 2 m portal clearance band temporarily retains the outgoing neighbor. The same two-instance/transport bound, preparation scheduler, abort epochs, ownership, native warmup and collision-before-visibility activation apply. At close forks, a city district excluded from current route demand deactivates and retires after a continuous 1.5 s graph departure; reversal resets the timer. M5 retains its measured 36/44/46 m runtime spatial policy unchanged. Portal guards are cached at the destination footprint inside the activation band, preventing both missing-detail entry and a ready-destination deadlock at the middle of a long bridge. Resident ground supports waiting. Graph departure changes city demand arbitration; it is not evidence that M5.1 radii alone suffice for city forks.
+
+The deterministic master and seven debug cameras use the same world coordinate system. Third/first-person retain the original player/controller, with the city camera far range extended to 2200 m and a 2 m near plane only in eagle-eye. Extra overlay controls are development-only. Full overview proxy visibility does not activate all detail leases or expand the forty-two accepted NPC identities. The proxy presentation has its own explicit teardown; detailed leases keep the proven ownership path.
+
+The following production-city infrastructure remains a proposal:
 
 Author a district graph: terrain levels, waterways, paths, bridge connections, lots, navigation and hero landmarks before filling lots. Choose future chunk granularity from measurements; M5 uses one chunk per bounded area. Preserve its cancellation, residency and safe collision-handoff guarantees when scaling.
 

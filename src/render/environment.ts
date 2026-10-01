@@ -35,7 +35,7 @@ function sample(index: number, salt: number) { return fraction(Math.sin(index * 
 /** Presentation only. The approved source positions, indices and instance matrices stay untouched. */
 export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLight, fill: HemisphereLight,
   course: CourseSpec = createRuralCourse(), districtRoofs: { min: number[]; max: number[] }[] = []) {
-  const streaming = course.id === 'm5-streaming-proof';
+  const streaming = course.id === 'm5-streaming-proof' || course.id === 'm6-city-blueprint';
   const district = course.id === 'm4-market-district' || streaming;
   const group = new Group();
   group.name = 'living.environment';

@@ -1,6 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { PLAYER } from '../simulation/types';
-import type { CourseSpec, GameState, InputFrame, Vec3 } from '../simulation/types';
+import type { BoxSpec, CourseSpec, GameState, InputFrame, Vec3 } from '../simulation/types';
 import { PreparationScheduler } from '../render/preparation-scheduler';
 import type { PreparationWorkEvent } from '../render/preparation-scheduler';
 
@@ -13,7 +13,7 @@ export interface Physics {
   prepareArea(id: string, course: CourseSpec, signal: AbortSignal, onWork?: (event: PreparationWorkEvent) => void): Promise<{
     activate(): void; deactivate(): void; unload(): void;
   }>;
-  streamingGates(ready: readonly string[], position: Vec3): void;
+  streamingGates(ready: readonly string[], position: Vec3, authoredGates?: readonly BoxSpec[]): void;
   stats(): { colliders: number; bodies: number; areas: Record<string, number>; safetyGateCount: number };
   dispose(): void;
 }
@@ -169,7 +169,14 @@ export async function createPhysics(course: CourseSpec): Promise<Physics> {
         };
       } catch (error) { unload(); throw error; }
     },
-    streamingGates(ready, position) {
+    streamingGates(ready, position, authoredGates) {
+      if (authoredGates) {
+        const key = authoredGates.map(gate => gate.id).join(',');
+        if (key === gateKey) return;
+        gateKey = key; unloadArea('safety-gates');
+        if (authoredGates.length) loadArea('safety-gates', { ...course, surfaces: [], boxes: [...authoredGates] });
+        return;
+      }
       const xs: number[] = [];
       if (!ready.includes(position.x < 48 ? 'river-market' : 'rural')) xs.push(position.x < 48 ? 47.55 : 48.45);
       if (!ready.includes(position.x < 146 ? 'neighbor-shell' : 'river-market')) xs.push(position.x < 146 ? 145.55 : 146.45);

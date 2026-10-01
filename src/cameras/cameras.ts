@@ -2,15 +2,17 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import { PLAYER } from '../simulation/types';
 import type { CameraMode, GameState, InputFrame, Vec3 } from '../simulation/types';
 import type { Physics } from '../physics/physics';
+import type { CityBlueprint } from '../simulation/city-contracts';
 
-export function createCameraRig(state: GameState, physics: Physics) {
-  const camera = new PerspectiveCamera(60, 1, 0.08, /^(m4-market-district|m5-streaming-proof)$/.test(state.sceneId) ? 400 : 220);
+export function createCameraRig(state: GameState, physics: Physics, city?: CityBlueprint) {
+  const camera = new PerspectiveCamera(60, 1, 0.08, city ? 2200 : /^(m4-market-district|m5-streaming-proof)$/.test(state.sceneId) ? 400 : 220);
   const forward = new Vector3();
   const pivot = new Vector3();
   const desired = new Vector3();
   let boomDistance = 4.2;
   let gameplayFov = 60;
   let previousMode: CameraMode | undefined;
+  let cityCamera = city?.cameras[0];
   const direction = () => forward.set(-Math.sin(state.camera.yaw) * Math.cos(state.camera.pitch),
     Math.sin(state.camera.pitch), -Math.cos(state.camera.yaw) * Math.cos(state.camera.pitch));
 
@@ -28,16 +30,26 @@ export function createCameraRig(state: GameState, physics: Physics) {
 
   return {
     camera, setMode,
+    setDebugCamera(id: string) {
+      const selected = city?.cameras.find(view => view.id === id);
+      if (!selected) throw new Error(`Unknown city camera: ${id}`);
+      cityCamera = selected; setMode('eagle-eye');
+    },
     setFov(degrees: number) { gameplayFov = Math.max(45, Math.min(90, degrees)); },
     update(dt: number, aspect: number, renderPosition: Vec3 = state.player.position) {
       const mode = state.camera.mode;
       camera.aspect = aspect;
+      camera.near = city && mode === 'eagle-eye' ? 2 : .08;
       camera.fov = mode === 'eagle-eye' ? 50 : gameplayFov;
       camera.updateProjectionMatrix();
       if (mode === 'eagle-eye') {
         // Overview stays deterministic and frames the full authored 64 m bounds.
         const fit = Math.max(1, 1.25 / aspect);
-        if (state.sceneId === 'm5-streaming-proof') {
+        if (cityCamera) {
+          camera.fov = cityCamera.fov; camera.updateProjectionMatrix();
+          camera.position.set(cityCamera.position.x, cityCamera.position.y, cityCamera.position.z);
+          camera.lookAt(cityCamera.target.x, cityCamera.target.y, cityCamera.target.z);
+        } else if (state.sceneId === 'm5-streaming-proof') {
           // The debug camera inspects the current residency, not a facade-only
           // full-city view. Gameplay position still drives streaming ownership.
           const center = renderPosition.x < 48 ? 0 : renderPosition.x < 146 ? 97 : 182;
