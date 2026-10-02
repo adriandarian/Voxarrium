@@ -4,7 +4,9 @@ A living fantasy city for **third-person exploration**, with an optional first-p
 
 ## Start here
 
-**M5 streams the rural slice, River Market and one modest eastern workshop shell.** The existing market retains 27 buildings, six archetypes, connected streets/alleys, quays, bridges and stairs. Forty-two persistent locals use nearby, loaded and unloaded tiers while weather, time and audio settings continue across boundaries. The shell tests transitions; it is not a finished new district. See `STATUS.md` for results and the M5 review gate before expansion. The resident comparison is `/?scene=m4`, the rural slice `/?scene=m2`, and the M1 course `/?scene=m1`.
+**M6 adds the walkable city macro-blueprint at [/?scene=m6](http://127.0.0.1:5173/?scene=m6).** Fourteen authored districts connect the accepted rural/market/workshop content to a 50 m citadel plateau, with a continuous river, four bridge connections, terraces and representative block masses. This is a topology and density review, with production buildings still gated. The default route retains the measured M5.1 corridor for comparison. See [CITY_BLUEPRINT.md](docs/CITY_BLUEPRINT.md) for the graph and assumptions and `STATUS.md` for actual evidence and the human-review gate.
+
+**M5 streams the rural slice, River Market and one modest eastern workshop shell.** The existing market retains 27 buildings, six archetypes, connected streets/alleys, quays, bridges and stairs. Forty-two persistent locals use nearby, loaded and unloaded tiers while weather, time and audio settings continue across boundaries. The shell tests transitions; it is not a finished new district. Historical M5/M5.1 results are preserved under `docs/history/`; the current M6 gate is in `STATUS.md`. The resident comparison is `/?scene=m4`, the rural slice `/?scene=m2`, and the M1 course `/?scene=m1`.
 
 The runtime uses TypeScript + Vite + vanilla Three.js and Rapier. Dependencies are pinned in `package.json` and `package-lock.json`. WebGPURenderer reports the backend that actually initialized; `/?backend=webgl` deliberately selects its WebGL 2 backend.
 
@@ -30,6 +32,8 @@ Node.js 22.12+ is the project minimum. Browser tests use installed Google Chrome
 Tests and capture states/screenshots live under ignored `artifacts/`. See `docs/TESTING.md` for the exact procedure and evidence limits. `doctor` records local tooling under `.local/`; it does not test gameplay. The committed calibration GLB makes normal startup independent of Blender. `npm run blender:fixture` re-exports to `.local/assets/` for pipeline work; see `docs/ASSET_PIPELINE.md` before replacing the vendored fixture.
 
 `npm run capture:m5` records the shell from eagle-eye, third-person and first-person after traversal. `npm run capture:m4` retains district views, `npm run capture:m3` rural living evidence, `npm run capture` M2, and `npm run capture:m1` M1. `npm run measure:tail` repeats the bounded M4 timing experiment; `npm run stress:streaming` runs three actual-input M5 circuits. See `docs/TESTING.md` for measurement controls and limitations. Local Blender generators remain `npm run blender:rural` and `npm run blender:district`; sources/metadata and reference hashes are preserved.
+
+`npm run capture:m6` records the canonical city overview, district/water/streaming maps, debug cameras and three paired street views after continuous traversal. In the development city scene, the pause menu also offers city review cameras and overlays; those extra controls are absent from production. With the dev server running, `node tools/stress-city.mjs` runs one bounded actual-input rural-to-central-market-and-back circuit. Its proxy timings do not predict production-city performance.
 
 ## Reference images
 

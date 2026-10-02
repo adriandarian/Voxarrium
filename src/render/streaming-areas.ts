@@ -100,7 +100,7 @@ export async function createAreaPresentation(area: WorldArea, signal: AbortSigna
       group.add(mesh); yield 'area.static-box';
     }
     })());
-    const landscape = !blockout && area.id !== 'neighbor-shell'
+    const landscape = !blockout && (area.id === 'rural' || area.id === 'river-market')
       ? await scheduler.run('area.landscape-materials', landscapeMaterialJobs(scope)) : null;
     if (landscape) for (const material of Object.values(landscape)) {
       if (material === landscape.stone || material === landscape.soil) material.vertexColors = true;

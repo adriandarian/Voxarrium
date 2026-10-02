@@ -9,6 +9,6 @@ export function createState(course: CourseSpec): GameState {
     player: { position: { ...course.spawn }, velocity: { x: 0, y: 0, z: 0 }, grounded: false, heading: 0 },
     camera: { mode: 'third-person', yaw: 0, pitch: -0.15, debugPosition: { x: 0, y: 8, z: 16 } },
     environment: course.id !== 'm1-human-scale-64m' ? createEnvironment() : null,
-    population: course.id === 'm4-market-district' || course.id === 'm5-streaming-proof' ? createPopulation(true) : course.id === 'm2-rural-96m' ? createPopulation() : [], interaction: null,
+    population: course.id === 'm4-market-district' || course.id === 'm5-streaming-proof' || course.id === 'm6-city-blueprint' ? createPopulation(true) : course.id === 'm2-rural-96m' ? createPopulation() : [], interaction: null,
   };
 }

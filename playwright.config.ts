@@ -16,7 +16,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'simulation', testMatch: /(?:simulation|clock|renderer|rural|rural-assets|environment|npcs|living|district|district-assets|district-npcs|tail|streaming|residency|preparation)\.spec\.ts/ },
+    { name: 'simulation', testMatch: /(?:simulation|clock|renderer|rural|rural-assets|environment|npcs|living|district|district-assets|district-npcs|tail|streaming|residency|preparation|city|city-render|city-streaming|city-convergence)\.spec\.ts/ },
     { name: 'browser', testMatch: '**/browser.spec.ts', use: {
       channel: process.env.VOXARRIUM_BROWSER ?? 'chrome',
       headless: process.env.VOXARRIUM_HEADED !== '1',
@@ -34,6 +34,10 @@ export default defineConfig({
       headless: process.env.VOXARRIUM_HEADED !== '1',
     } },
     { name: 'streaming-browser', testMatch: '**/streaming-browser.spec.ts', use: {
+      channel: process.env.VOXARRIUM_BROWSER ?? 'chrome',
+      headless: process.env.VOXARRIUM_HEADED !== '1',
+    } },
+    { name: 'city-browser', testMatch: '**/city-browser.spec.ts', use: {
       channel: process.env.VOXARRIUM_BROWSER ?? 'chrome',
       headless: process.env.VOXARRIUM_HEADED !== '1',
     } },

@@ -1,7 +1,7 @@
 # Start Voxarrium in Codex
 
 ## Use the current checkout
-M1 has now been implemented on `milestone/m1-human-scale-foundation`. Read `STATUS.md` first for the current review gate; do not replay the historical M0 prompt below or start M2 without owner review. For local play use `npm ci` and `npm run dev`; README.md documents controls and checks.
+Read `STATUS.md` first for the current review gate. M6 authoring is on `milestone/m6-city-blueprint`; its objective is `docs/prompts/06-city-blueprint.md`. Do not replay the historical M0 prompt below or begin production-city generation before owner review. For local play use `npm ci` and `npm run dev`; README.md documents scene selection, controls and checks.
 
 ### Historical M0 handoff
 The bootstrap and original reference PNGs have been merged into `main`. Inspect `git status` and the current branch first; preserve unrelated work and use the current setup branch (`setup/local-preflight` for M0). Do not return to the old bootstrap branch. For a fresh checkout, create the setup branch from the pulled `main`.

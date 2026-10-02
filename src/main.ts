@@ -25,6 +25,8 @@ import { areaDistance } from './simulation/streaming-contracts';
 import type { AreaId } from './simulation/streaming-contracts';
 import { createNpcResidency, stepResidentPopulation, npcTierCounts } from './simulation/npc-residency';
 import { DISTRICT_ENTRANCES } from './simulation/district';
+import { createCityWorld, cityDemand, citySafetyGates } from './simulation/city-world';
+import type { CityDebugLayer } from './render/city-blueprint';
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = element<HTMLCanvasElement>('world');
@@ -42,7 +44,8 @@ const params = new URLSearchParams(location.search);
 async function boot() {
   const rural = params.get('scene') !== 'm1';
   const district = rural && params.get('scene') !== 'm2';
-  const streamedWorld = district && params.get('scene') !== 'm4' ? createStreamingWorld() : null;
+  const cityWorld = params.get('scene') === 'm6' ? createCityWorld() : null;
+  const streamedWorld = cityWorld ?? (district && params.get('scene') !== 'm4' ? createStreamingWorld() : null);
   const course = streamedWorld?.course ?? (district ? createDistrictCourse() : rural ? createRuralCourse() : createCourse(104729));
   if (district) {
     document.querySelector('.chapter')!.textContent = 'M4 / THE RIVER MARKET';
@@ -59,6 +62,15 @@ async function boot() {
     element('menu-title').textContent = 'Across the river.';
     document.querySelector('.intro')!.textContent = 'Walk from the garden, follow the market street, and visit the workshops beyond its eastern edge.';
     document.title = 'Voxarrium · Across the river';
+  }
+  if (cityWorld) {
+    document.querySelector('.chapter')!.textContent = 'M6 / THE TERRACED CITY';
+    element('scene-label').textContent = 'RIVER / TERRACES / CITADEL';
+    element('menu-title').textContent = 'The terraced city.';
+    document.querySelector('.intro')!.textContent = 'Follow the river market to the eastern gate, climb the garden road, and find the citadel above the city.';
+    document.querySelector('.course-features')!.innerHTML = '<span>Fourteen districts</span><span>Connected terraces</span><span>Walkable city blueprint</span>';
+    canvas.setAttribute('aria-label', 'Voxarrium playable city blueprint');
+    document.title = 'Voxarrium · The terraced city';
   }
   if (!rural) {
     document.querySelector('.chapter')!.textContent = 'M1 / HUMAN SCALE';
@@ -84,9 +96,9 @@ async function boot() {
   }
   const physics = await tail.asyncSpan('physics.initialize', () => createPhysics(streamedWorld?.residentCourse ?? course));
   let renderer: Awaited<ReturnType<typeof createGameRenderer>>;
-  try { renderer = await tail.asyncSpan('renderer.initialize', () => createGameRenderer(canvas, course, params.get('backend') === 'webgl', params.get('stage') === 'blockout')); }
+  try { renderer = await tail.asyncSpan('renderer.initialize', () => createGameRenderer(canvas, course, params.get('backend') === 'webgl', params.get('stage') === 'blockout', cityWorld ?? undefined)); }
   catch (error) { physics.dispose(); throw error; }
-  const rig = createCameraRig(state, physics);
+  const rig = createCameraRig(state, physics, cityWorld?.blueprint);
   const transitions = new Map<AreaId, ReturnType<typeof tail.beginTransition>>();
   const crossed = new Map<AreaId, string>();
   const boundaryNeeded = new Map<AreaId, string>();
@@ -135,7 +147,8 @@ async function boot() {
   let marketAudioActive = false;
   function updateStreaming(dt: number) {
     if (!streaming || disposed) return;
-    streaming.update(state.player.position, dt, state.player.velocity);
+    streaming.update(state.player.position, dt, state.player.velocity,
+      cityWorld ? cityDemand(cityWorld.areas, state.player.position, state.player.velocity) : undefined);
     for (const area of streamedWorld!.areas) {
       const transition = transitions.get(area.id);
       const distance = areaDistance(area, state.player.position);
@@ -146,7 +159,8 @@ async function boot() {
         crossed.set(area.id, transition.id); transition.event('boundary-crossed');
       }
     }
-    physics.streamingGates(streaming.activeIds(), state.player.position);
+    physics.streamingGates(streaming.activeIds(), state.player.position,
+      cityWorld ? citySafetyGates(cityWorld.blueprint, streaming.activeIds(), state.player.position) : undefined);
     const marketActive = streaming.activeIds().includes('river-market');
     if (marketActive !== marketAudioActive) {
       marketAudioActive = marketActive;
@@ -308,6 +322,18 @@ async function boot() {
     element('fov-value').textContent = `${fov.value}°`;
   };
   const onModeSelect = () => setMode(cameraSelect.value as CameraMode);
+  let cityDebugControls: HTMLElement | undefined;
+  if (import.meta.env.DEV && cityWorld) {
+    const panel = document.createElement('details'); panel.className = 'living-settings'; panel.id = 'city-debug';
+    panel.innerHTML = '<summary>City review cameras & overlays</summary><div class="settings"><label>View<select id="city-view"></select></label><label>Overlay<select id="city-layer"></select></label></div>';
+    const view = panel.querySelector<HTMLSelectElement>('#city-view')!;
+    for (const camera of cityWorld.blueprint.cameras) view.add(new Option(camera.id.replaceAll('-', ' '), camera.id));
+    view.addEventListener('change', () => { rig.setDebugCamera(view.value); setMode('eagle-eye'); draw(); });
+    const layer = panel.querySelector<HTMLSelectElement>('#city-layer')!;
+    for (const name of ['none', 'districts', 'roads', 'waterways', 'bridges', 'elevation', 'streaming']) layer.add(new Option(name, name));
+    layer.addEventListener('change', () => { renderer.cityDebug(layer.value as CityDebugLayer); draw(); });
+    menu.querySelector('.menu-card')!.append(panel); cityDebugControls = panel;
+  }
   const onStart = async () => {
     startButton.disabled = true;
     notice.textContent = 'Starting controls…';
@@ -363,6 +389,7 @@ async function boot() {
     window.removeEventListener('resize', onResize);
     window.removeEventListener('blur', onBlur);
     document.removeEventListener('visibilitychange', onVisibility);
+    cityDebugControls?.remove();
     streaming?.dispose(); audio.dispose(); input.dispose(); rig.dispose(); physics.dispose(); renderer.dispose(); tail.dispose();
     delete window.__VOXARRIUM__;
   }
@@ -409,6 +436,8 @@ async function boot() {
       audio: audio.snapshot(), settings: { reducedMotion, audio: { ...audioSettings } },
       camera: { position: rig.camera.position.toArray(), quaternion: rig.camera.quaternion.toArray(), fov: rig.camera.fov, aspect: rig.camera.aspect },
       bookmarks: structuredClone(course.bookmarks),
+      city: cityWorld ? { districts: structuredClone(cityWorld.blueprint.districts), cameras: structuredClone(cityWorld.blueprint.cameras),
+        route: structuredClone(cityWorld.route), connections: structuredClone(cityWorld.blueprint.connections), assumptions: [...cityWorld.blueprint.assumptions] } : null,
       pointerLocked: document.pointerLockElement === canvas,
     }),
     freeze(value = true) { manual = value; clock.reset(); previousPosition = { ...state.player.position }; },
@@ -423,6 +452,8 @@ async function boot() {
     recordAudio: (seconds: number) => audio.record(seconds),
     resetPopulation() { state.population = rural ? createPopulation(district) : []; state.interaction = null; draw(); overlay(); },
     mode: setMode,
+    cityDebug(layer: CityDebugLayer) { renderer.cityDebug(layer); draw(); },
+    cityCamera(id: string) { rig.setDebugCamera(id); setMode('eagle-eye'); draw(); },
     look(yaw: number, pitch: number) { state.camera.yaw = yaw; state.camera.pitch = pitch; draw(1, 0); overlay(); },
     teleport(position: Vec3) { reset(position); draw(); overlay(); },
     bookmark(name: string, mode: CameraMode = 'third-person') {
