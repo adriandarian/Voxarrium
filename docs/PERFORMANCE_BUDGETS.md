@@ -10,7 +10,13 @@ At scaling gates, walk across a stream boundary repeatedly, return to the starti
 
 No benchmark claim from headless software rendering. No quality percentage derived from an uncalibrated image-similarity number.
 
-## M6 measured blueprint and M5.1 comparison
+## M6.1 current inventory; cadence unmeasured
+
+M6.1 compresses authored layout and adds intermediate levels, circulation and skyline bodies while retaining M6's streaming lifecycle. The standalone overview inventory is 28 visible draw objects / 115,783 authored triangles, 30 geometries / 21 materials / 20 instance buffers / zero textures before debug labels. Canonical capture with rural detail active has 26 city draw objects / 114,599 city triangles because duplicate active-area proxies are suppressed. These are city-component geometry counts, not whole-game main/shadow submissions or a production budget. Resident topology has 662 colliders; the continuous route endpoint has 689 total colliders / one body including two detail leases and 19 remaining safety guards.
+
+Full correctness suites pass, with native WebGPU and explicit WebGL2 traversing the citadel route. Fixed-step screenshot/traversal data do not measure frame cadence. M6.1 did not run a new exclusive 60-second benchmark or the six-circuit actual-input timing protocol. The historical M6 readiness misses and frame-tail findings below are retained, without a claim that layout convergence resolves them. Current verification and review are in [STATUS](../STATUS.md); stop at human review before M7.
+
+## Historical M6 measured blueprint and M5.1 comparison
 
 M6 is a proxy topology gate, not a production-city performance forecast. The canonical overview's standalone authored inventory is 28 visible draw objects / 59,890 triangles, 30 geometries / 21 materials / 20 instance buffers / zero textures before debug labels. The skeleton keeps 438 colliders resident while detailed district ownership remains bounded to two leases. Those counts do not include whole-frame shadow submissions, final district assets or city-wide NPCs.
 
@@ -22,7 +28,7 @@ Every equivalent rural return restores the accepted 296 geometries / 15 textures
 
 A contemporary control on an isolated clean checkout of accepted SHA `6f3135f1849bd6e0a3d46e51fc29a661cb86ed00`, with the identical lockfile and only the driver port/circuit count adapted, records one clear/day circuit: 12,448 intervals / 90.363 s, p95 13.9 ms, maximum 79.7 ms, all four preparations ahead and the same resource return. It reproduces today's larger frame tail without M6 runtime source. One circuit is not six matched controls and does not explain or rule out an M6 contribution to the nine preparation misses. Full native/OS cause is unestablished; no speculative scheduler/radius retuning was made. The control server was stopped and its temporary worktree archived after preserving the reports.
 
-All valid timings use Chrome 154.0.8037.92, initialized WebGPU AMD/RDNA2, RX 6950 XT driver 32.0.21045.5002, 1920×1080 / DPR1, seed 104729, natural spawn, focus/visibility/pointer capture and real input. Source was held and concurrent game renders/builds/tests excluded during sampling. A partial clear run loses capture and stops without automatic resume; it is retained and excluded. Deterministic traversal/capture checks and the headless correctness rerun are separate from these measurements. Exact six-circuit tables, readiness leads, observer limits, failed-run provenance and report paths are in [current STATUS](../STATUS.md), with raw local evidence under `artifacts/m6/`. Lower-end hardware, comparable WebGL2 cadence, GPU timestamps and hosted CI remain unmeasured. Stop at the M6 human-review gate.
+All valid timings use Chrome 154.0.8037.92, initialized WebGPU AMD/RDNA2, RX 6950 XT driver 32.0.21045.5002, 1920×1080 / DPR1, seed 104729, natural spawn, focus/visibility/pointer capture and real input. Source was held and concurrent game renders/builds/tests excluded during sampling. A partial clear run loses capture and stops without automatic resume; it is retained and excluded. Deterministic traversal/capture checks and the headless correctness rerun are separate from these measurements. Exact six-circuit tables, readiness leads, observer limits, failed-run provenance and report paths are in [preserved M6 STATUS](history/M6_STATUS.md), with raw local evidence under `artifacts/m6/`. Lower-end hardware, comparable WebGL2 cadence, GPU timestamps and hosted CI remain unmeasured. This section records the historical M6 review gate, not M6.1 measurements.
 
 ## Historical M5.1 measured streaming tail
 

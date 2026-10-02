@@ -28,6 +28,12 @@ export interface CityConnection {
 export interface CityCamera {
   id: string; position: Vec3; target: Vec3; fov: number;
 }
+export interface CityTerrace {
+  id: string; district: CityDistrictId; elevation: number;
+  footprint: { x: number; z: number }[]; color: number;
+  /** Existing or secondary road that gives this intermediate level ordinary access. */
+  access: string;
+}
 export interface CityBlueprint {
   id: 'm6-city-blueprint'; seed: number; districts: CityDistrict[];
   terrain: NonNullable<CourseSpec['surfaces']>; roads: CityRoad[]; waterways: CityWaterway[];
@@ -35,4 +41,5 @@ export interface CityBlueprint {
   massing: Record<CityDistrictId, BoxSpec[]>;
   cameras: CityCamera[]; route: Vec3[];
   assumptions: string[];
+  terraces: CityTerrace[];
 }

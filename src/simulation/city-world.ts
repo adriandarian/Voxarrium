@@ -30,7 +30,7 @@ export function createCityWorld() {
         x:middle.x+Math.cos(yaw)*side*(span.width/2-.12),y:middle.y+.55,z:middle.z-Math.sin(yaw)*side*(span.width/2-.12)},
         size:{x:.24,y:1.1,z:length},rotationY:yaw,color:0xb5aa8e,collides:true,visible:false}));
     })], labels: [], bookmarks: {},
-    surfaces: [...accepted.residentCourse.surfaces!, ...blueprint.terrain, cityRetainingSurface(blueprint.terrain), ...cityRoadSurfaces(blueprint.roads)] };
+    surfaces: [...accepted.residentCourse.surfaces!, ...blueprint.terrain, cityRetainingSurface(blueprint.terrain,cityRoadSurfaces(blueprint.roads)), ...cityRoadSurfaces(blueprint.roads)] };
   const bookmarks = { ...accepted.course.bookmarks };
   for (const district of blueprint.districts) bookmarks[`city.${district.id}`] = {
     position: { ...district.center, y: district.center.y + .04 }, yaw: 0, pitch: .06,

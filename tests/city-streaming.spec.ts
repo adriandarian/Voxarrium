@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { createCityWorld, cityDemand, citySafetyGates } from '../src/simulation/city-world';
+import { cityBridgeSpans } from '../src/simulation/city-navigation';
 import { createStreamingWorld } from '../src/simulation/streaming-world';
 import { createStreamingController } from '../src/simulation/streaming';
 import { areaDistance } from '../src/simulation/streaming-contracts';
@@ -92,16 +93,19 @@ test('city graph departure releases a nearby outgoing lease after a continuous d
   expect(controller.snapshot().errors).toEqual([]);controller.dispose();
   expect(cityDemand(city.areas,{x:146.1,y:4,z:-10},{x:5.4,y:0,z:0})).toEqual(['neighbor-shell','river-market']);
   expect(cityDemand(city.areas,{x:149,y:4,z:-10},{x:5.4,y:0,z:0})).toEqual(['neighbor-shell','south-gate']);
-  expect(city.residentCourse.surfaces!.length).toBeLessThan(500);
+  expect(city.residentCourse.surfaces!.length).toBeLessThan(700);
   expect(city.residentCourse.surfaces!.some(surface=>surface.id==='city.terrain.collision-retaining-sides')).toBe(true);
-  expect(city.residentCourse.boxes.filter(box=>box.id.startsWith('city.bridge.rail.'))).toHaveLength(10);
+  expect(city.residentCourse.boxes.filter(box=>box.id.startsWith('city.bridge.rail.'))).toHaveLength(cityBridgeSpans(city.blueprint).length*2);
 });
 
-test('every city connection traverses real retaining and rail collision at human scale',async()=>{
+for(const mode of ['third-person','first-person'] as const)test(`every city connection and secondary lane traverses real retaining and rail collision in ${mode}`,async()=>{
+  test.setTimeout(120_000);
   const city=createCityWorld(),physics=await createPhysics(city.course),state=createState(city.course),rig=createCameraRig(state,physics,city.blueprint);
   const arrivals=[];
   try {
-    for(const connection of city.blueprint.connections) {
+    state.camera.mode=mode;
+    const paths=[...city.blueprint.connections,...city.blueprint.roads.filter(road=>!road.id.startsWith('accepted.')&&!city.blueprint.connections.some(connection=>connection.road===road.id)).map(road=>({id:road.id,road:road.id,points:road.points}))];
+    for(const connection of paths) {
       physics.reset(state,{...connection.points[0]!,y:connection.points[0]!.y+.04});
       for(let frame=0;frame<24;frame++)physics.step(state,IDLE_INPUT,FIXED_DT);
       const resets=state.resets;
@@ -123,6 +127,6 @@ test('every city connection traverses real retaining and rail collision at human
     state.camera.mode='eagle-eye';rig.setDebugCamera(city.blueprint.cameras[0]!.id);rig.update(0,.6);
     const pose=rig.camera.position.toArray();rig.update(0,.6);expect(rig.camera.position.toArray()).toEqual(pose);
     expect(rig.camera.near).toBe(2);expect(rig.camera.far).toBe(2200);
-    await test.info().attach('all-city-connections.json',{contentType:'application/json',body:JSON.stringify({arrivals,setupResets:city.blueprint.connections.length,mode:'third-person',noRecoveryDuringLegs:true})});
+    await test.info().attach('all-city-connections.json',{contentType:'application/json',body:JSON.stringify({arrivals,setupResets:paths.length,mode,noRecoveryDuringLegs:true})});
   }finally{rig.dispose();physics.dispose();}
 });

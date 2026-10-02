@@ -4,6 +4,7 @@ import {
   MeshStandardMaterial, Object3D, Sprite, SpriteMaterial, SRGBColorSpace, Texture,
 } from 'three';
 import type { CityBlueprint, CityRoad } from '../simulation/city-contracts';
+import { cityRetainingSurface } from '../simulation/city-terrain';
 import { cityRoadSurfaces } from '../simulation/city-blueprint';
 import type { BoxSpec, CourseSpec, GameState, Vec3 } from '../simulation/types';
 
@@ -67,38 +68,6 @@ function ribbon(id: string, points: readonly Vec3[], width: number, color: numbe
   return { id, vertices, indices, color };
 }
 
-/** Expose each terrace's retaining sides. Coplanar shared polygon edges do not get seams. */
-function retainingFaces(surfaces: readonly Surface[]) {
-  type Edge = { a: number[]; b: number[]; color: number };
-  const global = new Map<string, Edge[]>(), result = data();
-  const coordinate = (p: readonly number[]) => `${p[0]!.toFixed(4)},${p[2]!.toFixed(4)}`;
-  for (const surface of surfaces) {
-    const local = new Map<string, { a: number; b: number; count: number }>();
-    for (let i = 0; i < surface.indices.length; i += 3) for (let j = 0; j < 3; j++) {
-      const a = surface.indices[i + j]!, b = surface.indices[i + (j + 1) % 3]!;
-      const key = `${Math.min(a, b)}:${Math.max(a, b)}`;
-      const edge = local.get(key);
-      if (edge) edge.count++; else local.set(key, { a, b, count: 1 });
-    }
-    for (const edge of local.values()) if (edge.count === 1) {
-      const a = surface.vertices.slice(edge.a * 3, edge.a * 3 + 3), b = surface.vertices.slice(edge.b * 3, edge.b * 3 + 3);
-      const endpoints = [coordinate(a), coordinate(b)].sort(), key = endpoints.join(':');
-      const entries = global.get(key) ?? []; entries.push({ a, b, color: surface.color }); global.set(key, entries);
-    }
-  }
-  for (const entries of global.values()) for (const edge of entries) {
-    const y = (edge.a[1]! + edge.b[1]!) / 2;
-    if (entries.some(other => other !== edge && Math.abs((other.a[1]! + other.b[1]!) / 2 - y) < .001)) continue;
-    const lower = entries.filter(other => (other.a[1]! + other.b[1]!) / 2 < y - .001);
-    const bottom = lower.length ? Math.max(...lower.map(other => (other.a[1]! + other.b[1]!) / 2)) : -3;
-    const a = edge.a, b = edge.b;
-    const tint = new Color(edge.color).lerp(new Color(0x877c62), .68);
-    append(result, { id: 'side', color: tint.getHex(),
-      vertices: [...a, ...b, b[0]!, bottom, b[2]!, a[0]!, bottom, a[2]!], indices: [0, 1, 2, 0, 2, 3] });
-  }
-  return result;
-}
-
 const roadColor = (road: CityRoad) => road.kind === 'bridge' ? 0xd2bb94 : road.kind === 'stairs' ? 0xe3cfaa
   : road.kind === 'alley' ? 0xb5a07d : road.kind === 'secondary' ? 0xc9b794 : 0xe4d2ae;
 const districtColors = [0xf3c15d, 0x69d4c8, 0xc09be6, 0x83ba66, 0xe79567, 0x6da7e0, 0xd3d479];
@@ -153,7 +122,9 @@ export function createCityPresentation(blueprint: CityBlueprint, acceptedCourses
     mesh.userData.proxyIds = specs.map(spec => spec.id); target.add(mesh); return mesh;
   }
   const top = data(); blueprint.terrain.forEach(surface => append(top, surface));
-  addSurface('city.terrain.tops', top); addSurface('city.terrain.retaining-sides', retainingFaces(blueprint.terrain), group, sides);
+  addSurface('city.terrain.tops', top);
+  const retaining=data();append(retaining,cityRetainingSurface(blueprint.terrain,cityRoadSurfaces(blueprint.roads)));
+  addSurface('city.terrain.retaining-sides', retaining, group, sides);
   const water = data(), banks = data();
   blueprint.waterways.forEach(channel => {
     append(banks, ribbon(`${channel.id}.banks`, channel.points, channel.width + 2.2, 0x998f6c, .015));
@@ -201,6 +172,7 @@ export function createCityPresentation(blueprint: CityBlueprint, acceptedCourses
   boxes('city.landmark.masses', blueprint.landmarks);
   const hipRoofs: BoxSpec[] = [], towerCaps: BoxSpec[] = [], finials: BoxSpec[] = [];
   for (const landmark of blueprint.landmarks) {
+    if(/wall|buttress|pier/.test(landmark.id))continue;
     const top = landmark.position.y + landmark.size.y / 2, tower = /tower|belfry/.test(landmark.id);
     const height = tower ? Math.min(12, landmark.size.y * .3) : Math.min(7, landmark.size.z * .18);
     const teal = /citadel-tower|temple/.test(landmark.id), color = teal ? 0x427e79 : 0xa85d3e;

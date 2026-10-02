@@ -29,7 +29,7 @@ function fixture(): CityBlueprint {
     massing: { rural: [], 'river-market': [], 'neighbor-shell': [], 'lower-canal': [], 'south-gate': [], 'garden-terrace': [],
       'central-market': [], 'west-bank': [], 'civic-terrace': [], 'noble-quarter': [], 'temple-quarter': [], 'upper-city': [], 'orchard-edge': [],
       citadel: [{ id: 'citadel.test-house', position: { x: 22, y: 53, z: -40 }, size: { x: 5, y: 6, z: 7 }, color: 0xc99166, rotationY: -.2, collides: true }] },
-    cameras: [], route: [], assumptions: ['Rendering-data fixture only; not an actual city.'],
+    terraces: [], cameras: [], route: [], assumptions: ['Rendering-data fixture only; not an actual city.'],
   };
 }
 function accepted(): CourseSpec {
@@ -62,7 +62,7 @@ test('city presentation preserves exact accepted geometry and deterministic worl
     const other = repeat.group.getObjectByName(proxies.name) as InstancedMesh;
     expect(Array.from(proxies.instanceMatrix.array)).toEqual(Array.from(other.instanceMatrix.array));
     const side = presentation.group.getObjectByName('city.terrain.retaining-sides') as Mesh;
-    expect(side.geometry.index!.count).toBe(24); // Four full side faces, not a camera-facing facade.
+    expect(side.geometry.index!.count).toBeGreaterThanOrEqual(24); // All sides closed, including partial street joins.
     expect(side.geometry.boundingBox!.min.y).toBe(-3); expect(side.geometry.boundingBox!.max.y).toBe(50);
     presentation.group.traverse(object => {
       if (object instanceof Mesh) expect(Array.from(object.geometry.getAttribute('position').array).every(Number.isFinite)).toBe(true);
@@ -167,7 +167,7 @@ test('actual full blueprint stays a bounded proxy inventory with coherent finite
     // These generous regression limits apply to this authored proxy fixture, not production assets.
     expect(facts.districts).toBe(14); expect(facts.resources.geometries).toBeLessThan(64);
     expect(facts.resources.instanceBuffers).toBeLessThan(32); expect(facts.visibleDrawObjects).toBeLessThan(64);
-    expect(facts.visibleTriangles).toBeLessThan(100_000); expect(facts.resources.textures).toBe(0);
+    expect(facts.visibleTriangles).toBeLessThan(150_000); expect(facts.resources.textures).toBe(0);
     presentation.group.traverse(object => {
       if (!(object instanceof Mesh)) return;
       const vertices = object.geometry.getAttribute('position');

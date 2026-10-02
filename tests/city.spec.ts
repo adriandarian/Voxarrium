@@ -53,15 +53,15 @@ test('city is stable serializable meter data with preserved accepted areas and c
   }
   expect(blueprint.route.slice(0,10)).toEqual(accepted.route.slice(0,10).map(point=>({...point,y:4})));
   expect(blueprint.terrain.every(item=>item.vertices.every(Number.isFinite))).toBe(true);
-  expect(blueprint.terrain).toHaveLength(11);
+  expect(blueprint.terrain).toHaveLength(11+blueprint.terraces.length);
   const surfaces=[...blueprint.terrain,...cityRoadSurfaces(blueprint.roads)];
   expect(new Set(surfaces.map(item=>item.id)).size).toBe(surfaces.length);
   expect(surfaces.every(item=>item.indices.every(index=>index>=0&&index<item.vertices.length/3))).toBe(true);
   expect(blueprint.cameras.find(item=>item.id==='master-eagle')!.position.x).toBeLessThan(0);
   expect(blueprint.cameras.find(item=>item.id==='master-eagle')!.position.z).toBeGreaterThan(0);
-  expect(blueprint.landmarks).toHaveLength(8);
+  expect(blueprint.landmarks.length).toBeGreaterThanOrEqual(20);
   expect(Object.values(blueprint.massing).flat().filter(item=>item.collides).length).toBeGreaterThanOrEqual(60);
-  expect(Object.values(blueprint.massing).flat().filter(item=>item.collides).length).toBeLessThanOrEqual(80);
+  expect(Object.values(blueprint.massing).flat().filter(item=>item.collides).length).toBeLessThanOrEqual(140);
   await test.info().attach('city-topology',{contentType:'application/json',body:Buffer.from(JSON.stringify({
     districts:blueprint.districts.map(item=>({id:item.id,neighbors:item.neighbors,elevation:item.elevationBand,
       massingBodies:blueprint.massing[item.id].filter(box=>box.collides).length})),
@@ -114,7 +114,9 @@ test('terrain cuts leave every new road and water centerline unobstructed',async
     }
   }expect(samples).toBeGreaterThan(1500);expect(failures.slice(0,20),`${failures.length} terrain corridor hits`).toEqual([]);
     const unsupported:string[]=[];
-    for(const body of Object.values(blueprint.massing).flat().filter(item=>item.collides)){
+    const supported=[...Object.values(blueprint.massing).flat().filter(item=>item.collides),
+      ...blueprint.landmarks.filter(item=>!(/wall|buttress|embedded/.test(item.id)))];
+    for(const body of supported){
       for(const [dx,dz] of [[0,0],[-0.45,-0.45],[-0.45,0.45],[0.45,-0.45],[0.45,0.45]]){
         const x=body.position.x+body.size.x*dx!,z=body.position.z+body.size.z*dz!;
         const hit=world.castRay(new RAPIER.Ray({x,y:110,z},{x:0,y:-1,z:0}),120,true);
