@@ -2,6 +2,8 @@ import type { EnvironmentState } from '../simulation/environment';
 import type { Vec3 } from '../simulation/types';
 import { DISTRICT } from '../simulation/district-layout';
 import { tail } from '../diagnostics/tail';
+import type { UrbanDistrict } from '../simulation/urban-contracts';
+import type { CityWaterway } from '../simulation/city-contracts';
 
 export type AudioCategory = 'ambience' | 'footsteps' | 'locals';
 export interface AudioSettings { master: number; ambience: number; footsteps: number; locals: number }
@@ -36,8 +38,9 @@ function noise(context: BaseAudioContext, seconds = 3): AudioBuffer {
   return buffer;
 }
 
-export function createLivingAudio(settings: AudioSettings, district = false) {
+export function createLivingAudio(settings: AudioSettings, district = false,zones:readonly Pick<UrbanDistrict,'id'|'ambience'>[]=[],waterways:readonly CityWaterway[]=[]) {
   let districtActive = district;
+  let zone:Pick<UrbanDistrict,'id'|'ambience'>|null=null;
   let context: AudioContext | null = null;
   let master: GainNode | null = null;
   let analyser: AnalyserNode | null = null;
@@ -133,6 +136,7 @@ export function createLivingAudio(settings: AudioSettings, district = false) {
       if (!districtActive) { levels.market = 0; for (const loop of loops.slice(3)) ramp(loop.gain.gain, 0, .2); }
       tail.event('audio.districtActivity', { active: districtActive, reusedEmitters: 2 });
     },
+    urbanZone(id:string|null){zone=zones.find(z=>z.id===id)??null;},
     reset() { previous = null; distance = 0; lastCue = -30; lastWorkshop = -12; },
     update(environment: EnvironmentState, player: Vec3, yaw: number, grounded: boolean, elapsed: number, nearest?: { position: Vec3; id: string } | null) {
       if (!context || disposed) return;
@@ -146,22 +150,37 @@ export function createLivingAudio(settings: AudioSettings, district = false) {
       listener.upX.value = 0; listener.upY.value = 1; listener.upZ.value = 0;
       // A long river uses its closest local point rather than one distant emitter.
       sourcePosition.x = Math.max(-44, Math.min(district ? 144 : 44, player.x));
+      sourcePosition.z=19;
+      if(waterways.length){
+        let closest=Infinity;
+        for(const w of waterways)for(let i=1;i<w.points.length;i++){
+          const a=w.points[i-1]!,b=w.points[i]!,dx=b.x-a.x,dz=b.z-a.z;
+          const t=Math.max(0,Math.min(1,((player.x-a.x)*dx+(player.z-a.z)*dz)/(dx*dx+dz*dz||1)));
+          const x=a.x+t*dx,z=a.z+t*dz,d=Math.hypot(player.x-x,player.z-z);
+          if(d<closest){closest=d;sourcePosition.x=x;sourcePosition.z=z;}
+        }
+      }
       const river = loops[1]?.panner;
-      if (river) { ramp(river.positionX, sourcePosition.x); ramp(river.positionZ, 19); }
+      if (river) { ramp(river.positionX, sourcePosition.x); ramp(river.positionZ, sourcePosition.z); }
       levels.wind = 0.045 + environment.wind * 0.055;
-      levels.river = 0.18;
+      levels.river = zone ? .18*(.6+zone.ambience.river*.4) : .18;
       levels.rain = environment.rain * 0.17;
       ramp(loops[0]!.gain.gain, levels.wind); ramp(loops[1]!.gain.gain, levels.river); ramp(loops[2]!.gain.gain, levels.rain);
       if (district) {
         const activity = environment.timeOfDay === 'night' ? 0.08 : environment.timeOfDay === 'dusk' ? 0.45 : 1;
-        levels.market = (districtActive ? 0.065 : 0) * activity * (1 - environment.rain * 0.78);
+        levels.market = (zone?.ambience.market??(districtActive?1:0))*.065 * activity * (1 - environment.rain * 0.78);
+        for(const [i,l] of loops.slice(3).entries())if(l.panner){
+          const p=zone?.ambience.position??{x:DISTRICT.plaza.x+(i?5:-5),y:5.4,z:i?-5:-17};
+          ramp(l.panner.positionX,p.x+(zone?(i?3:-3):0));ramp(l.panner.positionY,p.y);ramp(l.panner.positionZ,p.z);
+        }
         ramp(loops[3]!.gain.gain, levels.market * (0.76 + Math.sin(environment.time * 0.71) * 0.22));
         ramp(loops[4]!.gain.gain, levels.market * (0.7 + Math.sin(environment.time * 0.43 + 2) * 0.25));
-        if (districtActive && !paused && environment.timeOfDay === 'day' && environment.rain < 0.2 && elapsed - lastWorkshop > 9.7 &&
-            Math.hypot(player.x - 68, player.z + 16) < 18) {
+        const workshop=zone?.ambience.position??{x:68,y:5,z:-16};
+        if ((zone?zone.ambience.workshop>0:districtActive) && !paused && environment.timeOfDay === 'day' && environment.rain < 0.2 && elapsed - lastWorkshop > (zone?.id==='lower-canal'?6.9:9.7) &&
+            Math.hypot(player.x - workshop.x, player.z-workshop.z) < 24) {
           lastWorkshop = elapsed;
-          pulse('locals', { x: 68, y: 5, z: -16 }, 720, 0.075, 0.12, false);
-          pulse('locals', { x: 68, y: 5, z: -16 }, 185, 0.035, 0.2, true);
+          pulse('locals', workshop, zone?.id==='lower-canal'?540:720, .075*(zone?.ambience.workshop??1), 0.12, false);
+          pulse('locals', workshop, 185, 0.035, 0.2, true);
         }
       }
       if (paused) return;
@@ -171,7 +190,7 @@ export function createLivingAudio(settings: AudioSettings, district = false) {
       if (grounded) distance += traveled;
       else distance = 0;
       if (distance > 0.82) {
-        distance %= 0.82; const surface = footstepSurface(player); lastSurface = surface; stepCount++;
+        distance %= 0.82; const surface = zone?'stone':footstepSurface(player); lastSurface = surface; stepCount++;
         const timbre = { grass: [460, 0.14], earth: [800, 0.16], stone: [2600, 0.15], wood: [550, 0.2] }[surface]!;
         pulse('footsteps', player, timbre[0]!, timbre[1]!, 0.115, false);
         if (surface === 'wood') pulse('footsteps', player, 155, 0.07, 0.13, true);
@@ -186,7 +205,7 @@ export function createLivingAudio(settings: AudioSettings, district = false) {
       if (analyser) { const samples = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(samples); rms = Math.sqrt(samples.reduce((sum, n) => sum + n * n, 0) / samples.length); }
       return { status: disposed ? 'disposed' : context?.state ?? 'awaiting-gesture', error, settings: { ...settings },
         paused, activeLoops: loops.length, activeVoices: voices.size, maxVoices: district ? 10 : 8, stepCount, cueCount, lastSurface,
-        districtEmitters: district ? { allocated: 2, enabled: districtActive ? 2 : 0, ownership: 'one reusable pair per audio context; fades to zero on district deactivation' } : null,
+        districtEmitters: district ? { allocated: 2, enabled: districtActive||zone ? 2 : 0,zone:zone?.id??null,ownership: 'one reusable pair per audio context; fades to zero on district deactivation' } : null,
         levels: { ...levels }, listener: { ...listenerPosition }, riverSource: { ...sourcePosition }, outputRms: rms,
         source: 'local deterministic filtered noise and short synthesized cues; no recorded speech' };
     },

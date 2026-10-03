@@ -1,5 +1,7 @@
 # Asset pipeline
 
+M7 reuses the unchanged M4.1 `district.kit` and all four older shipped GLBs. No Blender export or image generation is required for its two districts. Controlled meter-scale facade, roof, floor-height, corner, shopfront and attachment parameters are serializable under `src/simulation/urban-*` plus the two district modules. The renderer instances the original all-side kit; it does not modify GLB bytes or source-image hashes. Locally generated paving pigment and accepted botanical geometry have finite cache identities and explicit district lease ownership. Named unseen trades, compounds and the Lower Canal loading dock are documented assumptions, not measurements from the concept image.
+
 Author/source: `assets/source/`; generator scripts: `tools/blender/`; local generated fixtures: `.local/assets/`; final reviewed runtime files: `public/assets/`. Reference images remain documentation and must not inflate the runtime build.
 
 M0 runs `npm run blender:fixture`. The launcher finds BLENDER_PATH, Blender on PATH, or standard installation locations, then launches an isolated background factory session. It does not touch an open scene or existing .blend file. It exports a labeled 1 m cube to `.local/assets/scale-fixture.glb`. This is a pipeline calibration asset, NOT a cottage or art-quality proof.

@@ -1,5 +1,9 @@
 # M6.1 city blueprint
 
+## M7 production overlay
+
+M7 uses the merged M6.1 topology below without replacing its macro layout. Only Central Market and Lower Canal receive production detail. Their original macro terrain, roads, waterways, connection records and district footprints remain unchanged and are checked by data equality. M7 suppresses the original market-belfry presentation/collider while its deliberate six-story tower occupies the same (158,12,-260) anchor. Small local support joints, service alleys and a connected Lower Canal cargo dock append to the detail courses. The other city districts retain their M6.1 proxy status. This does not authorize M8 or productionizing the remaining districts; owner review of the M7 evidence remains the gate.
+
 The master reference was actually opened from [city-master.png](reference/city-master.png). This interpretation establishes a walkable macro layout before production buildings. [city-blueprint.ts](../src/simulation/city-blueprint.ts) contains deterministic plain data in meters; [city-contracts.ts](../src/simulation/city-contracts.ts) defines the serializable district, road, water and camera contracts. No reference pixels enter shipped materials or assets.
 
 ## Observed evidence and design assumptions

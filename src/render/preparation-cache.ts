@@ -39,7 +39,10 @@ export class PreparationCache {
     const unique = new Set([...this.entries.values()].flatMap(entry => [...entry.resources]));
     const references = [...this.entries.values()].reduce((n, entry) => n + entry.resources.size, 0);
     const liveReferences = [...unique].reduce((n, resource) => n + this.references.referenceCount(resource), 0);
+    const byType:Record<string,number>={};
+    for(const resource of unique){const type=resource.constructor.name||'Resource';byType[type]=(byType[type]??0)+1;}
     return { entries: this.entries.size, capacity: this.capacity, resources: unique.size, references,
+      byType:Object.fromEntries(Object.entries(byType).sort(([a],[b])=>a.localeCompare(b))),
       instanceReferences: Math.max(0, liveReferences - references),
       hits: this.hits, misses: this.misses, disposed: this.disposed };
   }

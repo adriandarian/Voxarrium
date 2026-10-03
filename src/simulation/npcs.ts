@@ -164,17 +164,25 @@ export const NPC_DEFINITIONS: readonly NpcDefinition[] = [
 ];
 
 export const DISTRICT_POPULATION_DEFINITIONS = [...NPC_DEFINITIONS, ...DISTRICT_NPC_DEFINITIONS];
-const definitions = new Map(DISTRICT_POPULATION_DEFINITIONS.map(definition => [definition.id, definition]));
-const allNodes = { ...NPC_ROUTE_NODES, ...DISTRICT_NPC_NODES };
-const neighbors = new Map<string, string[]>();
-for (const [a, b] of [...NPC_ROUTE_EDGES, ...DISTRICT_NPC_EDGES]) {
-  neighbors.set(a, [...(neighbors.get(a) ?? []), b]);
-  neighbors.set(b, [...(neighbors.get(b) ?? []), a]);
+export interface NpcNavigation {
+  definitions: Map<string,NpcDefinition>;
+  nodes: Record<string,Vec3>;
+  neighbors: Map<string,string[]>;
 }
+export function createNpcNavigation(additions:readonly {nodes:Record<string,Vec3>;edges:readonly (readonly [string,string])[];definitions:readonly NpcDefinition[]}[]=[]):NpcNavigation{
+  const definitions=new Map([...DISTRICT_POPULATION_DEFINITIONS,...additions.flatMap(g=>g.definitions)].map(d=>[d.id,d]));
+  const nodes={...NPC_ROUTE_NODES,...DISTRICT_NPC_NODES,...Object.assign({},...additions.map(g=>g.nodes))} as Record<string,Vec3>;
+  const neighbors=new Map<string,string[]>();
+  for(const [a,b] of [...NPC_ROUTE_EDGES,...DISTRICT_NPC_EDGES,...additions.flatMap(g=>g.edges)]){
+    neighbors.set(a,[...(neighbors.get(a)??[]),b]);neighbors.set(b,[...(neighbors.get(b)??[]),a]);
+  }return {definitions,nodes,neighbors};
+}
+const defaultNavigation=createNpcNavigation();
 const distance = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 
 /** Small fixed graph: shortest authored route, with stable insertion-order ties. */
-function nextToward(from: string, goal: string): string | null {
+function nextToward(from: string, goal: string, navigation=defaultNavigation): string | null {
+  const {neighbors,nodes:allNodes}=navigation;
   if (from === goal) return null;
   const cost = new Map<string, number>([[from, 0]]);
   const previous = new Map<string, string>();
@@ -205,9 +213,9 @@ function face(npc: NpcState, x: number, z: number, dt: number) {
   npc.heading += Math.max(-dt * 3.8, Math.min(dt * 3.8, difference));
 }
 
-export function createPopulation(district = false): NpcState[] {
-  return (district ? DISTRICT_POPULATION_DEFINITIONS : NPC_DEFINITIONS).map(definition => ({
-    id: definition.id, position: { ...allNodes[definition.dayRoute[0]!]! },
+export function createPopulation(district = false,navigation=defaultNavigation): NpcState[] {
+  return (district ? [...navigation.definitions.values()] : NPC_DEFINITIONS).map(definition => ({
+    id: definition.id, position: { ...navigation.nodes[definition.dayRoute[0]!]! },
     heading: 0, mode: 'idle', nodeId: definition.dayRoute[0]!, nextNodeId: null,
     routeIndex: 0, wait: definition.initialWait, schedule: 'day', distanceTravelled: 0, speed: 0,
   }));
@@ -221,11 +229,12 @@ export function createPopulation(district = false): NpcState[] {
 export function stepPopulation(
   population: NpcState[], dt: number, environment: NpcEnvironment, player: Vec3,
   interactingId: string | null = null,
+  navigation=defaultNavigation,
 ): void {
   if (!Number.isFinite(dt) || dt <= 0) return;
   dt = Math.min(dt, 0.1);
   for (const npc of population) {
-    const definition = definitions.get(npc.id);
+    const definition = navigation.definitions.get(npc.id);
     if (!definition) continue;
     npc.speed = 0;
     if (npc.schedule !== environment.timeOfDay) {
@@ -269,10 +278,10 @@ export function stepPopulation(
             goal = route[npc.routeIndex]!;
           }
         }
-        npc.nextNodeId = nextToward(npc.nodeId, goal);
+        npc.nextNodeId = nextToward(npc.nodeId, goal,navigation);
         if (!npc.nextNodeId) { npc.mode = 'idle'; break; }
       }
-      const target = allNodes[npc.nextNodeId]!;
+      const target = navigation.nodes[npc.nextNodeId]!;
       const length = distance(npc.position, target);
       const speed = definition.walkSpeed * (shelter ? 1.18 : 1);
       const travel = Math.min(length, speed * remaining);
@@ -312,8 +321,8 @@ export function nearestNpc(population: NpcState[], player: Vec3, maxDistance = 2
   return nearest;
 }
 
-export function npcDialogue(id: string, environment: NpcEnvironment): { name: string; text: string } {
-  const definition = definitions.get(id);
+export function npcDialogue(id: string, environment: NpcEnvironment,navigation=defaultNavigation): { name: string; text: string } {
+  const definition = navigation.definitions.get(id);
   if (!definition) return { name: 'Neighbor', text: 'Welcome to the cottage paths.' };
   return {
     name: definition.name,

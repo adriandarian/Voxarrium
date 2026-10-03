@@ -1,5 +1,5 @@
 import { stepPopulation } from './npcs';
-import type { NpcState, NpcEnvironment } from './npcs';
+import type { NpcState, NpcEnvironment, NpcNavigation } from './npcs';
 import type { AreaId } from './streaming-contracts';
 import type { Vec3 } from './types';
 
@@ -10,14 +10,14 @@ export interface NpcResidency {
     observedSchedule: NpcEnvironment['timeOfDay']; observedWeather: NpcEnvironment['weather'] }>;
 }
 export const createNpcResidency = (): NpcResidency => ({ version: 1, entries: {} });
-export const npcArea = (id: string): AreaId => id.startsWith('district.') ? 'river-market' : 'rural';
+export const npcArea = (id: string): AreaId => id.startsWith('m7.central-market.')?'central-market':id.startsWith('m7.lower-canal.')?'lower-canal':id.startsWith('district.') ? 'river-market' : 'rural';
 
 /** Data-only NPCs preserve their in-progress segment/wait. We track the current
  * authored schedule target but perform no offscreen pathfinding or animation.
  * On return the same state continues, responding to current weather/time.
  */
 export function stepResidentPopulation(population: NpcState[], residency: NpcResidency, dt: number,
-  environment: NpcEnvironment, player: Vec3, loaded: readonly AreaId[], active: readonly AreaId[], interactingId: string | null) {
+  environment: NpcEnvironment, player: Vec3, loaded: readonly AreaId[], active: readonly AreaId[], interactingId: string | null,navigation?:NpcNavigation) {
   if (!Number.isFinite(dt) || dt <= 0) return;
   dt = Math.min(dt, .1);
   for (const npc of population) {
@@ -39,7 +39,7 @@ export function stepResidentPopulation(population: NpcState[], residency: NpcRes
       // Normal caller is a fixed step; the cap also safely consumes the <=100ms
       // remainder when a reduced NPC becomes nearby mid-segment.
       for (let remaining = elapsed; remaining > 1e-9; remaining -= .1)
-        stepPopulation([npc], Math.min(.1, remaining), environment, player, interactingId);
+        stepPopulation([npc], Math.min(.1, remaining), environment, player, interactingId,navigation);
     }
   }
 }
