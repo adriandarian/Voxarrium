@@ -26,6 +26,8 @@ import { PreparationCache } from './preparation-cache';
 import { createCityPresentation } from './city-blueprint';
 import type { CityDebugLayer } from './city-blueprint';
 import type { CityBlueprint } from '../simulation/city-contracts';
+import { installScopedRenderBindings } from './shared-render-bindings';
+import type { BindingBackend } from './shared-render-bindings';
 
 // Runtime backends expose these fields in the installed Three.js r186 source;
 // @types/three deliberately omits device/gl internals. Read only for diagnostics.
@@ -135,7 +137,7 @@ function disposeScene(scene: Scene) {
 }
 
 export async function createGameRenderer(canvas: HTMLCanvasElement, course: CourseSpec, forceWebGL: boolean, blockout = false,
-  city?: { blueprint: CityBlueprint; acceptedCourses: CourseSpec[] }) {
+  city?: { blueprint: CityBlueprint; acceptedCourses: CourseSpec[];replacedLandmarks?:string[] }) {
   const streaming = course.id === 'm5-streaming-proof' || !!city;
   const district = course.id === 'm4-market-district' || streaming;
   const rural = course.id === 'm2-rural-96m' || district;
@@ -198,6 +200,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
   try {
     await tail.asyncSpan('renderer.backendInit', () => renderer.init());
     rendererInitialized = true;
+    if (streaming) installScopedRenderBindings(renderer.backend as unknown as BindingBackend);
     const initialized = backendDetails(renderer);
     // CPU entry-point wall durations only. Neither uploads nor queue waits are
     // GPU timestamps. The wrappers preserve the installed backend's arguments.
@@ -236,7 +239,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       sun.shadow.camera.far = 300;
     }
     if (city) {
-      cityPresentation = createCityPresentation(city.blueprint, city.acceptedCourses);
+      cityPresentation = createCityPresentation(city.blueprint, city.acceptedCourses,city.replacedLandmarks);
       scene.add(cityPresentation.group);
     }
 

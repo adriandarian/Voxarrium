@@ -1,5 +1,5 @@
 import type { Vec3 } from './types';
-import type { NpcState } from './npcs';
+import type { NpcState, NpcNavigation } from './npcs';
 import { nearestNpc, npcDialogue } from './npcs';
 import type { EnvironmentState } from './environment';
 import { DISTRICT_ENTRANCES } from './district';
@@ -26,9 +26,9 @@ const DISTRICT_LANDMARKS = DISTRICT_ENTRANCES.map((entrance, index) => ({
         : 'A lived-in doorway on the river lanes. The door is closed today; window boxes and the sheltered step are tended by the household.',
 }));
 
-export function interactionTarget(population: NpcState[], position: Vec3, environment: EnvironmentState): InteractionTarget | null {
+export function interactionTarget(population: NpcState[], position: Vec3, environment: EnvironmentState,navigation?:NpcNavigation,entrances:readonly {id:string;name:string;text:string;position:Vec3}[]=[]): InteractionTarget | null {
   const npc = nearestNpc(population, position, 2.4);
-  if (npc) return { id: npc.id, ...npcDialogue(npc.id, environment), position: npc.position, kind: 'npc' };
-  const landmark = [...LANDMARKS, ...DISTRICT_LANDMARKS].find(item => Math.hypot(item.position.x - position.x, item.position.y - position.y, item.position.z - position.z) < 2.1);
+  if (npc) return { id: npc.id, ...npcDialogue(npc.id, environment,navigation), position: npc.position, kind: 'npc' };
+  const landmark = [...LANDMARKS, ...DISTRICT_LANDMARKS,...entrances].find(item => Math.hypot(item.position.x - position.x, item.position.y - position.y, item.position.z - position.z) < 2.1);
   return landmark ? { ...landmark, position: { ...landmark.position }, kind: 'landmark' } : null;
 }

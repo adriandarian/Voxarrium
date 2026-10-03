@@ -85,7 +85,8 @@ function hipGeometry() {
 }
 
 /** Resident terrain/landmarks and overview-only density proxies. The caller guards debug access. */
-export function createCityPresentation(blueprint: CityBlueprint, acceptedCourses: CourseSpec[]) {
+export function createCityPresentation(sourceBlueprint: CityBlueprint, acceptedCourses: CourseSpec[],replacedLandmarks:readonly string[]=[]) {
+  const blueprint=replacedLandmarks.length?{...sourceBlueprint,landmarks:sourceBlueprint.landmarks.filter(l=>!replacedLandmarks.includes(l.id))}:sourceBlueprint;
   const group = new Group(); group.name = 'city.blueprint.resident';
   const overview = new Group(); overview.name = 'city.blueprint.overview-only'; overview.visible = false; group.add(overview);
   const debug = new Group(); debug.name = 'city.blueprint.debug'; group.add(debug);

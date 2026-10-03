@@ -1,5 +1,6 @@
 import type { CourseSpec, Vec3 } from './types';
 import type { CityDistrictId } from './city-contracts';
+import type { UrbanDistrict } from './urban-contracts';
 
 /** M5 is exactly three authored areas; one area is one lifecycle chunk. */
 export type AreaId = CityDistrictId;
@@ -13,6 +14,7 @@ export interface WorldArea {
   footprint?: readonly { x: number; z: number }[];
   neighbors?: readonly AreaId[];
   streamingPriority?: number;
+  urban?: UrbanDistrict;
 }
 /** Adapter owns render resources, physics proxies and environment hooks together.
  * load must prepare off-scene resources; activate installs collision before

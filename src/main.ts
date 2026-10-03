@@ -14,7 +14,7 @@ import { FrameTimings } from './diagnostics/timing';
 import { tail } from './diagnostics/tail';
 import { createEnvironment, setEnvironment, stepEnvironment } from './simulation/environment';
 import type { Weather, TimeOfDay } from './simulation/environment';
-import { createPopulation, stepPopulation, nearestNpc } from './simulation/npcs';
+import { createPopulation, createNpcNavigation, stepPopulation, nearestNpc } from './simulation/npcs';
 import { interactionTarget } from './simulation/interaction';
 import { createLivingUi } from './ui/living';
 import { createLivingAudio, DEFAULT_AUDIO } from './audio/audio';
@@ -25,8 +25,9 @@ import { areaDistance } from './simulation/streaming-contracts';
 import type { AreaId } from './simulation/streaming-contracts';
 import { createNpcResidency, stepResidentPopulation, npcTierCounts } from './simulation/npc-residency';
 import { DISTRICT_ENTRANCES } from './simulation/district';
-import { createCityWorld, cityDemand, citySafetyGates } from './simulation/city-world';
+import { createCityWorld, cityDemand, citySafetyGates,cityBoundaryDistance } from './simulation/city-world';
 import type { CityDebugLayer } from './render/city-blueprint';
+import { diagnoseUrbanRepetition } from './diagnostics/urban-repetition';
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = element<HTMLCanvasElement>('world');
@@ -44,7 +45,10 @@ const params = new URLSearchParams(location.search);
 async function boot() {
   const rural = params.get('scene') !== 'm1';
   const district = rural && params.get('scene') !== 'm2';
-  const cityWorld = params.get('scene') === 'm6' ? createCityWorld() : null;
+  const production=params.get('scene')==='m7';
+  const cityWorld = params.get('scene') === 'm6' || production ? createCityWorld(production) : null;
+  const npcNavigation=createNpcNavigation(cityWorld?.urban.map(u=>u.npcs));
+  const urbanEntrances=cityWorld?.entrances??[];
   const streamedWorld = cityWorld ?? (district && params.get('scene') !== 'm4' ? createStreamingWorld() : null);
   const course = streamedWorld?.course ?? (district ? createDistrictCourse() : rural ? createRuralCourse() : createCourse(104729));
   if (district) {
@@ -78,13 +82,21 @@ async function boot() {
     element('menu-title').textContent = 'A sense of scale.';
     document.querySelector('.intro')!.textContent = 'Walk the course. Find the door, climb the terrace, cross the bridge. One unit is one meter.';
   }
+  if(production){
+    document.querySelector('.chapter')!.textContent='THE EXCHANGE & CANAL WARDS';
+    element('scene-label').textContent='CENTRAL MARKET / LOWER CANAL';
+    element('menu-title').textContent='Where the city gathers.';
+    document.querySelector('.intro')!.textContent='Climb to the exchange hall, follow the shop streets, then take the bridge to the working quays.';
+    document.querySelector('.course-features')!.innerHTML='<span>Merchant streets</span><span>Working waterfront</span><span>Living neighborhoods</span>';
+    document.title='Voxarrium · Exchange & canal wards';canvas.setAttribute('aria-label','Voxarrium playable exchange and canal wards');
+  }
   const state = createState(course);
   const livingUi = createLivingUi();
   const audioSettings = { ...DEFAULT_AUDIO };
-  const audio = createLivingAudio(audioSettings, district);
+  const audio = createLivingAudio(audioSettings, district,production?cityWorld?.urban:undefined,production?cityWorld?.blueprint.waterways:undefined);
   if (streamedWorld) {
     state.npcResidency = createNpcResidency();
-    state.persistentInteractables = Object.fromEntries(['landmark.herbs', 'landmark.bridge', ...DISTRICT_ENTRANCES.map(entrance => entrance.id)]
+    state.persistentInteractables = Object.fromEntries(['landmark.herbs', 'landmark.bridge', ...DISTRICT_ENTRANCES.map(entrance => entrance.id),...urbanEntrances.map(e=>e.id)]
       .map(id => [id, { visits: 0, closed: id.endsWith('.entrance') }]));
     audio.districtActive(false);
   }
@@ -152,7 +164,8 @@ async function boot() {
     for (const area of streamedWorld!.areas) {
       const transition = transitions.get(area.id);
       const distance = areaDistance(area, state.player.position);
-      if (transition && distance <= 1 && boundaryNeeded.get(area.id) !== transition.id) {
+      const neededDistance=cityWorld?cityBoundaryDistance(area,state.player.position,cityWorld.urban):distance;
+      if (transition && neededDistance <= 1 && boundaryNeeded.get(area.id) !== transition.id) {
         boundaryNeeded.set(area.id, transition.id); transition.event('boundary-needed');
       }
       if (transition && distance === 0 && crossed.get(area.id) !== transition.id) {
@@ -160,7 +173,10 @@ async function boot() {
       }
     }
     physics.streamingGates(streaming.activeIds(), state.player.position,
-      cityWorld ? citySafetyGates(cityWorld.blueprint, streaming.activeIds(), state.player.position) : undefined);
+      cityWorld ? citySafetyGates(cityWorld.blueprint, streaming.activeIds(), state.player.position,cityWorld.urban) : undefined);
+    if(production)audio.urbanZone(streamedWorld!.areas.filter(a=>a.urban && streaming.activeIds().includes(a.id)).sort((a,b)=>
+      areaDistance(a,state.player.position)-areaDistance(b,state.player.position)||
+      Math.hypot(a.course.spawn.x-state.player.position.x,a.course.spawn.z-state.player.position.z)-Math.hypot(b.course.spawn.x-state.player.position.x,b.course.spawn.z-state.player.position.z))[0]?.id??null);
     const marketActive = streaming.activeIds().includes('river-market');
     if (marketActive !== marketAudioActive) {
       marketAudioActive = marketActive;
@@ -211,18 +227,18 @@ async function boot() {
     if (!state.environment || state.paused || state.camera.mode === 'free' || state.camera.mode === 'eagle-eye') return;
     if (state.interaction) state.interaction = null;
     else {
-      const target = interactionTarget(state.population, state.player.position, state.environment);
+      const target = interactionTarget(state.population, state.player.position, state.environment,npcNavigation,urbanEntrances);
       if (target) {
         state.interaction = { id: target.id, name: target.name, text: target.text, position: { ...target.position } };
         const persistent = state.persistentInteractables?.[target.id]; if (persistent) persistent.visits++;
-        audio.cue(target.position, target.id.endsWith('.entrance'));
+        audio.cue(target.position, target.id.endsWith('.entrance')||target.id.endsWith('.rear-entrance'));
       }
     }
     updateInteractionUi();
   }
   function updateInteractionUi() {
     const active = !state.paused && (state.camera.mode === 'first-person' || state.camera.mode === 'third-person');
-    livingUi.update(state.environment ? interactionTarget(state.population, state.player.position, state.environment) : null, state.interaction, active);
+    livingUi.update(state.environment ? interactionTarget(state.population, state.player.position, state.environment,npcNavigation,urbanEntrances) : null, state.interaction, active);
   }
   const input = createInput(canvas, {
     onLook(dx, dy) {
@@ -250,12 +266,12 @@ async function boot() {
         const loaded = streaming.loadedIds(), active = streaming.activeIds();
         const nextKey = `${loaded.join(',')}/${active.join(',')}`;
         const updatePopulation = () => stepResidentPopulation(state.population, state.npcResidency!, FIXED_DT,
-          state.environment!, state.player.position, loaded, active, state.interaction?.id ?? null);
+          state.environment!, state.player.position, loaded, active, state.interaction?.id ?? null,npcNavigation);
         const transition = [...transitions.values()].at(-1);
         if (transition && nextKey !== residencyKey) transition.span('npc-tier-transition', updatePopulation, { loaded, active, persistentIds: state.population.length });
         else updatePopulation();
         residencyKey = nextKey;
-      } else stepPopulation(state.population, FIXED_DT, state.environment, state.player.position, state.interaction?.id);
+      } else stepPopulation(state.population, FIXED_DT, state.environment, state.player.position, state.interaction?.id,npcNavigation);
       if (state.interaction) {
         const npc = state.population.find(n => n.id === state.interaction!.id);
         const source = npc?.position ?? state.interaction.position;
@@ -323,6 +339,20 @@ async function boot() {
   };
   const onModeSelect = () => setMode(cameraSelect.value as CameraMode);
   let cityDebugControls: HTMLElement | undefined;
+  let repetitionPanel:HTMLElement|undefined;
+  function showRepetition(visible:boolean){
+    if(!import.meta.env.DEV || !production)return;
+    if(!repetitionPanel){
+      repetitionPanel=document.createElement('pre');repetitionPanel.id='urban-repetition';
+      repetitionPanel.style.cssText='position:fixed;right:20px;top:90px;max-width:540px;max-height:65vh;overflow:auto;padding:18px;background:#18211fed;color:#eee4cc;font:12px/1.5 monospace;z-index:30;white-space:pre-wrap;pointer-events:auto';
+      document.body.append(repetitionPanel);
+    }
+    repetitionPanel.hidden=!visible;
+    if(visible)repetitionPanel.textContent=cityWorld!.urban.map(u=>{
+      const d=diagnoseUrbanRepetition(u);
+      return `${u.id} · ${d.buildings} buildings\n${d.findings.slice(0,12).map(f=>`${f.kind}: ${f.buildingIds.map(id=>id.split('.').at(-1)).join(', ')}\n  ${f.signature}`).join('\n')}\n${d.findings.length} review hints. Full IDs/signatures in capture JSON.\n`;
+    }).join('\n')+'Grammar diagnostics guide human review. No global variety score.';
+  }
   if (import.meta.env.DEV && cityWorld) {
     const panel = document.createElement('details'); panel.className = 'living-settings'; panel.id = 'city-debug';
     panel.innerHTML = '<summary>City review cameras & overlays</summary><div class="settings"><label>View<select id="city-view"></select></label><label>Overlay<select id="city-layer"></select></label></div>';
@@ -333,6 +363,7 @@ async function boot() {
     for (const name of ['none', 'districts', 'roads', 'waterways', 'bridges', 'elevation', 'streaming']) layer.add(new Option(name, name));
     layer.addEventListener('change', () => { renderer.cityDebug(layer.value as CityDebugLayer); draw(); });
     menu.querySelector('.menu-card')!.append(panel); cityDebugControls = panel;
+    if(production){const button=document.createElement('button');button.type='button';button.textContent='Review building repetition';button.addEventListener('click',()=>showRepetition(true));panel.append(button);}
   }
   const onStart = async () => {
     startButton.disabled = true;
@@ -377,6 +408,7 @@ async function boot() {
   function dispose() {
     if (disposed) return;
     disposed = true;
+    repetitionPanel?.remove();
     cancelAnimationFrame(frameId);
     if (document.pointerLockElement === canvas) document.exitPointerLock();
     startButton.removeEventListener('click', onStart);
@@ -410,7 +442,7 @@ async function boot() {
   for (let i = 0; i < 30; i++) tick(IDLE_INPUT);
   state.tick = 0; state.elapsed = 0;
   if (state.environment) state.environment = createEnvironment();
-  state.population = rural ? createPopulation(district) : [];
+  state.population = rural ? createPopulation(district,npcNavigation) : [];
   previousPosition = { ...state.player.position };
   rig.update(0, canvas.clientWidth / canvas.clientHeight);
   try { await renderer.warmup(rig.camera, state); }
@@ -420,7 +452,7 @@ async function boot() {
   element('backend-badge').title = renderer.facts.fallbackReason ?? renderer.facts.requestedBackend;
   notice.textContent = 'Ready. Blender meter and axis checks passed.';
   startButton.disabled = false;
-  startButton.textContent = streamedWorld ? 'Explore the garden' : district ? 'Explore the market' : rural ? 'Explore the garden' : 'Enter the course';
+  startButton.textContent = production ? 'Explore the wards' : streamedWorld ? 'Explore the garden' : district ? 'Explore the market' : rural ? 'Explore the garden' : 'Enter the course';
   overlay();
   frameId = requestAnimationFrame(frame);
 
@@ -437,7 +469,9 @@ async function boot() {
       camera: { position: rig.camera.position.toArray(), quaternion: rig.camera.quaternion.toArray(), fov: rig.camera.fov, aspect: rig.camera.aspect },
       bookmarks: structuredClone(course.bookmarks),
       city: cityWorld ? { districts: structuredClone(cityWorld.blueprint.districts), cameras: structuredClone(cityWorld.blueprint.cameras),
-        route: structuredClone(cityWorld.route), connections: structuredClone(cityWorld.blueprint.connections), assumptions: [...cityWorld.blueprint.assumptions] } : null,
+        route: structuredClone(cityWorld.route), connections: structuredClone(cityWorld.blueprint.connections), assumptions: [...cityWorld.blueprint.assumptions],
+        urban:cityWorld.urban.map(u=>({id:u.id,identity:u.identity,route:u.route,views:u.views,eagle:u.eagle,entrances:cityWorld.entrances.filter(e=>e.id.startsWith(`m7.${u.id}`)),
+          repetition:import.meta.env.DEV?diagnoseUrbanRepetition(u):null})) } : null,
       pointerLocked: document.pointerLockElement === canvas,
     }),
     freeze(value = true) { manual = value; clock.reset(); previousPosition = { ...state.player.position }; },
@@ -450,10 +484,11 @@ async function boot() {
     },
     interact,
     recordAudio: (seconds: number) => audio.record(seconds),
-    resetPopulation() { state.population = rural ? createPopulation(district) : []; state.interaction = null; draw(); overlay(); },
+    resetPopulation() { state.population = rural ? createPopulation(district,npcNavigation) : []; state.interaction = null; draw(); overlay(); },
     mode: setMode,
     cityDebug(layer: CityDebugLayer) { renderer.cityDebug(layer); draw(); },
     cityCamera(id: string) { rig.setDebugCamera(id); setMode('eagle-eye'); draw(); },
+    urbanDiagnostics:showRepetition,
     look(yaw: number, pitch: number) { state.camera.yaw = yaw; state.camera.pitch = pitch; draw(1, 0); overlay(); },
     teleport(position: Vec3) { reset(position); draw(); overlay(); },
     bookmark(name: string, mode: CameraMode = 'third-person') {
@@ -465,7 +500,7 @@ async function boot() {
       for (let i = 0; i < 30; i++) tick(IDLE_INPUT);
       state.tick = 0; state.elapsed = 0; state.resets = 0;
       if (state.environment) state.environment.time = 0;
-      state.population = rural ? createPopulation(district) : []; state.interaction = null; audio.reset();
+      state.population = rural ? createPopulation(district,npcNavigation) : []; state.interaction = null; audio.reset();
       previousPosition = { ...state.player.position };
       draw(1, 0); overlay();
     },

@@ -20,6 +20,7 @@ import { landscapeMaterialJobs } from './landscape-materials';
 import { ecologyRegistrationJobs } from './rural-ecology';
 import { randomSequence } from './rural-geometry';
 import { districtGroundJobs } from './district-ground';
+import type { UrbanBuilding, UrbanDistrict } from '../simulation/urban-contracts';
 
 type Placement = { matrix: Matrix4; plaster: number; clay: number; cloth: number; tint: number; owner: string };
 type Envelope = { min: [number, number, number]; max: [number, number, number] };
@@ -27,9 +28,11 @@ type Opening = { x: number; y: number; width: number; height: number; module: 'd
 
 /** All four elevations partition around actual voids; no repeated per-panel Object3Ds. */
 export function composeDistrictArchitecture(root: Object3D) { return finishPreparation(districtArchitectureJobs(root)); }
-export function* districtArchitectureJobs(root: Object3D, scope?: PreparationResources, target?: Group) {
+export function* districtArchitectureJobs(root: Object3D, scope?: PreparationResources, target?: Group, urban?: UrbanDistrict) {
   const ownership = preparationResources(scope);
-  const group = target ?? new Group(); group.name = 'district.architecture';
+  const group = target ?? new Group(); group.name = urban ? `urban.${urban.id}.architecture` : 'district.architecture';
+  const buildings = urban?.buildings ?? DISTRICT_BUILDINGS;
+  const facades = urban ? Object.fromEntries(urban.buildings.map(b=>[b.id,b.facade])) : DISTRICT_FACADES;
   const templates = new Map<DistrictModuleId, Mesh[]>();
   root.updateMatrixWorld(true);
   root.traverse(object => {
@@ -48,10 +51,11 @@ export function* districtArchitectureJobs(root: Object3D, scope?: PreparationRes
     entries.push({ matrix, plaster: building?.plaster ?? 0xdbceb0, clay: building?.roofColor ?? 0xa95c36,
       cloth, tint, owner }); placements.set(id, entries);
   };
-  for (const [index, building] of DISTRICT_BUILDINGS.entries()) {
+  for (const [index, building] of buildings.entries()) {
     yield 'market.building';
     const { width, depth, floors, floorHeight } = building;
-    const profile = FACADE_PROFILES[DISTRICT_FACADES[building.id]!];
+    const profile = FACADE_PROFILES[facades[building.id]!];
+    const grammar = urban ? building as UrbanBuilding : null;
     const height = floors * floorHeight;
     lotTransform.position.set(building.position.x, building.position.y, building.position.z);
     lotTransform.rotation.set(0, building.yaw, 0); lotTransform.scale.set(1, 1, 1); lotTransform.updateMatrix();
@@ -77,14 +81,14 @@ export function* districtArchitectureJobs(root: Object3D, scope?: PreparationRes
       const openings: Opening[] = [];
       if (elevation.front) openings.push({ x: 0, y: .18, width: 1.18, height: 2.16, module: 'door' });
       // A narrower utility rear door distinguishes workshops and canal premises.
-      if (elevation.back && (building.archetype === 'workshop' || building.archetype === 'canal')) {
+      if (elevation.back && grammar?.rearEntrance!==false && (building.archetype === 'workshop' || building.archetype === 'canal')) {
         openings.push({ x: elevation.length * .28, y: .18, width: 1.18, height: 2.16, module: 'door' });
         wall('doorstep', elevation.length * .28, 0, 0, .93);
       }
       for (let floor = 0; floor < floors; floor++) {
-        const large = floor === 0 && elevation.front && building.awning;
+        const large = floor === 0 && elevation.front && (building.awning || grammar?.shopfront==='arcade');
         const paired = profile === FACADE_PROFILES.paired && !large && elevation.front;
-        const count = Math.max(2, Math.floor(elevation.length / (large ? 3.7 : profile.spacing)));
+        const count = grammar && elevation.front ? grammar.bays : Math.max(2, Math.floor(elevation.length / (large ? 3.7 : profile.spacing)));
         const span = elevation.length - (paired ? 2.75 : 2.1);
         for (let bay = 0; bay < count; bay++) {
           const centre = -span / 2 + span * bay / (count - 1) + (elevation.front ? profile.shift : -profile.shift);
@@ -99,7 +103,7 @@ export function* districtArchitectureJobs(root: Object3D, scope?: PreparationRes
             // Service elevations have fewer openings and higher sills.
             if (elevation.back && floor===0 && bay===count-1 && index%2===0) continue;
             openings.push({ x, y: floor * floorHeight + (large ? .81 : h>1.5 ? .72 : 1.01), width:w,height:h,module,
-              shutter: profile.shutters==='none' || large || paired ? undefined : (index+floor+bay)%4 });
+              shutter: profile.shutters==='none' || large || paired ? undefined : ((grammar?.shutterOffset??index)+floor+bay)%4 });
           }
         }
       }
@@ -142,6 +146,8 @@ export function* districtArchitectureJobs(root: Object3D, scope?: PreparationRes
           if (!openings.some(o => Math.abs(o.x - x) < o.width / 2 + .13)) posts.push(x);
       }
       for (const x of posts) wall('post', x, .35, .074, 1.05, height - .30);
+      if(grammar?.corner==='stone' || grammar?.corner==='pilaster')for(const x of [-elevation.length/2+.13,elevation.length/2-.13])
+        wall('stone',x,.44,.025,grammar.corner==='pilaster'?.38:.26,height-.44,.16,.94);
       for (const sign of [-1, 1]) {
         const x = sign * (elevation.length / 2 - .45);
         wall('brace', x, height - .9, .13, .7, .65);
@@ -149,12 +155,17 @@ export function* districtArchitectureJobs(root: Object3D, scope?: PreparationRes
       // Full-height timber rhythm is selective, while wealthier houses use broad plaster.
       if (elevation.front && building.awning) {
         put('awning', profile.shift + (index%2?.38:-.28), 2.51, 0, Math.min(1.55, width / (index%3?7.5:5.8)), 1, index%3===0?1.15:.88, 0, face, building, building.id,
-          1, building.archetype === 'workshop' ? 0x7c8871 : index % 2 ? 0x955d48 : 0x4b7771);
+          1, grammar?.cloth ?? (building.archetype === 'workshop' ? 0x7c8871 : index % 2 ? 0x955d48 : 0x4b7771));
         wall('sign', (index%2?1:-1)*(elevation.length / 2 - .72), 3.05 + index%3*.12, .03,
           index%3===0?1.14:.82,.88,.9);
       }
       if (elevation.front && building.balcony) wall('balcony', profile.balcony, floorHeight + .12, .02,
         index%2?.82:1.08);
+      if(elevation.front && grammar?.shopfront==='arcade')for(let bay=0;bay<grammar.bays;bay++){
+        const x=-width*.42+width*.84*bay/(grammar.bays-1);
+        wall('post',x,0,1.65,1.7,3.05,1.7);wall('beam',x,3.0,.95,width/grammar.bays,1.45,1.4);
+        put('awning',x,2.96,.12,.76,1,1.35,0,face,building,building.id,1,grammar.cloth);
+      }
       // Selective utility hood and stacked repairs form side-street shadow pockets.
       if (!elevation.front && !elevation.back && (building.id==='district.weaver-home' || building.id==='district.bookbinder') && elevation.yaw>0) {
         put('awning',-.55,3.26,0,.65,1,.42,0,face,building,building.id,1,0x79765a);
@@ -167,10 +178,12 @@ export function* districtArchitectureJobs(root: Object3D, scope?: PreparationRes
       if (elevation.front) wall('lantern', .94, 2.58, .04);
     }
     add('doorstep', 0, 0, depth / 2);
+    const turned=grammar?.roofDirection===1,roofWidth=turned?depth:width,roofDepth=turned?width:depth;
     add(`roof-${building.roof}` as DistrictModuleId, 0, height, 0,
-      width / 8, building.roofHeight / 2.2, Math.max(depth / 7, (depth + 1.94) / 9));
+      roofWidth / 8, building.roofHeight / 2.2, Math.max(roofDepth / 7, (roofDepth + 1.94) / 9),turned?Math.PI/2:0);
     if (building.roof === 'gable') for (const sign of [-1, 1])
-      add('gable-cap', 0, height, sign * depth / 2, width / 8, building.roofHeight / 2.2, 1, sign === 1 ? 0 : Math.PI);
+      add('gable-cap', turned?sign*width/2:0, height, turned?0:sign*depth/2, roofWidth / 8, building.roofHeight / 2.2, 1,
+        (sign===1?0:Math.PI)+(turned?Math.PI/2:0));
     const chimneyY = height + building.roofHeight * .42;
     add('chimney', -width * .26, chimneyY, -depth * .18, index % 3 === 0 ? 1.12 : .9, 1, .95);
     if (building.archetype === 'civic') add('tower', width * .20, height + .36, -depth * .04, 1.25, 1.1, 1.25);
@@ -193,14 +206,15 @@ export function* districtArchitectureJobs(root: Object3D, scope?: PreparationRes
     }
   }
   // A functional market is grouped around a generous central crossing.
-  const marketStalls = DISTRICT_STALLS;
-  for (const [i, {x,z,yaw,width,depth,cloth,goods}] of marketStalls.entries()) {
-    put('stall', x, 4, z, width, 1, depth, yaw, undefined, undefined, `district.market.${i}`, 1,cloth);
-    put(goods,x,4.94,z,width,1,depth,yaw,undefined,undefined,`district.market.${i}.goods`,1,cloth);
-    roofEnvelopes.push({ min: [x - 1.55*width, 6.13, z - 1.03*depth], max: [x + 1.55*width, 6.68, z + 1.03*depth] });
+  const marketStalls = urban?.stalls ?? DISTRICT_STALLS.map(s=>({...s,y:4}));
+  for (const [i, {x,y,z,yaw,width,depth,cloth,goods}] of marketStalls.entries()) {
+    put('stall', x, y, z, width, 1, depth, yaw, undefined, undefined, `${urban?.id??'district'}.market.${i}`, 1,cloth);
+    put(goods,x,y+.94,z,width,1,depth,yaw,undefined,undefined,`${urban?.id??'district'}.market.${i}.goods`,1,cloth);
+    roofEnvelopes.push({ min: [x - 1.55*width, y+2.13, z - 1.03*depth], max: [x + 1.55*width, y+2.68, z + 1.03*depth] });
   }
-  for (const prop of DISTRICT_DRESSING) put(prop.module,prop.position.x,prop.position.y,prop.position.z,
+  for (const prop of urban?.dressing ?? DISTRICT_DRESSING) put(prop.module,prop.position.x,prop.position.y,prop.position.z,
     ...prop.scale,prop.yaw,undefined,undefined,prop.id,prop.tint);
+  if(!urban){
   // Bridge decks and rails align exactly with parent-authored collision.
   for (const bridge of DISTRICT.bridges) {
     const divisions = 35, step = bridge.length / divisions;
@@ -247,9 +261,10 @@ export function* districtArchitectureJobs(root: Object3D, scope?: PreparationRes
       Math.abs(stair.tread) / .30, 0, undefined, undefined, `district.stairs.${stair.id}`,
       .95 + (i % 4) * .025);
   }
+  }
   // Bracket lanterns intentionally coincide with parent-owned measured light positions.
-  for (const [x, y, z] of DISTRICT_LAMPS) {
-    put('post', x!, 0 + (y! > 4 ? 4 : 0), z!, 1.05, y! > 4 ? 2.6 : 2.7, 1.05,
+  for (const [x, y, z] of urban?.lamps ?? DISTRICT_LAMPS) {
+    put('post', x!, urban ? y!-2.6 : 0 + (y! > 4 ? 4 : 0), z!, 1.05, y! > 4 ? 2.6 : 2.7, 1.05,
       0, undefined, undefined, 'district.lights');
     put('lantern', x!, y! - .10, z! - .45, 1, 1, 1, 0, undefined, undefined, 'district.lights');
   }
@@ -280,13 +295,13 @@ export function* districtArchitectureJobs(root: Object3D, scope?: PreparationRes
     if (!usedGeometry.has(object.geometry)) ownership.release(object.geometry);
     for (const mat of Array.isArray(object.material) ? object.material : [object.material]) if (!usedMaterials.has(mat)) ownership.release(mat);
   });
-  return { group, facts: { ...inspectDistrictKit(root), buildings: DISTRICT_BUILDINGS.length,
-    archetypes: [...new Set(DISTRICT_BUILDINGS.map(b => b.archetype))],
-    buildingIds: DISTRICT_BUILDINGS.map(b => b.id), instances,
+  return { group, facts: { ...inspectDistrictKit(root), buildings: buildings.length,
+    archetypes: [...new Set(buildings.map(b => b.archetype))],
+    buildingIds: buildings.map(b => b.id), instances,
     instanceBatches: Object.keys(instances).length,
     totalInstances: Object.values(instances).reduce((sum, n) => sum + n, 0),
-    roofEnvelopes, marketStalls: marketStalls.map(stall => ({...stall,y:4})),
-    facadeProfiles: DISTRICT_FACADES, dressing: DISTRICT_DRESSING.length,
+    roofEnvelopes, marketStalls,
+    facadeProfiles: facades, dressing: (urban?.dressing??DISTRICT_DRESSING).length,
     assumptions: 'Unseen elevations, guild belfry and local trade dressing are authored interpretations; closed doors have future interior hooks.' } };
 }
 

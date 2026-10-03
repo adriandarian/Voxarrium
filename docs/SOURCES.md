@@ -2,6 +2,12 @@
 
 Reviewed 2026-09-28. Validate installed versions locally. These are upstream capability references, not evidence that Voxarrium has implemented them.
 
+## M7 renderer lifecycle source checked 2026-10-02
+
+- Installed Three 0.186.1 `NodeBuilder._getBindGroup`, `NodeBuilderState.createBindings`, `Bindings._destroyBindings`, `Textures` and `SampledTexture` were inspected against actual local endpoint V8 graphs. The shared render-group cache persists with its renderer/context and has no entry eviction in that installed NodeBuilder.
+- [Upstream shared-binding cache lifecycle change](https://github.com/mrdoob/three.js/commit/dc20084a8b7d875641c3edfcb552cb1d17a2f249) moves cache ownership into Bindings and removes entries at final binding release. This primary change was verified live; it is not an installed dependency upgrade.
+- Voxarrium's smaller pinned-version adapter bypasses cross-builder caching only for uniform-only shared render groups. Identical cached NodeBuilderState sharing and normal binding disposal remain. This is a deliberate local compatibility choice with a possible binding-count/CPU cost; tests and measured repeat evidence must substantiate it. No legacy EffectComposer or GLSL patch is introduced.
+
 ## M3 sources checked 2026-09-29
 
 - [Three.js Shading Language](https://github.com/mrdoob/three.js/wiki/Three.js-Shading-Language): node position expressions and uniforms. Installed r186 `NodeMaterial.setupPosition` and instance transforms were inspected to keep height-anchored wind compatible with WebGPU and WebGL2. Real execution is covered separately by browser evidence.
