@@ -7,6 +7,7 @@ import type { CityBlueprint, CityRoad } from '../simulation/city-contracts';
 import { cityRetainingSurface } from '../simulation/city-terrain';
 import { cityRoadSurfaces } from '../simulation/city-blueprint';
 import type { BoxSpec, CourseSpec, GameState, Vec3 } from '../simulation/types';
+import type { UrbanDistrict } from '../simulation/urban-contracts';
 
 export type CityDebugLayer = 'none' | 'districts' | 'roads' | 'waterways' | 'bridges' | 'elevation' | 'streaming';
 type Surface = NonNullable<CourseSpec['surfaces']>[number];
@@ -85,7 +86,7 @@ function hipGeometry() {
 }
 
 /** Resident terrain/landmarks and overview-only density proxies. The caller guards debug access. */
-export function createCityPresentation(sourceBlueprint: CityBlueprint, acceptedCourses: CourseSpec[],replacedLandmarks:readonly string[]=[]) {
+export function createCityPresentation(sourceBlueprint: CityBlueprint, acceptedCourses: CourseSpec[],replacedLandmarks:readonly string[]=[],urban:readonly UrbanDistrict[]=[]) {
   const blueprint=replacedLandmarks.length?{...sourceBlueprint,landmarks:sourceBlueprint.landmarks.filter(l=>!replacedLandmarks.includes(l.id))}:sourceBlueprint;
   const group = new Group(); group.name = 'city.blueprint.resident';
   const overview = new Group(); overview.name = 'city.blueprint.overview-only'; overview.visible = false; group.add(overview);
@@ -202,8 +203,15 @@ export function createCityPresentation(sourceBlueprint: CityBlueprint, acceptedC
 
   for (const district of blueprint.districts) {
     const target = new Group(); target.name = `city.overview.${district.id}`; overview.add(target); districtOverview.set(district.id, target);
-    const masses = blueprint.massing[district.id] ?? [];
+    const production=urban.find(u=>u.id===district.id);
+    const masses = production?production.buildings.map(b=>({id:`${b.id}.overview-body`,position:{...b.position,y:b.position.y+b.floors*b.floorHeight/2},
+      size:{x:b.width,y:b.floors*b.floorHeight,z:b.depth},rotationY:b.yaw,color:b.plaster,collides:false})):blueprint.massing[district.id] ?? [];
     boxes(`city.overview.massing.${district.id}`, masses, target); massingInstances += masses.length;
+    if(production){
+      const roofs=production.buildings.map(b=>({id:`${b.id}.overview-roof`,position:{...b.position,y:b.position.y+b.floors*b.floorHeight+b.roofHeight/2},
+        size:{x:(b.roofDirection?b.depth:b.width)+.7,y:b.roofHeight,z:(b.roofDirection?b.width:b.depth)+.7},rotationY:b.yaw+b.roofDirection*Math.PI/2,color:b.roofColor,collides:false}));
+      boxes(`city.overview.production-roofs.${district.id}`,roofs,target,own(hipGeometry()));
+    }
   }
   acceptedCourses.forEach((course, index) => {
     const id = course.id.includes('rural') ? 'rural' : course.id.includes('neighbor') ? 'neighbor-shell'
@@ -269,8 +277,9 @@ export function createCityPresentation(sourceBlueprint: CityBlueprint, acceptedC
     group,
     update(state: GameState, activeIds: readonly string[]) {
       if (released) return;
-      overview.visible = state.camera.mode === 'eagle-eye' || state.camera.mode === 'free';
-      for (const [id, target] of districtOverview) target.visible = !activeIds.includes(id);
+      const artView=state.camera.mode === 'eagle-eye' || state.camera.mode === 'free';
+      overview.visible = artView || urban.length>0;
+      for (const [id, target] of districtOverview) target.visible = !activeIds.includes(id) && (artView||urban.some(d=>d.id===id));
     },
     setDebug(next: CityDebugLayer) {
       if (released) return;

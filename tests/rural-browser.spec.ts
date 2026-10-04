@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const blockout = process.env.VOXARRIUM_STAGE === 'blockout';
-const directory = process.env.VOXARRIUM_CAPTURE_DIR ?? `artifacts/m2/${blockout ? 'blockout' : 'final'}`;
+const directory = process.env.VOXARRIUM_RURAL_CAPTURE_DIR ?? process.env.VOXARRIUM_CAPTURE_DIR ?? `artifacts/m2/${blockout ? 'blockout' : 'final'}`;
 mkdirSync(directory, { recursive: true });
 
 for (const mode of ['third-person', 'first-person'] as const) {

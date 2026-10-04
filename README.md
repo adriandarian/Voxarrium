@@ -4,6 +4,10 @@ A living fantasy city for **third-person exploration**, with an optional first-p
 
 ## Start here
 
+**M8 builds a connected city core at [/?scene=m8](http://127.0.0.1:5173/?scene=m8).** River Market, Central Market, Lower Canal, Civic Terrace, Garden Terrace and South Gate use production detail, connected through the preserved Workshop Forecourt proxy. The rural slice is the approach. A population of 152 stable locals shares weather, time and spatial audio through the existing bounded staged streaming lifecycle. New M8 evidence and gate status are in [STATUS](STATUS.md); human art review is deferred under [the owner decision](docs/GOVERNANCE.md). The upper city and citadel remain blueprint proxies for M9.
+
+`npm run capture:m8` checks initialized WebGPU and explicit WebGL2 whole-core traversal and saves runtime views. With the dev server running, `npm run stress:core` uses headless Chrome with verified native AMD/RDNA2 WebGPU, without capturing the desktop mouse, to execute three bounded actual-input circuits in the selected clear/day or rain/dusk preset, alternating third- and first-person. Route data and full frame/readiness/resource reports are retained under `artifacts/m8`; fixed-step screenshots are distinct from cadence measurements. The default M5.1 corridor remains selectable for comparison.
+
 **M6 adds the walkable city macro-blueprint at [/?scene=m6](http://127.0.0.1:5173/?scene=m6).** Fourteen authored districts connect the accepted rural/market/workshop content to a 50 m citadel plateau, with a continuous river, four bridge connections, terraces and representative block masses. This is a topology and density review, with production buildings still gated. The default route retains the measured M5.1 corridor for comparison. See [CITY_BLUEPRINT.md](docs/CITY_BLUEPRINT.md) for the graph and assumptions and `STATUS.md` for actual evidence and the human-review gate.
 
 **M5 streams the rural slice, River Market and one modest eastern workshop shell.** The existing market retains 27 buildings, six archetypes, connected streets/alleys, quays, bridges and stairs. Forty-two persistent locals use nearby, loaded and unloaded tiers while weather, time and audio settings continue across boundaries. The shell tests transitions; it is not a finished new district. Historical M5/M5.1 results are preserved under `docs/history/`; the current M6 gate is in `STATUS.md`. The resident comparison is `/?scene=m4`, the rural slice `/?scene=m2`, and the M1 course `/?scene=m1`.
@@ -27,7 +31,7 @@ npm run doctor
 npm run references:verify
 ```
 
-Node.js 22.12+ is the project minimum. Browser tests use installed Google Chrome by default, without downloading another browser. Set `VOXARRIUM_BROWSER=msedge` to use installed Edge; Edge has not been validated for this milestone. Set `VOXARRIUM_HEADED=1` for a visible test browser and local GPU baseline. `npm run preview` serves the built runtime at http://127.0.0.1:4173/. Nothing is deployed publicly.
+Node.js 22.12+ is the project minimum. Browser tests use installed Google Chrome by default, without downloading another browser. Set `VOXARRIUM_BROWSER=msedge` to use installed Edge; Edge has not been validated for this milestone. Keep automated checks headless (`VOXARRIUM_HEADED=0`) under the owner's current preference. A visible run requires an explicit owner request; historical headed evidence remains preserved. `npm run preview` serves the built runtime at http://127.0.0.1:4173/. Nothing is deployed publicly.
 
 Tests and capture states/screenshots live under ignored `artifacts/`. See `docs/TESTING.md` for the exact procedure and evidence limits. `doctor` records local tooling under `.local/`; it does not test gameplay. The committed calibration GLB makes normal startup independent of Blender. `npm run blender:fixture` re-exports to `.local/assets/` for pipeline work; see `docs/ASSET_PIPELINE.md` before replacing the vendored fixture.
 
@@ -51,7 +55,7 @@ Verification checks PNG signatures, byte counts, dimensions, and SHA-256 checksu
 - `STATUS.md`: current reality and next gate.
 - `docs/VISION.md`, `docs/ART_DIRECTION.md`: product and art constraints.
 - `docs/ARCHITECTURE.md`, `docs/WORLD_SCALE.md`: runtime and scale contracts, with future proposals labeled.
-- `docs/prompts/`: bounded milestone prompts; read STATUS first and stop at its review gate.
+- `docs/prompts/`: bounded milestone prompts; read STATUS first and respect objective correctness gates and the review authority in GOVERNANCE.
 - `tools/`: dependency-free setup checks and Blender calibration.
 - `.agents/skills/`: small project-specific Codex workflows.
 

@@ -231,6 +231,18 @@ export function createStreamingController(areas: readonly WorldArea[], adapter: 
         if (Math.hypot(velocity.x, velocity.z) > .01) entry.holdWhileStationary = false;
         entry.demandDistance = demandIds && !demandIds.includes(entry.area.id) ? Infinity :
           entry.holdWhileStationary ? 0 : Math.min(entry.distance, areaDistance(entry.area, projected));
+        // M8's authored road arbitration already selects exactly one connected
+        // neighbor. A bent approach/local loop must not cancel that chosen cold
+        // load just because its straight projection temporarily misses the
+        // radial band. Admission still uses the same two transports/instances.
+        // First cold startup initializes shared landscape resources before its
+        // known neighbor prepares. Thereafter movement follows authored roads,
+        // and an ongoing load survives short idle readbacks. A ready, distant
+        // neighbor still retires under the ordinary stationary departure policy.
+        if(entry.area.preloadApproaches&&demandIds?.includes(entry.area.id)&&
+          (Math.hypot(velocity.x,velocity.z)>.1||preparing(entry.state))&&
+          entries.some(current=>current.area.id===demandIds[0]&&current.handle))
+          entry.demandDistance=Math.min(entry.demandDistance,policy.preloadRadius);
         entry.outsideSeconds = graphDeparture || entry.distance > policy.unloadRadius && entry.demandDistance > policy.preloadRadius ? entry.outsideSeconds + dt : 0;
         if (preparing(entry.state) && (graphDeparture || entry.distance > policy.deactivateRadius && entry.demandDistance > policy.preloadRadius)) cancel(entry);
         if (entry.state === 'active' && (graphDeparture || entry.distance > policy.deactivateRadius)) deactivate(entry);

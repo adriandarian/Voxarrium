@@ -5,9 +5,9 @@ import type { NpcDefinition } from './npcs';
 import type { Vec3, CourseSpec } from './types';
 import type { CityDistrictId } from './city-contracts';
 
-export type ProductionDistrictId = 'central-market' | 'lower-canal';
+export type ProductionDistrictId = 'central-market' | 'lower-canal' | 'civic-terrace' | 'garden-terrace' | 'south-gate';
 export type UrbanRecipe = 'merchant-house' | 'exchange-house' | 'corner-inn' | 'hall'
-  | 'canal-house' | 'workshop-house' | 'storehouse' | 'water-guild';
+  | 'canal-house' | 'workshop-house' | 'storehouse' | 'water-guild' | 'civic-house' | 'garden-house' | 'gate-house';
 export interface UrbanBuilding extends DistrictBuilding {
   recipe: UrbanRecipe;
   facade: FacadeProfile;
@@ -32,6 +32,7 @@ export interface UrbanNpcGraph {
   definitions: NpcDefinition[];
 }
 export interface UrbanGarden {id:string;position:Vec3;radius:number;tree:string;scale:number;}
+export interface UrbanPlant {id:string;kind:string;position:Vec3;scale:number;heading:number;}
 export interface UrbanHandoff {
   id:string;neighbor:CityDistrictId;position:Vec3;inward:Vec3;width:number;approachRadius:number;
 }
@@ -41,6 +42,8 @@ export interface UrbanDistrict {
   buildings: UrbanBuilding[];
   dressing: DistrictDressing[];
   gardens?:UrbanGarden[];
+  planting?:UrbanPlant[];
+  plantedGround?:NonNullable<CourseSpec['surfaces']>;
   stalls: UrbanStall[];
   lamps: [number, number, number][];
   /** Additional local paths, never replacements for accepted M6.1 roads. */

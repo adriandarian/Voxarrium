@@ -1,5 +1,9 @@
 # M6.1 city blueprint
 
+## Current M8 overlay
+
+[M8](CITY_CORE.md) promotes Civic Terrace, Garden Terrace and South Gate through the existing production grammar and keeps the macro records below unchanged. Together with River Market, Central Market, Lower Canal and the accepted Workshop Forecourt connector, they form the seven-ward core. Current owner authority is [GOVERNANCE](GOVERNANCE.md); the following M7 review-gate description retains its historical scope.
+
 ## M7 production overlay
 
 M7 uses the merged M6.1 topology below without replacing its macro layout. Only Central Market and Lower Canal receive production detail. Their original macro terrain, roads, waterways, connection records and district footprints remain unchanged and are checked by data equality. M7 suppresses the original market-belfry presentation/collider while its deliberate six-story tower occupies the same (158,12,-260) anchor. Small local support joints, service alleys and a connected Lower Canal cargo dock append to the detail courses. The other city districts retain their M6.1 proxy status. This does not authorize M8 or productionizing the remaining districts; owner review of the M7 evidence remains the gate.

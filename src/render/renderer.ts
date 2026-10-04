@@ -23,6 +23,13 @@ import { createAreaPresentation, throwIfAborted } from './streaming-areas';
 import type { WorldArea } from '../simulation/streaming-contracts';
 import { PreparationScheduler } from './preparation-scheduler';
 import { PreparationCache } from './preparation-cache';
+import { compileArea } from './area-compilation';
+import { installScheduledNodeBuilds } from './scheduled-node-builds';
+import type { ScheduledNodeBackend } from './scheduled-node-builds';
+import { installPipelineCache } from './pipeline-cache';
+import { installInstanceBufferNames } from './instance-buffer-names';
+import type { InstanceUniformBackend } from './instance-buffer-names';
+import type { PipelineManager } from './pipeline-cache';
 import { createCityPresentation } from './city-blueprint';
 import type { CityDebugLayer } from './city-blueprint';
 import type { CityBlueprint } from '../simulation/city-contracts';
@@ -137,7 +144,7 @@ function disposeScene(scene: Scene) {
 }
 
 export async function createGameRenderer(canvas: HTMLCanvasElement, course: CourseSpec, forceWebGL: boolean, blockout = false,
-  city?: { blueprint: CityBlueprint; acceptedCourses: CourseSpec[];replacedLandmarks?:string[] }) {
+  city?: { blueprint: CityBlueprint; acceptedCourses: CourseSpec[];replacedLandmarks?:string[];core?:boolean;urban?:import('../simulation/urban-contracts').UrbanDistrict[] }) {
   const streaming = course.id === 'm5-streaming-proof' || !!city;
   const district = course.id === 'm4-market-district' || streaming;
   const rural = course.id === 'm2-rural-96m' || district;
@@ -189,6 +196,12 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
   const activeAreas = new Set<string>();
   const firstFrames = new Map<string, ReturnType<typeof tail.beginTransition>>();
   const keyedTransientMaterials = new WeakSet<Material>();
+  const scheduledNodeObjects = new WeakMap<Object3D, () => PreparationScheduler>();
+  let restoreScheduledNodeBuilds: (() => void) | null = null;
+  let restoreInstanceBufferNames: (() => void) | null = null;
+  const pipelineCacheObjects = new WeakMap<Object3D, string>();
+  const instanceBufferObjects = new WeakMap<Object3D, string>();
+  let pipelineCache: ReturnType<typeof installPipelineCache> | null = null;
   // Preserve the native fallback, but record the failure that triggered it.
   const primaryBackend = renderer.backend;
   const initializeBackend = primaryBackend.init.bind(primaryBackend);
@@ -201,6 +214,12 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
     await tail.asyncSpan('renderer.backendInit', () => renderer.init());
     rendererInitialized = true;
     if (streaming) installScopedRenderBindings(renderer.backend as unknown as BindingBackend);
+    if (city?.core) restoreScheduledNodeBuilds = installScheduledNodeBuilds(
+      renderer.backend as unknown as ScheduledNodeBackend, scheduledNodeObjects);
+    if (city?.core && (renderer.backend as typeof renderer.backend & BackendDiagnostics).isWebGPUBackend) {
+      pipelineCache = installPipelineCache((renderer as unknown as { _pipelines: PipelineManager })._pipelines, pipelineCacheObjects);
+      restoreInstanceBufferNames = installInstanceBufferNames(renderer.backend as unknown as InstanceUniformBackend, instanceBufferObjects);
+    }
     const initialized = backendDetails(renderer);
     // CPU entry-point wall durations only. Neither uploads nor queue waits are
     // GPU timestamps. The wrappers preserve the installed backend's arguments.
@@ -239,7 +258,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       sun.shadow.camera.far = 300;
     }
     if (city) {
-      cityPresentation = createCityPresentation(city.blueprint, city.acceptedCourses,city.replacedLandmarks);
+      cityPresentation = createCityPresentation(city.blueprint, city.acceptedCourses,city.replacedLandmarks,city.core?city.urban:undefined);
       scene.add(cityPresentation.group);
     }
 
@@ -421,11 +440,20 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
             cache: preparationCache, transition,
           }));
         const scheduler = new PreparationScheduler(signal, { onWork: work => transition.work(work) });
+        const shortColdWard = city?.core && (area.id === 'rural' || area.id === 'river-market' || area.id === 'lower-canal');
+        if (shortColdWard) {
+          presentation.group.traverse(object => { if (object instanceof Mesh) instanceBufferObjects.set(object, area.id); });
+        }
+        if (pipelineCache && (area.id === 'rural' || area.id === 'river-market')) {
+          transition.event('pipeline-cache-start', pipelineCache.snapshot());
+          presentation.group.traverse(object => { if (object instanceof Mesh) pipelineCacheObjects.set(object, area.id); });
+        }
         let attachedHooks = false, released = false;
         function unload() {
           if (released) return; released = true;
           activeAreas.delete(area.id); areaPresentations.delete(area.id); firstFrames.delete(area.id);
           if (attachedHooks) livingEnvironment?.detachArea(area.id);
+          presentation.group.traverse(object => { pipelineCacheObjects.delete(object); instanceBufferObjects.delete(object); });
           presentation.dispose(); facts.loadedAssetCount = 1 + assetReferences.snapshot().assets;
           transition.event('render-resources-released');
           tail.event('streaming.renderDisposed', { areaId: area.id });
@@ -454,8 +482,22 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
           const culling = new Map<Mesh, boolean>();
           presentation.group.traverse(object => { if (object instanceof Mesh) { culling.set(object, object.frustumCulled); object.frustumCulled = false; } });
           progress('warming'); transition.event('warming');
+          // Short departures expose the Rural/River/Canal nine-yield-per-builder
+          // latency on reload. Scope complete, measured per-object builds to
+          // these M8 wards. Every actual compile/shadow job still runs.
+          if (shortColdWard) {
+            const nodeSignal = new AbortController().signal;
+            // Each indivisible build is measured against one 16 ms slice;
+            // the native compile loop itself yields between every object.
+            const createNodeScheduler = () => new PreparationScheduler(nodeSignal,
+              { budgetMs: 16, onWork: work => transition.work(work) });
+            for (const object of culling.keys()) scheduledNodeObjects.set(object, createNodeScheduler);
+            transition.event('node-build-plan', { mode: 'scheduled-complete-object', objects: culling.size, budgetMs: 16, scope: 'M8 Rural/River/Canal only' });
+          }
           try {
-            await transition.asyncSpan('renderer-compile-async', () => tail.asyncSpan('streaming.compileAsync', () => renderer.compileAsync(presentation.group, camera, scene)));
+            await transition.asyncSpan('renderer-compile-async', () => tail.asyncSpan('streaming.compileAsync', () =>
+              compileArea(renderer,presentation.group,camera,scene,signal,event=>
+                tail.event('streaming.compileAborted',{areaId:area.id,loaded:event.loaded,total:event.total}))));
             // Real shadow updates are skipped by compileAsync. Warm the new
             // geometry/material layouts in small actual passes, yielding and
             // draining the submitted queue between them. No mutable renderer or
@@ -464,9 +506,11 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
             // ShadowNode skips a second update for the same camera in one
             // animation frame. The live player camera may already have drawn
             // before this scheduler callback; use a separate camera identity.
-            // Two submissions share a queue fence, but retain distinct camera
-            // identities so both real shadow passes run even within one frame.
-            const warmupCameras = [camera.clone(), camera.clone()];
+            // River/Canal's short M8 approach amortizes fences across four actual
+            // submissions. Other areas retain two. Distinct camera identities
+            // keep every real shadow update, including within one frame.
+            const submissionsPerQueueWait = city?.core && (area.id === 'river-market' || area.id === 'lower-canal') ? 4 : 2;
+            const warmupCameras = Array.from({ length: submissionsPerQueueWait }, () => camera.clone());
             // Instance.js emits count-sized buffers; seemingly identical meshes
             // with different instance counts/color buffers can have distinct
             // native shaders. Warm each actual mesh rather than guessing a
@@ -486,11 +530,11 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
               if (staticSignatures.has(key)) return false;
               staticSignatures.add(key); return true;
             });
-            transition.event('warmup-plan', { meshes: meshes.length, representatives: representatives.length, submissionsPerQueueWait: 2 });
+            transition.event('warmup-plan', { meshes: meshes.length, representatives: representatives.length, submissionsPerQueueWait });
             const visible = new Map(meshes.map(mesh => [mesh, mesh.visible]));
             for (const [index, mesh] of representatives.entries()) {
-              if (index % 2 === 0) await scheduler.yieldFrame();
-              const warmupCamera = warmupCameras[index % 2]!;
+              if (index % submissionsPerQueueWait === 0) await scheduler.yieldFrame();
+              const warmupCamera = warmupCameras[index % submissionsPerQueueWait]!;
               await scheduler.job('renderer-shadow-submit', () => {
                 const oldTarget = renderer.getRenderTarget();
                 const parent = presentation.group.parent;
@@ -511,7 +555,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
               });
               const backend = renderer.backend as typeof renderer.backend & BackendDiagnostics;
               if (backend.device) {
-                if (index % 2 === 1 || index === representatives.length - 1) {
+                if ((index + 1) % submissionsPerQueueWait === 0 || index === representatives.length - 1) {
                   await transition.asyncSpan('renderer-queue-wait', () => backend.device!.queue.onSubmittedWorkDone());
                 }
               }
@@ -519,9 +563,14 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
               throwIfAborted(signal);
             }
           }
-          finally { culling.forEach((value, object) => { object.frustumCulled = value; }); }
+          finally { culling.forEach((value, object) => {
+            object.frustumCulled = value; scheduledNodeObjects.delete(object);
+          }); }
           throwIfAborted(signal);
           if (disposed) throw new DOMException('Renderer disposed during preparation', 'AbortError');
+          if (pipelineCache && (area.id === 'rural' || area.id === 'river-market')) {
+            transition.event('pipeline-cache-ready', pipelineCache.snapshot());
+          }
           areaPresentations.set(area.id, presentation);
           facts.loadedAssetCount = 1 + assetReferences.snapshot().assets;
           return {
@@ -590,6 +639,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
             activeNpcs: streaming ? [...activeAreas].reduce((sum, id) => sum + (areaPresentations.get(id)?.npcStats()?.count ?? 0), 0) : locals ? statePopulationCount : 0 },
           streamingResources: streaming ? { render: resourceReferences.snapshot(), assets: assetReferences.snapshot(),
             cache: preparationCache.snapshot(),
+            gpuPipelines: pipelineCache?.snapshot() ?? null,
             preparedAreas: [...areaPresentations.keys()], activeAreas: [...activeAreas],
             npcs: Object.fromEntries([...areaPresentations].map(([id, presentation]) => [id, presentation.npcStats()])) } : null,
         };
@@ -597,8 +647,11 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       dispose() {
         if (disposed) return;
         disposed = true;
+        restoreInstanceBufferNames?.(); restoreInstanceBufferNames = null;
+        restoreScheduledNodeBuilds?.(); restoreScheduledNodeBuilds = null;
         for (const [id, presentation] of areaPresentations) { livingEnvironment?.detachArea(id); presentation.dispose(); }
         areaPresentations.clear(); activeAreas.clear();
+        pipelineCache?.dispose();
         preparationCache.dispose(); warmupTarget.dispose();
         livingEnvironment?.dispose();
         cityPresentation?.dispose();
@@ -610,9 +663,12 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       },
     };
   } catch (error) {
+    restoreInstanceBufferNames?.(); restoreInstanceBufferNames = null;
+    restoreScheduledNodeBuilds?.(); restoreScheduledNodeBuilds = null;
     livingEnvironment?.dispose();
     cityPresentation?.dispose();
     disposeScene(scene);
+    pipelineCache?.dispose();
     const cleanupErrors: string[] = [];
     if (rendererInitialized) {
       try { await renderer.dispose(); }

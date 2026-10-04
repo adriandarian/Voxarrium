@@ -1,14 +1,140 @@
 import { expect, test } from '@playwright/test';
 import { PreparationScheduler } from '../src/render/preparation-scheduler';
 import { PreparationCache } from '../src/render/preparation-cache';
+import {compileArea} from '../src/render/area-compilation';
+import Renderer from 'three/src/renderers/common/Renderer.js';
+import NodeBuilder from 'three/src/nodes/core/NodeBuilder.js';
+import { installScheduledNodeBuilds } from '../src/render/scheduled-node-builds';
+import type { ScheduledNodeBuilder } from '../src/render/scheduled-node-builds';
 import { AssetReferences, ResourceReferences } from '../src/assets/resource-references';
 import { createAreaPresentation } from '../src/render/streaming-areas';
 import { createStreamingWorld } from '../src/simulation/streaming-world';
 import { readFile } from 'node:fs/promises';
-import { Mesh } from 'three';
+import { Mesh,Group,Scene,PerspectiveCamera } from 'three';
 import type { MeshStandardMaterial } from 'three';
 import { preparedGlbScene } from '../src/assets/abortable-glb';
 import type { PreparationResources } from '../src/render/preparation-cache';
+
+// Exercise the installed compileAsync algorithm, not a hand-written imitation.
+// Rendering/backend work is stubbed; the native promise deliberately ignores
+// abort so the test proves that resource settlement precedes callback rejection.
+function compilationFixture(){
+  const object=new Group(),scene=new Scene(),camera=new PerspectiveCamera();
+  const meshes=Array.from({length:3},(_,i)=>{const mesh=new Mesh();mesh.name=`compile-object-${i}`;object.add(mesh);return mesh;});
+  let finishFirst:()=>void=()=>{},entered:string[]=[];
+  const native=new Promise<void>(resolve=>{finishFirst=resolve;});
+  const originalContext={},originalRender=()=>{},originalHandle=()=>{},nodeFrame={renderId:7,update(){}};
+  const renderContext={clippingContext:{updateGlobal(){}}};
+  const renderList={begin(){},finish(){},opaque:[{}],transparent:[],transparentDoublePass:[],lightsNode:{}};
+  const prototype=Renderer.prototype as unknown as {_createObjectPipeline:(...args:unknown[])=>void};
+  const renderer={
+    _isDeviceLost:false,_initialized:true,shadowMap:{type:1},needsFrameBufferTarget:false,
+    _renderTarget:null,_outputRenderTarget:null,_mrt:null,xr:{isPresenting:false},depth:true,stencil:false,
+    _currentRenderContext:originalContext,_currentRenderObjectFunction:originalRender,_handleObjectFunction:originalHandle,
+    _compilationPromises:null,_isPreCompiling:false,opaque:true,transparent:false,lighting:{},renderObject(){},
+    _renderContexts:{get(){return renderContext;}},_updateCamera(c:PerspectiveCamera){return c;},
+    _renderLists:{get(){return renderList;}},_projectObject(){},_background:{update(){}},
+    _nodes:{nodeFrame,async getForRenderAsync(){},updateBefore(){},updateForRender(){},updateAfter(){}},
+    _geometries:{updateForRender(){}},_bindings:{updateForRender(){}},
+    _objects:{get(mesh:Mesh){return {object:mesh};}},
+    _pipelines:{getForRender(renderObject:{object:Mesh},promises:Promise<void>[]){
+      entered.push(renderObject.object.name);if(entered.length===1)promises.push(native);
+    }},
+    _renderObjects(){for(const mesh of meshes)prototype._createObjectPipeline.call(renderer,mesh,mesh.material,scene,camera,{},null,renderContext.clippingContext);},
+  };
+  Object.setPrototypeOf(renderer,Renderer.prototype);
+  return {renderer:renderer as unknown as Parameters<typeof compileArea>[0],raw:renderer,object,scene,camera,meshes,
+    entered,finishFirst,originalContext,originalRender,originalHandle,nodeFrame};
+}
+
+async function withProgressEvent(work:()=>Promise<void>){
+  const previous=Object.getOwnPropertyDescriptor(globalThis,'ProgressEvent');
+  const previousFrame=Object.getOwnPropertyDescriptor(globalThis,'requestAnimationFrame');
+  class TestProgressEvent extends Event{
+    readonly lengthComputable:boolean;readonly loaded:number;readonly total:number;
+    constructor(type:string,init:ProgressEventInit){super(type);this.lengthComputable=!!init.lengthComputable;this.loaded=init.loaded??0;this.total=init.total??0;}
+  }
+  Object.defineProperty(globalThis,'ProgressEvent',{value:TestProgressEvent,configurable:true});
+  Object.defineProperty(globalThis,'requestAnimationFrame',{value:(callback:FrameRequestCallback)=>{queueMicrotask(()=>callback(performance.now()));return 1;},configurable:true});
+  try{await work();}finally{
+    if(previous)Object.defineProperty(globalThis,'ProgressEvent',previous);else Reflect.deleteProperty(globalThis,'ProgressEvent');
+    if(previousFrame)Object.defineProperty(globalThis,'requestAnimationFrame',previousFrame);else Reflect.deleteProperty(globalThis,'requestAnimationFrame');
+  }
+}
+
+test('area compilation waits for the current native object, then aborts the installed loop before later objects',async()=>{
+  await withProgressEvent(async()=>{
+    const f=compilationFixture(),abort=new AbortController(),progress:number[][]=[];let outcome='pending';
+    const pending=compileArea(f.renderer,f.object,f.camera,f.scene,abort.signal,event=>progress.push([event.loaded,event.total]))
+      .then(()=>{outcome='ready';return null;},error=>{outcome='rejected';return error;});
+    try{
+      for(let i=0;i<20&&f.entered.length===0;i++)await Promise.resolve();
+      expect(f.entered).toEqual(['compile-object-0']);abort.abort();
+      for(let i=0;i<5;i++)await Promise.resolve();
+      expect(outcome).toBe('pending');expect(f.raw._isPreCompiling).toBe(false);
+      expect(f.raw._currentRenderContext).toBe(f.originalContext);
+      expect(f.raw._currentRenderObjectFunction).toBe(f.originalRender);expect(f.raw._handleObjectFunction).toBe(f.originalHandle);
+      expect(f.nodeFrame.renderId).toBe(7);
+      f.finishFirst();await expect(pending).resolves.toMatchObject({name:'AbortError'});
+      expect(outcome).toBe('rejected');expect(f.entered).toEqual(['compile-object-0']);
+      expect(progress).toEqual([[1,3]]);
+    }finally{f.finishFirst();for(const mesh of f.meshes)mesh.geometry.dispose();}
+  });
+});
+
+test('uncancelled area compilation completes every installed-loop object before ready',async()=>{
+  await withProgressEvent(async()=>{
+    const f=compilationFixture();try{
+      f.finishFirst();await compileArea(f.renderer,f.object,f.camera,f.scene,new AbortController().signal);
+      expect(f.entered).toEqual(['compile-object-0','compile-object-1','compile-object-2']);
+      expect(f.raw._isPreCompiling).toBe(false);expect(f.raw._currentRenderContext).toBe(f.originalContext);
+    }finally{for(const mesh of f.meshes)mesh.geometry.dispose();}
+  });
+});
+
+test('scheduled complete node builds preserve the installed build stages and reset state', async () => {
+  await withProgressEvent(async () => {
+    function fixture(object: Mesh) {
+      const order: string[] = [];
+      const Builder = NodeBuilder as unknown as new (object: Mesh, renderer: object, parser: null) => ScheduledNodeBuilder & {
+        context: object; flowNodes: Record<string, unknown[]>; prebuild(): void;
+        getBuildStage(): string; getShaderStage(): string; flowNode(node: unknown): void;
+        buildCode(): void; buildUpdateNodes(): void;
+      };
+      const builder = new Builder(object, {}, null);
+      builder.prebuild = () => {
+        order.push('prebuild'); builder.context = {};
+        const node = { build() { order.push(`${builder.getBuildStage()}:${builder.getShaderStage()}`); } };
+        builder.flowNodes = { vertex: [node], fragment: [node], compute: [] };
+      };
+      builder.flowNode = () => { order.push(`${builder.getBuildStage()}:${builder.getShaderStage()}`); };
+      builder.buildCode = () => { order.push('code'); }; builder.buildUpdateNodes = () => { order.push('updates'); };
+      return { builder, order };
+    }
+    const mesh = new Mesh(), other = new Mesh(); const reference = fixture(mesh), scheduled = fixture(mesh), untouched = fixture(other);
+    const originalAsync = scheduled.builder.buildAsync, otherAsync = untouched.builder.buildAsync;
+    let now = 0, frames = 0;
+    const scheduler = new PreparationScheduler(new AbortController().signal, {
+      now: () => now, nextFrame: async () => { frames++; now += 7; }, onWork: () => {},
+    });
+    const originalBuild = scheduled.builder.build;
+    scheduled.builder.build = function () { const result = originalBuild.call(this); now += 5; return result; };
+    const selected = new WeakMap([[mesh, () => scheduler]]);
+    const backend = { createNodeBuilder(object: unknown) { return object === mesh ? scheduled.builder : untouched.builder; } };
+    const factory = backend.createNodeBuilder, restore = installScheduledNodeBuilds(backend, selected);
+    try {
+      await reference.builder.buildAsync();
+      expect(backend.createNodeBuilder(other).buildAsync).toBe(otherAsync);
+      await backend.createNodeBuilder(mesh).buildAsync();
+      expect(scheduled.order).toEqual(reference.order);
+      expect(scheduled.order).toEqual(['prebuild', 'setup:fragment', 'setup:vertex', 'analyze:fragment', 'analyze:vertex', 'generate:fragment', 'generate:vertex', 'code', 'updates']);
+      expect(scheduled.builder.getBuildStage()).toBeNull(); expect(scheduled.builder.getShaderStage()).toBeNull();
+      expect(scheduled.builder.buildAsync).toBe(originalAsync); expect(frames).toBe(1);
+      expect(scheduler.snapshot()).toMatchObject({ jobs: 2, totalCpuMs: 5, largestJobMs: 5 });
+    } finally { restore(); mesh.geometry.dispose(); other.geometry.dispose(); }
+    expect(backend.createNodeBuilder).toBe(factory);
+  });
+});
 
 test('preparation gives rendering a frame between deliberately budgeted slices', async () => {
   const controller = new AbortController();

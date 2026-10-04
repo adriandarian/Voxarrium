@@ -5,16 +5,18 @@ import { cityRetainingSurface } from './city-terrain';
 import type { CityBlueprint } from './city-contracts';
 import type { UrbanDistrict } from './urban-contracts';
 import type { BoxSpec, CourseSpec } from './types';
+import { createCoreDistricts } from './city-core-districts';
+import { urbanNamespace } from './urban-grammar';
 
-export function createUrbanDistricts(blueprint:CityBlueprint):UrbanDistrict[]{
+export function createUrbanDistricts(blueprint:CityBlueprint,core=false):UrbanDistrict[]{
   const roads=cityRoadSurfaces(blueprint.roads),retaining=cityRetainingSurface(blueprint.terrain,roads);
-  return [createCentralMarket(blueprint),createLowerCanal(blueprint)].map(district=>({
-    ...district,pavingSurfaces:[...blueprint.terrain.filter(s=>s.id.startsWith(`city.terrain.${district.id}`)),
+  return [createCentralMarket(blueprint),createLowerCanal(blueprint),...(core?createCoreDistricts(blueprint):[])].map(district=>({
+    ...district,pavingSurfaces:[...blueprint.terrain.filter(s=>district.id!=='garden-terrace'&&s.id.startsWith(`city.terrain.${district.id}`)),
       ...cityRoadSurfaces(blueprint.roads.filter(r=>r.districts.includes(district.id))),...district.surfaces],
     retainingSurfaces:(()=>{
       const polygon=blueprint.districts.find(d=>d.id===district.id)!.footprint;
       const minX=Math.min(...polygon.map(p=>p.x)),maxX=Math.max(...polygon.map(p=>p.x)),minZ=Math.min(...polygon.map(p=>p.z)),maxZ=Math.max(...polygon.map(p=>p.z));
-      const surface={...retaining,id:`m7.${district.id}.retaining-veneer`,vertices:[] as number[],indices:[] as number[]};
+      const surface={...retaining,id:`${urbanNamespace(district.id)}.${district.id}.retaining-veneer`,vertices:[] as number[],indices:[] as number[]};
       for(let i=0;i<retaining.indices.length;i+=3){
         const points=retaining.indices.slice(i,i+3).map(n=>retaining.vertices.slice(n*3,n*3+3));
         const x=points.reduce((s,p)=>s+p[0]!,0)/3,z=points.reduce((s,p)=>s+p[2]!,0)/3;
@@ -38,6 +40,7 @@ return [front,{...front,id:`${b.id}.rear-entrance`,yaw:b.yaw+Math.PI,
   position:{x:b.position.x+Math.cos(b.yaw)*x+Math.sin(b.yaw)*z,y:b.position.y,z:b.position.z-Math.sin(b.yaw)*x+Math.cos(b.yaw)*z}}];
 });}
 export function urbanCourse(district:UrbanDistrict,seed:number):CourseSpec{
+  const namespace=urbanNamespace(district.id);
   const boxes:BoxSpec[]=[];
   for(const b of district.buildings){
     const height=b.floors*b.floorHeight;
@@ -55,13 +58,13 @@ export function urbanCourse(district:UrbanDistrict,seed:number):CourseSpec{
         z:b.position.z-Math.sin(b.yaw)*lx+Math.cos(b.yaw)*lz},size:{x:.27,y:3,z:.27},color:b.plaster,collides:true,visible:false});
     }
   }
-  for(const [i,s] of district.stalls.entries())boxes.push({id:`m7.${district.id}.stall.${i}`,position:{x:s.x,y:s.y+.47,z:s.z},
+  for(const [i,s] of district.stalls.entries())boxes.push({id:`${namespace}.${district.id}.stall.${i}`,position:{x:s.x,y:s.y+.47,z:s.z},
     size:{x:2.62*s.width,y:.94,z:1.52*s.depth},rotationY:s.yaw,color:s.cloth,collides:true,visible:false});
   for(const p of district.dressing)if(p.collider)boxes.push({id:`${p.id}.collider`,position:{...p.position,y:p.position.y+p.collider.y/2},
     size:p.collider,rotationY:p.yaw,color:0x877c62,collides:true,visible:false});
-  for(const [i,[x,y,z]] of district.lamps.entries())boxes.push({id:`m7.${district.id}.lamp.${i}`,position:{x,y:y-1.3,z},size:{x:.2,y:2.6,z:.2},color:0x635541,collides:true,visible:false});
+  for(const [i,[x,y,z]] of district.lamps.entries())boxes.push({id:`${namespace}.${district.id}.lamp.${i}`,position:{x,y:y-1.3,z},size:{x:.2,y:2.6,z:.2},color:0x635541,collides:true,visible:false});
   for(const g of district.gardens??[])if(g.tree)boxes.push({id:`${g.id}.trunk`,position:{...g.position,y:g.position.y+g.scale*1.55},
     size:{x:g.scale*.66,y:g.scale*3.1,z:g.scale*.66},color:0x635541,collides:true,visible:false});
-  return {id:`m7.${district.id}`,seed,bounds:850,spawn:{...district.route[0]!},boxes,surfaces:district.surfaces,labels:[],
-    bookmarks:Object.fromEntries(Object.entries(district.views).map(([id,v])=>[`m7.${district.id}.${id}`,v]))};
+  return {id:`${namespace}.${district.id}`,seed,bounds:850,spawn:{...district.route[0]!},boxes,surfaces:district.surfaces,labels:[],
+    bookmarks:Object.fromEntries(Object.entries(district.views).map(([id,v])=>[`${namespace}.${district.id}.${id}`,v]))};
 }
