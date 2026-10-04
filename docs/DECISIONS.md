@@ -1,5 +1,9 @@
 # Decision log
 
+## 2026-10-02: deferred roadmap art review
+
+The owner's attached goal objective supersedes earlier intermediate human art-approval stops for the current roadmap. Human art review is intentionally deferred until roadmap completion; intermediate phases use internal visual review and objective evidence gates. Preserve historical decisions and failed/passing evidence. This authorizes M8 and M9 preparation after M8 passes, without declaring earlier art human-approved. [Governance](GOVERNANCE.md) records the remaining hard stops.
+
 ## 2026-09-28 — Bootstrap
 - Third-person is the primary game camera; first-person shares the world; eagle-eye is art/debug.
 - Blender + GLB and vanilla Three.js are the intended pipeline. Validate the renderer/backend locally before committing to advanced effects.

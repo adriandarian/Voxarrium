@@ -15,6 +15,8 @@ export interface WorldArea {
   neighbors?: readonly AreaId[];
   streamingPriority?: number;
   urban?: UrbanDistrict;
+  /** M8 connected road departures guide prediction at shared fork pivots. */
+  preloadApproaches?: readonly { neighbor: AreaId; points: readonly Vec3[] }[];
 }
 /** Adapter owns render resources, physics proxies and environment hooks together.
  * load must prepare off-scene resources; activate installs collision before

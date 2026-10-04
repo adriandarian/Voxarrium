@@ -26,6 +26,7 @@ import type { AreaId } from './simulation/streaming-contracts';
 import { createNpcResidency, stepResidentPopulation, npcTierCounts } from './simulation/npc-residency';
 import { DISTRICT_ENTRANCES } from './simulation/district';
 import { createCityWorld, cityDemand, citySafetyGates,cityBoundaryDistance } from './simulation/city-world';
+import { CITY_CORE_PREPARATION_LEAD_SECONDS } from './simulation/city-core';
 import type { CityDebugLayer } from './render/city-blueprint';
 import { diagnoseUrbanRepetition } from './diagnostics/urban-repetition';
 
@@ -45,8 +46,9 @@ const params = new URLSearchParams(location.search);
 async function boot() {
   const rural = params.get('scene') !== 'm1';
   const district = rural && params.get('scene') !== 'm2';
-  const production=params.get('scene')==='m7';
-  const cityWorld = params.get('scene') === 'm6' || production ? createCityWorld(production) : null;
+  const core=params.get('scene')==='m8';
+  const production=params.get('scene')==='m7'||core;
+  const cityWorld = params.get('scene') === 'm6' || production ? createCityWorld(core?'core':production) : null;
   const npcNavigation=createNpcNavigation(cityWorld?.urban.map(u=>u.npcs));
   const urbanEntrances=cityWorld?.entrances??[];
   const streamedWorld = cityWorld ?? (district && params.get('scene') !== 'm4' ? createStreamingWorld() : null);
@@ -89,6 +91,14 @@ async function boot() {
     document.querySelector('.intro')!.textContent='Climb to the exchange hall, follow the shop streets, then take the bridge to the working quays.';
     document.querySelector('.course-features')!.innerHTML='<span>Merchant streets</span><span>Working waterfront</span><span>Living neighborhoods</span>';
     document.title='Voxarrium · Exchange & canal wards';canvas.setAttribute('aria-label','Voxarrium playable exchange and canal wards');
+  }
+  if(core){
+    document.querySelector('.chapter')!.textContent='THE SEVEN CONNECTED WARDS';
+    element('scene-label').textContent='RIVER / GARDENS / EXCHANGE / CIVIC / CANAL';
+    element('menu-title').textContent='A city to wander.';
+    document.querySelector('.intro')!.textContent='Follow the old market through the river gate, climb the planted streets to the public hall, and return by the working quays.';
+    document.querySelector('.course-features')!.innerHTML='<span>Connected neighborhoods</span><span>Garden & civic streets</span><span>Working waterfront</span>';
+    document.title='Voxarrium · The city core';canvas.setAttribute('aria-label','Voxarrium playable connected city core');
   }
   const state = createState(course);
   const livingUi = createLivingUi();
@@ -155,12 +165,20 @@ async function boot() {
   // The measured rural return needs its slot about 0.6 s earlier. Retiring an
   // already inactive lease 6 m sooner adds 1.1 s at the 5.4 m/s run speed,
   // retaining the 36/44 m entry/deactivation band and 1.5 s departure delay.
-  }, { preparationLeadSeconds: 10, unloadRadius: 46 }) : null;
+  }, { preparationLeadSeconds: cityWorld?.coreIds.length?CITY_CORE_PREPARATION_LEAD_SECONDS:10, unloadRadius: 46 }) : null;
   let marketAudioActive = false;
+  let previousCityDemand:AreaId[]|undefined;
+  let previousCityReturnNeighbor:AreaId|undefined;
   function updateStreaming(dt: number) {
     if (!streaming || disposed) return;
-    streaming.update(state.player.position, dt, state.player.velocity,
-      cityWorld ? cityDemand(cityWorld.areas, state.player.position, state.player.velocity) : undefined);
+    const demand=cityWorld?cityDemand(cityWorld.areas,state.player.position,state.player.velocity,previousCityDemand,previousCityReturnNeighbor):undefined;
+    if(cityWorld?.coreIds.length&&demand){
+      const previous=previousCityDemand?.[0];
+      if(previous&&demand[0]!==previous)previousCityReturnNeighbor=demand[1]===previous?previous:undefined;
+      else if(demand[1]!==previousCityReturnNeighbor)previousCityReturnNeighbor=undefined;
+    }
+    previousCityDemand=demand;
+    streaming.update(state.player.position, dt, state.player.velocity,demand);
     for (const area of streamedWorld!.areas) {
       const transition = transitions.get(area.id);
       const distance = areaDistance(area, state.player.position);
@@ -173,7 +191,7 @@ async function boot() {
       }
     }
     physics.streamingGates(streaming.activeIds(), state.player.position,
-      cityWorld ? citySafetyGates(cityWorld.blueprint, streaming.activeIds(), state.player.position,cityWorld.urban) : undefined);
+      cityWorld ? citySafetyGates(cityWorld.blueprint, streaming.activeIds(), state.player.position,cityWorld.urban,!!cityWorld.coreIds.length) : undefined);
     if(production)audio.urbanZone(streamedWorld!.areas.filter(a=>a.urban && streaming.activeIds().includes(a.id)).sort((a,b)=>
       areaDistance(a,state.player.position)-areaDistance(b,state.player.position)||
       Math.hypot(a.course.spawn.x-state.player.position.x,a.course.spawn.z-state.player.position.z)-Math.hypot(b.course.spawn.x-state.player.position.x,b.course.spawn.z-state.player.position.z))[0]?.id??null);
@@ -469,8 +487,8 @@ async function boot() {
       camera: { position: rig.camera.position.toArray(), quaternion: rig.camera.quaternion.toArray(), fov: rig.camera.fov, aspect: rig.camera.aspect },
       bookmarks: structuredClone(course.bookmarks),
       city: cityWorld ? { districts: structuredClone(cityWorld.blueprint.districts), cameras: structuredClone(cityWorld.blueprint.cameras),
-        route: structuredClone(cityWorld.route), connections: structuredClone(cityWorld.blueprint.connections), assumptions: [...cityWorld.blueprint.assumptions],
-        urban:cityWorld.urban.map(u=>({id:u.id,identity:u.identity,route:u.route,views:u.views,eagle:u.eagle,entrances:cityWorld.entrances.filter(e=>e.id.startsWith(`m7.${u.id}`)),
+        route: structuredClone(cityWorld.route), coreIds:cityWorld.coreIds, connections: structuredClone(cityWorld.blueprint.connections), assumptions: [...cityWorld.blueprint.assumptions],
+        urban:cityWorld.urban.map(u=>({id:u.id,namespace:u.buildings[0]!.id.split('.')[0]!,identity:u.identity,route:u.route,views:u.views,eagle:u.eagle,entrances:cityWorld.entrances.filter(e=>u.buildings.some(b=>b.id===e.buildingId)),
           repetition:import.meta.env.DEV?diagnoseUrbanRepetition(u):null})) } : null,
       pointerLocked: document.pointerLockElement === canvas,
     }),

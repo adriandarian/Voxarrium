@@ -4,6 +4,9 @@ import type { ProductionDistrictId, UrbanBuilding, UrbanRecipe } from './urban-c
 import type { Vec3 } from './types';
 
 const recipes = {
+  'civic-house': { archetype:'townhouse', floors:4, floorHeight:3.05, facade:'tall', roof:'mansard', bays:3, corner:'pilaster', shopfront:'wide', balcony:true, awning:true },
+  'garden-house': { archetype:'residential', floors:2, floorHeight:2.65, facade:'cottage', roof:'hip', bays:2, corner:'timber', shopfront:'single', balcony:false, awning:true },
+  'gate-house': { archetype:'workshop', floors:2, floorHeight:3.1, facade:'trade', roof:'gable', bays:3, corner:'stone', shopfront:'service', balcony:false, awning:true },
   'merchant-house': { archetype:'merchant', floors:3, floorHeight:2.85, facade:'paired', roof:'gable', bays:3, corner:'timber', shopfront:'paired', balcony:false, awning:true },
   'exchange-house': { archetype:'merchant', floors:4, floorHeight:3.0, facade:'tall', roof:'mansard', bays:4, corner:'pilaster', shopfront:'wide', balcony:true, awning:true },
   'corner-inn': { archetype:'townhouse', floors:3, floorHeight:3.1, facade:'tall', roof:'hip', bays:3, corner:'stone', shopfront:'single', balcony:true, awning:true },
@@ -16,8 +19,12 @@ const recipes = {
 export const URBAN_RULES = {
   'central-market': [['merchant-house',6],['exchange-house',4],['corner-inn',2]],
   'lower-canal': [['canal-house',5],['workshop-house',4],['storehouse',2]],
+  'civic-terrace': [['civic-house',7],['corner-inn',2],['exchange-house',2]],
+  'garden-terrace': [['garden-house',7],['workshop-house',2],['corner-inn',1]],
+  'south-gate': [['gate-house',6],['storehouse',3],['corner-inn',2]],
 } as const;
 export function urbanHash(id:string) { let hash=2166136261;for(const c of id)hash=Math.imul(hash^c.charCodeAt(0),16777619);return hash>>>0; }
+export const urbanNamespace=(id:ProductionDistrictId)=>id==='central-market'||id==='lower-canal'?'m7':'m8';
 
 /** A stable parcel chooses from a district's coherent recipes. Hero recipes are authored. */
 export function urbanBuilding(district:ProductionDistrictId,id:string,x:number,z:number,width:number,depth:number,
@@ -27,9 +34,9 @@ export function urbanBuilding(district:ProductionDistrictId,id:string,x:number,z
   let selected:UrbanRecipe=rules[0][0];
   for(const [name,weight] of rules){if(choice<weight){selected=name;break;}choice-=weight;}
   const name=recipe??selected,r=recipes[name],v=(hash+variant)>>>0;
-  const palette=district==='central-market'?[0xe0ceaa,0xd2b892,0xe9dbba,0xcabc9f]:[0xcbbba0,0xd5c9ad,0xbfae91,0xddcfb2];
+  const palette=district==='central-market'?[0xe0ceaa,0xd2b892,0xe9dbba,0xcabc9f]:district==='civic-terrace'?[0xe0d7bd,0xcac2a8,0xe9dfc7,0xcdbfa5]:district==='garden-terrace'?[0xd7c6a2,0xcbba92,0xe0d1b0,0xc8c0a0]:[0xcbbba0,0xd5c9ad,0xbfae91,0xddcfb2];
   const clay=[0xab5937,0x99502f,0xb96b41,0x874733,0x9d6042];
-  return {id:`m7.${district}.${id}`,position:{x,y,z},width,depth,yaw,recipe:name,...r,
+  return {id:`${urbanNamespace(district)}.${district}.${id}`,position:{x,y,z},width,depth,yaw,recipe:name,...r,
     floorHeight:r.floorHeight+(v%3-1)*.12,roofHeight:name==='hall'?4.4:name==='water-guild'?3.1:1.9+width*.06,
     plaster:palette[v%palette.length]!,roofColor:v%13===0?0x3b7470:clay[v%clay.length]!,
     roofDirection:(v%3===0?1:0),shutterOffset:v%4,cloth:[0x4b7771,0x955d48,0x8a794d,0x6d765d][v%4]!};

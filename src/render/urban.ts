@@ -35,10 +35,14 @@ export async function createUrbanPresentation(urban:UrbanDistrict,signal:AbortSi
     }
     for(const source of replacements.keys())scope.release(source);
   })());
-  if(urban.gardens?.length)await scheduler.run(`urban.${urban.id}.gardens`,(function*(){
+  if(urban.gardens?.length||urban.planting?.length)await scheduler.run(`urban.${urban.id}.gardens`,(function*(){
     const library=new Map<string,{geometry:BufferGeometry;shadows:boolean}>();
     yield* ecologyRegistrationJobs((name,geometry,shadows=false)=>library.set(name,{geometry,shadows}),scope);
     const items:{kind:string;x:number;y:number;z:number;scale:number;heading:number}[]=[];
+    for(const [index,plant] of (urban.planting??[]).entries()){
+      items.push({kind:plant.kind,x:plant.position.x,y:plant.position.y+.07,z:plant.position.z,scale:plant.scale,heading:plant.heading});
+      if(index%64===0)yield 'urban.context-planting';
+    }
     const vertices:number[]=[],indices:number[]=[],colors:number[]=[];
     for(const [index,g] of urban.gardens!.entries()){
       const offset=vertices.length/3,tint=new Color(0x666b42);
@@ -64,12 +68,21 @@ export async function createUrbanPresentation(urban:UrbanDistrict,signal:AbortSi
       const mesh=scope.own(new InstancedMesh(source.geometry,material,instances.length));mesh.name=`district.instances.${kind}`;mesh.castShadow=source.shadows;mesh.receiveShadow=true;
       const object=new Object3D();for(const [index,item] of instances.entries()){
         object.position.set(item.x,item.y,item.z);object.scale.setScalar(item.scale);object.rotation.y=item.heading;object.updateMatrix();mesh.setMatrixAt(index,object.matrix);
+        if(index%64===0)yield 'urban.planting-transform';
       }mesh.computeBoundingBox();mesh.computeBoundingSphere();target.add(mesh);yield 'urban.garden-instances';
     }
     for(const [kind,g] of library)if(!items.some(i=>i.kind===kind))scope.release(g.geometry);
   })());
   await scheduler.run(`urban.${urban.id}.paving`,(function*(){
     const palette=yield* landscapeMaterialJobs(scope);
+    for(const source of urban.plantedGround??[]){
+      const geometry=scope.own(new BufferGeometry());geometry.setAttribute('position',new Float32BufferAttribute(source.vertices,3));geometry.setIndex(source.indices);geometry.computeVertexNormals();
+      const p=geometry.getAttribute('position');for(let i=0;i<p.count;i++)p.setY(i,p.getY(i)+.025);
+      const material=scope.own(new MeshStandardNodeMaterial({roughness:1}));
+      const pigment=texture(palette.grass.map!,vec2(positionWorld.x.div(23),positionWorld.z.div(23)));
+      material.colorNode=pigment.mul(materialColor);
+      const mesh=new Mesh(geometry,material);mesh.name=`urban.${urban.id}.planted-ground`;mesh.receiveShadow=true;target.add(mesh);yield 'urban.planted-ground';
+    }
     for(const kind of ['setts','flags','service','timber'] as UrbanPavingKind[]){
     const surfaces=(urban.pavingSurfaces??[]).filter(s=>{
       const type=s.id.includes('cargo-dock')?'timber':s.id.startsWith('city.road.')?'setts':s.id.startsWith('city.terrain.')?'flags':'service';
@@ -113,7 +126,7 @@ export async function createUrbanPresentation(urban:UrbanDistrict,signal:AbortSi
       material.colorNode=wash.mul(materialColor);
       const mesh=new Mesh(geometry,material);mesh.name=source.id;mesh.receiveShadow=true;target.add(mesh);yield 'urban.retaining-veneer';
     }
-    for(const m of Object.values(palette)){if(m.map && m.map!==palette.stone.map)scope.release(m.map);scope.release(m);}
+    for(const m of Object.values(palette)){if(m.map && m.map!==palette.stone.map && !(urban.plantedGround?.length&&m.map===palette.grass.map))scope.release(m.map);scope.release(m);}
     yield 'urban.paving-normals';
   })());
   const materials=new Map<MeshStandardMaterial|MeshStandardNodeMaterial,{color:Color;roughness:number}>();

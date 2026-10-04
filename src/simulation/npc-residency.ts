@@ -10,7 +10,11 @@ export interface NpcResidency {
     observedSchedule: NpcEnvironment['timeOfDay']; observedWeather: NpcEnvironment['weather'] }>;
 }
 export const createNpcResidency = (): NpcResidency => ({ version: 1, entries: {} });
-export const npcArea = (id: string): AreaId => id.startsWith('m7.central-market.')?'central-market':id.startsWith('m7.lower-canal.')?'lower-canal':id.startsWith('district.') ? 'river-market' : 'rural';
+export const npcArea = (id: string): AreaId => {
+  for(const area of ['central-market','lower-canal','civic-terrace','garden-terrace','south-gate'] as const)
+    if(id.startsWith(`m7.${area}.`)||id.startsWith(`m8.${area}.`))return area;
+  return id.startsWith('district.')?'river-market':'rural';
+};
 
 /** Data-only NPCs preserve their in-progress segment/wait. We track the current
  * authored schedule target but perform no offscreen pathfinding or animation.

@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import type { CameraMode, InputFrame } from '../src/simulation/types';
 
-const evidenceDir = 'artifacts/m1';
+const evidenceDir = process.env.VOXARRIUM_M1_EVIDENCE ?? 'artifacts/m1';
 mkdirSync(evidenceDir, { recursive: true });
 let messages: { type: string; text: string }[];
 let intentionalStartupFailure = false;
