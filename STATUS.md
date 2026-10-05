@@ -8,6 +8,8 @@ Deployment settings are recorded in [DEPLOYMENT](docs/DEPLOYMENT.md) and `vercel
 
 Deployment preparation passed `npm run build`, `npm run check`, `npm run doctor`, `npm run references:verify`, all 12 `node --test tests/bootstrap.test.mjs` checks, and `git diff --check`. Initial build/typecheck attempts lacked worktree dependencies; installing with `npm ci` resolved them. Vercel's initial remote build and production domain assignment passed. Full simulation/browser suites, hosted gameplay/GPU tests, screenshots and performance measurements were not rerun for this deployment task. The existing large-bundle advisory remains. No paid plan, repository access change or PR merge was performed.
 
+The configuration branch push at `3ebca3e` automatically created preview `dpl_DbLSLTSMYhAEaxsztC7ZXNARZwcJ`, also `READY`. Remote logs confirm Node 22.x, `npm ci`, and a successful matching production bundle. [PR #22](https://github.com/adriandarian/Voxarrium/pull/22) records the source configuration and remains open; automatic Git deployment is already enabled in Vercel.
+
 ## Completed M8 and owner authority
 
 M8's objective evidence gate passes on `milestone/m8-city-core`, based on accepted M7 `bc3d635b09388542f97569bdbde167a4364bac6e`. The completed implementation is ready for its local milestone commit. The next authorized action is preparation of M9 on a fresh `milestone/m9-upper-city-skyline` branch from that commit; no M9 implementation is included in M8.

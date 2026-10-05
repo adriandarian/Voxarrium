@@ -28,6 +28,8 @@ The committed `vercel.json` declares Vite, `npm ci`, `npm run build`, and `dist`
 
 The initial deployment used the existing `main` commit `efee826fb4002c5aacf1af43244edd129a0dd6f1`, before this configuration PR. Vercel reports deployment `dpl_EmRLcTy4qYmy1vmizP696XTZUgm7` as `READY`, target `production`, with `voxarrium.vercel.app` assigned and verified. The initial build used Vercel's detected settings; this PR makes future build settings explicit.
 
+Pushing configuration commit `3ebca3ef1d55f5b79404d50bde0a404d076a47a3` to `chore/vercel-deployment` automatically created preview `dpl_DbLSLTSMYhAEaxsztC7ZXNARZwcJ`, reported `READY`. Its build logs confirm Node changed from 24.x to 22.x, `npm ci` ran, and the production build completed with the same emitted runtime asset names and sizes as the local build. GitHub's Vercel status is successful on [configuration PR #22](https://github.com/adriandarian/Voxarrium/pull/22). This verifies the live Git-triggered preview path; a future main merge has not been performed as a test.
+
 The team's default deployment protection remains configured. Preview and deployment-specific URLs may request Vercel authentication. Local `.vercel/` linkage is ignored by Git. Reference PNGs remain under `docs/` and are excluded from the shipped `dist` output.
 
 ## Verification scope
