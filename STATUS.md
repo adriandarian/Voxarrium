@@ -1,5 +1,13 @@
 # Voxarrium status
 
+## Vercel deployment follow-up (2026-10-04)
+
+The owner authorized remote deployment and automatic updates from merged PRs. The existing Hobby project `adrian-darians-projects/voxarrium` is now linked to GitHub `adriandarian/Voxarrium`, production branch `main`. Vercel reports the merged M8 commit `efee826fb4002c5aacf1af43244edd129a0dd6f1` as `READY` in production at [the live M8 core](https://voxarrium.vercel.app/?scene=m8). The stable domain follows successful `main` builds; other branches receive previews. The bare domain still selects the existing M5 comparison corridor.
+
+Deployment settings are recorded in [DEPLOYMENT](docs/DEPLOYMENT.md) and `vercel.json`: locked install with `npm ci`, Vite build with `npm run build`, output `dist`, and Node.js 22.x for future builds. Package/lockfile engine metadata bounds Node to the tested 22.x line; dependency versions and integrity records are unchanged. The initial remote build predates these source configuration changes. M8 implementation and review status below are preserved.
+
+Deployment preparation passed `npm run build`, `npm run check`, `npm run doctor`, `npm run references:verify`, all 12 `node --test tests/bootstrap.test.mjs` checks, and `git diff --check`. Initial build/typecheck attempts lacked worktree dependencies; installing with `npm ci` resolved them. Vercel's initial remote build and production domain assignment passed. Full simulation/browser suites, hosted gameplay/GPU tests, screenshots and performance measurements were not rerun for this deployment task. The existing large-bundle advisory remains. No paid plan, repository access change or PR merge was performed.
+
 ## Completed M8 and owner authority
 
 M8's objective evidence gate passes on `milestone/m8-city-core`, based on accepted M7 `bc3d635b09388542f97569bdbde167a4364bac6e`. The completed implementation is ready for its local milestone commit. The next authorized action is preparation of M9 on a fresh `milestone/m9-upper-city-skyline` branch from that commit; no M9 implementation is included in M8.
