@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { TailTelemetry } from '../src/diagnostics/tail';
 import { TransitionTelemetry } from '../src/diagnostics/transition';
+import { installTransitionCapture } from '../tools/transition-capture.mjs';
+import type { TransitionCapture } from '../tools/transition-capture.mjs';
+import type { TransitionRecord } from '../src/diagnostics/transition';
 
 test('tail is opt-in and preserves return values, throws and asynchronous rejection', async () => {
   const disabled = new TailTelemetry({ enabled: false, observe: false });
@@ -202,4 +205,135 @@ test('scheduler telemetry coalesces jobs within a slice while preserving CPU tot
   expect(report.totalSchedulerCpuMs).toBeCloseTo(1, 8);
   expect(report.records[3].detail).toMatchObject({ context: { name: '[mixed jobs]', labels: ['modules-0', 'modules-1'],
     jobs: 1000, cpuTotalMs: expect.any(Number), largestJobMs: .001, yielded: true } });
+});
+
+test('live tail retains the same peak, overlap, ties and loss counters without aliasing retained evidence', () => {
+  let now = 0;
+  const tail = new TailTelemetry({ enabled: true, now: () => now, observe: false, capacity: 3, slowSpanMs: 0 });
+  tail.frame(0);
+  for (const time of [100, 200, 300, 400]) {
+    now = time - 20; tail.event('evidence', { time });
+    tail.span('work', () => { now += 10; });
+    now = time; tail.frame(time, time + 2);
+  }
+  const full = tail.snapshot(), live = tail.liveSnapshot();
+  const peak = full.frameGaps.reduce((a, b) => b.intervalMs > a.intervalMs ? b : a);
+  expect(live).toEqual({ maxIntervalMs: full.maxIntervalMs, spans: full.spans, dropped: full.dropped, recentPeakGap: peak });
+  expect(live.recentPeakGap!.startMs).toBe(100); // first retained maximum on ties
+  live.spans.work.count = -1; live.recentPeakGap!.nearbyRecords.length = 0;
+  expect(tail.liveSnapshot().spans.work.count).toBe(4);
+  expect(tail.snapshot().frameGaps[0].nearbyRecords.length).toBeGreaterThan(0);
+  tail.reset(); expect(tail.liveSnapshot()).toEqual({ maxIntervalMs: 0, spans: {}, dropped: { records: 0, importantRecords: 0, frameGaps: 0 }, recentPeakGap: null });
+});
+
+test('settled export waits for processed rAF beyond the inclusive window and captures a delayed overlapping maximum', () => {
+  let now = 0;
+  const ledger = new TransitionTelemetry({ enabled: true, now: () => now, timeOrigin: 0 });
+  const request = ledger.begin('civic-terrace', 1);
+  now = 10; request.event('ready'); request.event('activation-complete');
+  now = 100; request.end('unloaded');
+  now = 3000; ledger.frame(0, 2050);
+  expect(ledger.settledSnapshot(new Set()).reports).toEqual([]);
+  ledger.frame(2050, 2100); // exactly endedAt + 2000 remains inclusive
+  expect(ledger.settledSnapshot(new Set()).reports).toEqual([]);
+  ledger.frame(2100, 5000); // delayed rAF still overlaps through its FROM time
+  const exported = ledger.settledSnapshot(new Set()).reports[0];
+  expect(exported.maximumFrameIntervalMs).toBe(2900);
+  expect(exported).toEqual(ledger.snapshot().reports[0]);
+  ledger.frame(5000, 9000);
+  expect(ledger.snapshot().reports[0]).toEqual(exported);
+  expect(ledger.settledSnapshot(new Set([request.id])).reports).toEqual([]);
+  expect(ledger.snapshot()).toMatchObject({ drainedLifecycles: 0, reports: [exported] });
+});
+
+test('settled export retains late cancelled spans and live reentry without draining or mutable aliases', async () => {
+  let now = 0;
+  const ledger = new TransitionTelemetry({ enabled: true, now: () => now, timeOrigin: 0 });
+  const request = ledger.begin('noble-quarter', 1);
+  let complete!: () => void;
+  const work = request.asyncSpan('native-wait', () => new Promise<void>(resolve => { complete = resolve; }));
+  now = 5; request.end('cancelled');
+  const active = ledger.begin('noble-quarter', 2);
+  now = 3000; ledger.frame(0, 3000);
+  expect(ledger.settledSnapshot(new Set()).reports).toEqual([]);
+  now = 3500; complete(); await work;
+  const exported = ledger.settledSnapshot(new Set()).reports;
+  expect(exported).toHaveLength(1);
+  expect(exported[0].records.at(-1)).toMatchObject({ kind: 'span-end', name: 'native-wait', timeMs: 3500, durationMs: 3500 });
+  exported[0].records.length = 0;
+  expect(ledger.snapshot().reports[0].records).toHaveLength(4);
+  active.event('ready');
+  expect(ledger.snapshot().reports[1]).toMatchObject({ id: active.id, readyAtMs: 3500, endedAtMs: null });
+  expect(ledger.snapshot().drainedLifecycles).toBe(0);
+});
+
+test('settled export exposes incomplete chronology and original loss counters even when IDs are excluded', () => {
+  let now = 0;
+  const ledger = new TransitionTelemetry({ enabled: true, now: () => now, timeOrigin: 0, maxActive: 1, maxRecordsPerTransition: 3 });
+  const request = ledger.begin('rural', 1); ledger.begin('other', 2);
+  for (let index = 0; index < 5; index++) { now++; request.event('row'); }
+  request.end('unloaded'); now = 3000; ledger.frame(0, now);
+  const full = ledger.snapshot(), selected = ledger.settledSnapshot(new Set());
+  expect(selected.reports[0]).toMatchObject({ completeChronology: false, droppedRecords: 4 });
+  expect(selected.dropped).toEqual(full.dropped);
+  expect(ledger.settledSnapshot(new Set([request.id]))).toMatchObject({ reports: [], dropped: full.dropped, drainedLifecycles: 0 });
+});
+
+test('settled requests reassemble exact chronology through bounded capture chunks before ledger eviction', () => {
+  let now = 0;
+  const ledger = new TransitionTelemetry({ enabled: true, now: () => now, timeOrigin: 0, maxCompleted: 2 });
+  const seen = new Set<string>(), target = {} as { __transitionCapture: TransitionCapture<TransitionRecord> };
+  installTransitionCapture(target);
+  const persisted: ReturnType<TransitionTelemetry['snapshot']>['reports'] = [];
+  for (let index = 0; index < 4; index++) {
+    const request = ledger.begin('rural', index);
+    for (let row = 0; row < 150; row++) { now++; request.event('data', { row, text: 'a'.repeat(400) }); }
+    request.event('ready'); request.event('boundary-needed'); request.event('boundary-crossed');
+    request.end('unloaded'); const original = ledger.snapshot().reports.find(r => r.id === request.id)!;
+    now += 2001; ledger.frame(now - 2001, now);
+    const selected = ledger.settledSnapshot(seen).reports;
+    expect(selected).toHaveLength(1); expect(selected[0].records).toEqual(original.records);
+    const headers = target.__transitionCapture.stage(selected);
+    for (const header of headers) {
+      seen.add(header.id); const records: typeof original.records = []; let done = false;
+      while (!done) {
+        const chunk = target.__transitionCapture.read(header.id);
+        expect(chunk.offset).toBe(records.length);
+        expect(chunk.records.length).toBeLessThanOrEqual(64);
+        expect(Buffer.byteLength(JSON.stringify(chunk))).toBeLessThanOrEqual(32768);
+        records.push(...chunk.records); done = chunk.done;
+      }
+      expect(records).toEqual(original.records); expect(records).toHaveLength(header.recordCount);
+      persisted.push({ ...selected[0], records });
+    }
+  }
+  expect(persisted).toHaveLength(4); expect(new Set(persisted.map(r => r.id)).size).toBe(4);
+  expect(persisted.every(r => r.completeChronology && r.droppedRecords === 0)).toBe(true);
+  expect(target.__transitionCapture.status().pendingReports).toBe(0);
+  expect(ledger.snapshot()).toMatchObject({ drainedLifecycles: 0, dropped: { completedLifecycles: 2, records: 0 } });
+});
+
+test('runtime live readback equals full mutable state and remains detached from gameplay ownership', async ({ page }) => {
+  test.setTimeout(120000);
+  await page.goto('/?scene=m9&test=1&backend=webgl&diagnostics=tail');
+  await expect(page.locator('html')).toHaveAttribute('data-ready', 'true', { timeout: 110000 });
+  const comparison = await page.evaluate(() => {
+    const h = window.__VOXARRIUM__!; h.freeze(true);
+    const full = h.snapshot(), live = h.liveSnapshot();
+    const { city: _city, bookmarks: _bookmarks, tail, ...mutable } = full;
+    const { tail: liveTail, ...liveMutable } = live;
+    const expectedTail = { maxIntervalMs: tail.maxIntervalMs, spans: tail.spans, dropped: tail.dropped,
+      recentPeakGap: tail.frameGaps.reduce<typeof tail.frameGaps[number] | null>((peak, gap) => !peak || gap.intervalMs > peak.intervalMs ? gap : peak, null) };
+    const mutableEqual = JSON.stringify(mutable) === JSON.stringify(liveMutable);
+    const x = live.state.player.position.x, master = live.settings.audio.master;
+    live.state.player.position.x = -99999; live.settings.audio.master = -1;
+    const fresh = h.liveSnapshot();
+    return { mutableEqual,
+      tailEqual: JSON.stringify(expectedTail) === JSON.stringify(liveTail), keys: Object.keys(live),
+      detached: fresh.state.player.position.x === x && fresh.settings.audio.master === master };
+  });
+  // Comparison strings must be calculated before mutating the returned copy.
+  expect(comparison.tailEqual).toBe(true); expect(comparison.detached).toBe(true);
+  expect(comparison.keys).not.toContain('city'); expect(comparison.keys).not.toContain('bookmarks');
+  expect(comparison.mutableEqual).toBe(true);
 });

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Voxarrium M5: three connected streamed exploration areas in Three.js.",
+  "description": "Voxarrium: a streamed third- and first-person city exploration game in Three.js.",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -13,7 +13,10 @@
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "test": "node --test tests/bootstrap.test.mjs && playwright test --project=simulation",
-    "test:browser": "playwright test --project=browser --project=rural-browser --project=living-browser --project=district-browser --project=streaming-browser --project=city-browser --project=urban-browser --project=core-browser",
+    "test:browser": "playwright test --project=browser --project=rural-browser --project=living-browser --project=district-browser --project=streaming-browser --project=city-browser --project=urban-browser --project=core-browser --project=upper-browser",
+    "capture:m9": "playwright test --project=upper-browser",
+    "stress:upper": "node tools/stress-upper.mjs",
+    "blender:citadel": "node tools/blender-citadel.mjs",
     "capture:m8": "playwright test --project=core-browser",
     "stress:core": "node tools/stress-core.mjs",
     "capture:m7": "playwright test --project=urban-browser",

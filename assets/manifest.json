@@ -208,18 +208,100 @@
       "collision": "Simplified shared district building, threshold, stair, bridge, canal, counter, trunk and street-furniture proxies in simulation/district.ts",
       "lod": "131 shared module/material instance batches; no distance LOD or streaming",
       "preview": "artifacts/m4-1/final eagle-eye, primary-street, first-person-doorway, building-backs, building-side, canal-bridge and night captures; artistic acceptance pending"
+    },
+    {
+      "id": "citadel.hero",
+      "path": "public/assets/citadel/citadel-hero.glb",
+      "sha256": "b5cbad2600b91c37904cac21c30149702caa2b96f80e9ba505e1b86d7269171a",
+      "bytes": 5426876,
+      "source": "assets/source/citadel-hero.blend",
+      "generator": "tools/blender/citadel_hero.py",
+      "provenance": "Original locally authored semantic Blender architecture; no third-party assets, textures, reference pixels or services.",
+      "license": "Project license unassigned; no third-party source content",
+      "units": "meters",
+      "origin": "Accepted world (150,50,-605), runtime Y-up meters; one axis conversion, no corrective runtime transform.",
+      "triangles": 95296,
+      "materials": 17,
+      "textures": 0,
+      "collision": "17 original M6.1 envelopes within 77 unchanged walking proxies plus one closed eight-triangle return apron; streamed before visibility. Original resident terrain/accepted roads remain unchanged.",
+      "lod": "Material-merged streamed detail; separately authored six-batch resident primary-architecture skyline. No compressed runtime dependency.",
+      "preview": "artifacts/m9/citadel-keep-pavilion-bearing-focus-20261007/ and sightlines-keep-pavilion-bearing-final-20261007/; individually inspected on frozen 3424549d runtime. Full weather/moving/performance gates remain pending.",
+      "bounds": {
+        "min": [
+          -93.6,
+          -6,
+          -54.60000000000002
+        ],
+        "max": [
+          113.60000000000002,
+          56.400000000000006,
+          32.1600341796875
+        ]
+      }
+    },
+    {
+      "id": "citadel.skyline",
+      "path": "public/assets/citadel/citadel-skyline.glb",
+      "sha256": "50a635e4a7bff16cbd2798fe67f599d3f59300ce29ca8950af4988804409cfdd",
+      "bytes": 607484,
+      "source": "assets/source/citadel-hero.blend",
+      "generator": "tools/blender/citadel_hero.py",
+      "provenance": "Original locally authored semantic Blender architecture; no third-party assets, textures, reference pixels or services.",
+      "license": "Project license unassigned; no third-party source content",
+      "units": "meters",
+      "origin": "Accepted world (150,50,-605), runtime Y-up meters; one axis conversion, no corrective runtime transform.",
+      "triangles": 11020,
+      "materials": 6,
+      "textures": 0,
+      "collision": "No separate skyline collision. Unchanged resident terrain and the streamed citadel.hero course own traversal.",
+      "lod": "Resident primary walls, layered roofs, open crown belfries, gallery bands, clock dials, gate, arcades, closed forecourt deck/vault/return apron and additive keep fore-pavilion; hidden when hero detail activates. Bounded structural ceiling11,250 triangles and610,000 bytes.",
+      "preview": "artifacts/m9/citadel-keep-pavilion-bearing-focus-20261007/ and sightlines-keep-pavilion-bearing-final-20261007/; individually inspected on frozen 3424549d runtime. Full weather/moving/performance gates remain pending.",
+      "bounds": {
+        "min": [
+          -93.6,
+          -6,
+          -54.60000000000002
+        ],
+        "max": [
+          113.60000000000002,
+          56.400000000000006,
+          32.1600341796875
+        ]
+      }
     }
   ],
   "procedural": [
     {
       "id": "rural.environment",
-      "sources": ["src/render/rural.ts", "src/render/landscape-materials.ts", "src/simulation/rural.ts", "src/simulation/rural-layout.ts"],
+      "sources": [
+        "src/render/rural.ts",
+        "src/render/landscape-materials.ts",
+        "src/simulation/rural.ts",
+        "src/simulation/rural-layout.ts"
+      ],
       "provenance": "Original project-authored runtime geometry and seeded pigment textures; no reference pixels, external assets or downloads",
       "license": "Project license unassigned; no third-party source content",
       "units": "meters",
       "seed": 104729,
-      "sliceExtentMeters": [96, 96],
-      "library": ["forked oak", "upright alder", "spreading orchard tree", "compound shrub", "fern", "short grass", "tall grass", "cattail reed", "white flower", "yellow flower", "weed", "wheat", "two fractured stone faces"],
+      "sliceExtentMeters": [
+        96,
+        96
+      ],
+      "library": [
+        "forked oak",
+        "upright alder",
+        "spreading orchard tree",
+        "compound shrub",
+        "fern",
+        "short grass",
+        "tall grass",
+        "cattail reed",
+        "white flower",
+        "yellow flower",
+        "weed",
+        "wheat",
+        "two fractured stone faces"
+      ],
       "trees": 24,
       "instancedMeshes": 20,
       "instancesIncludingWaterHighlights": 17781,

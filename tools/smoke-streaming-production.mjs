@@ -6,8 +6,8 @@ import {runtimeSourceSnapshot} from './runtime-source-snapshot.mjs';
 const directory=process.env.VOXARRIUM_PRODUCTION_CAPTURE_DIR ?? 'artifacts/m5-1/production';
 const scene=process.env.VOXARRIUM_PRODUCTION_SCENE;
 const previewOrigin=process.env.VOXARRIUM_PRODUCTION_URL??'http://127.0.0.1:4173';
-const city=scene==='m6'||scene==='m7'||scene==='m8';
-const urban=scene==='m7'||scene==='m8';
+const city=scene==='m6'||scene==='m7'||scene==='m8'||scene==='m9';
+const urban=scene==='m7'||scene==='m8'||scene==='m9';
 mkdirSync(directory,{recursive:true});
 const browser=await chromium.launch({channel:process.env.VOXARRIUM_BROWSER ?? 'chrome',headless:true});
 const page=await browser.newPage({viewport:{width:1440,height:900},deviceScaleFactor:1});
@@ -29,18 +29,20 @@ try {
   await page.keyboard.press('KeyV');await page.waitForTimeout(300);
   const afterText=await page.locator('#diagnostics').innerText(),after=coordinates(afterText);
   const moved=Math.hypot(after[0]-before[0],after[2]-before[2]);
-  assert(moved>2);assert(afterText.includes(scene==='m8'?'m8-city-core':urban?'m7-urban-districts':city?'m6-city-blueprint':'m5-streaming-proof'));assert(afterText.includes('first-person'));
+  assert(moved>2);assert(afterText.includes(scene==='m9'?'m9-upper-city':scene==='m8'?'m8-city-core':urban?'m7-urban-districts':city?'m6-city-blueprint':'m5-streaming-proof'));assert(afterText.includes('first-person'));
   await page.keyboard.press('Escape');
   await page.locator('#living-settings').evaluate(el=>{el.open=true;});
   await page.locator('#weather-select').selectOption('rain');await page.locator('#time-select').selectOption('night');
   await page.locator('#start').click();await page.waitForTimeout(4500);
   const finalDiagnostics=await page.locator('#diagnostics').innerText();
-  assert(finalDiagnostics.includes(`night · rain · ${scene==='m8'?152:urban?94:42} locals`));assert.deepEqual(errors,[]);
+  if(scene==='m9')assert(finalDiagnostics.includes('night · rain · 224 locals'));
+  else assert(finalDiagnostics.includes(`night · rain · ${scene==='m8'?152:urban?94:42} locals`));
+  assert.deepEqual(errors,[]);
   assert.equal(await page.evaluate(()=>typeof window.__VOXARRIUM__),'undefined');
   await page.screenshot({path:`${directory}/production-smoke.png`});
   assert.equal(runtimeSourceSnapshot().sha256,source.sha256);
   const report={measuredAt:new Date().toISOString(),sourceSha256:source.sha256,browserVersion:browser.version(),before,after,moved,
-    scope:`Built ${scene==='m8'?'M8 core':urban?'M7 city':city?'M6 city':'default M5'} preview; actual W/V/Esc and menu rain/night, pointer lock, no development harness${city?' or development overlay controls':''}. Complete streaming traversal is separately tested in the development stress tool.`,
+    scope:`Built ${scene==='m9'?'M9 upper city':scene==='m8'?'M8 core':urban?'M7 city':city?'M6 city':'default M5'} preview; actual W/V/Esc and menu rain/night, pointer lock, no development harness${city?' or development overlay controls':''}. Complete streaming traversal is separately tested in the development stress tool.`,
     backend:await page.locator('#backend-badge').innerText(),finalDiagnostics,errors};
   writeFileSync(`${directory}/production-smoke.json`,JSON.stringify(report,null,2));console.log(JSON.stringify({moved,errors}));
 }finally{await browser.close();}
