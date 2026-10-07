@@ -24,6 +24,7 @@ import type { WorldArea } from '../simulation/streaming-contracts';
 import { PreparationScheduler } from './preparation-scheduler';
 import { PreparationCache } from './preparation-cache';
 import { compileArea } from './area-compilation';
+import {withResidentMeshesHidden} from './warmup-visibility';
 import { installScheduledNodeBuilds } from './scheduled-node-builds';
 import type { ScheduledNodeBackend } from './scheduled-node-builds';
 import { installPipelineCache } from './pipeline-cache';
@@ -33,8 +34,11 @@ import type { PipelineManager } from './pipeline-cache';
 import { createCityPresentation } from './city-blueprint';
 import type { CityDebugLayer } from './city-blueprint';
 import type { CityBlueprint } from '../simulation/city-contracts';
+import type { CitadelSpec } from '../simulation/citadel-contracts';
 import { installScopedRenderBindings } from './shared-render-bindings';
 import type { BindingBackend } from './shared-render-bindings';
+import { loadCitadelSkyline } from '../assets/citadel';
+import type { PreparationResources } from './preparation-cache';
 
 // Runtime backends expose these fields in the installed Three.js r186 source;
 // @types/three deliberately omits device/gl internals. Read only for diagnostics.
@@ -144,7 +148,7 @@ function disposeScene(scene: Scene) {
 }
 
 export async function createGameRenderer(canvas: HTMLCanvasElement, course: CourseSpec, forceWebGL: boolean, blockout = false,
-  city?: { blueprint: CityBlueprint; acceptedCourses: CourseSpec[];replacedLandmarks?:string[];core?:boolean;urban?:import('../simulation/urban-contracts').UrbanDistrict[] }) {
+  city?: { blueprint: CityBlueprint; acceptedCourses: CourseSpec[];replacedLandmarks?:string[];core?:boolean;upper?:boolean;citadel?:CitadelSpec|null;urban?:import('../simulation/urban-contracts').UrbanDistrict[] }) {
   const streaming = course.id === 'm5-streaming-proof' || !!city;
   const district = course.id === 'm4-market-district' || streaming;
   const rural = course.id === 'm2-rural-96m' || district;
@@ -189,6 +193,11 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
   const resourceReferences = new ResourceReferences();
   const assetReferences = new AssetReferences();
   const preparationCache = new PreparationCache(resourceReferences);
+  const skylineLeases=new Map<{dispose():void},()=>void>();let releaseSkylineAsset:(()=>void)|null=null;
+  const skylineScope:PreparationResources={cache:preparationCache,
+    own<T extends {dispose():void}>(resource:T):T{if(!skylineLeases.has(resource))skylineLeases.set(resource,resourceReferences.acquire([resource]));return resource;},
+    release(resource){const release=skylineLeases.get(resource);if(release){skylineLeases.delete(resource);release();}}};
+  function releaseSkyline(){for(const release of skylineLeases.values())release();skylineLeases.clear();releaseSkylineAsset?.();releaseSkylineAsset=null;}
   // Match r186's linear HDR scene buffer formats and samples. Size is not a
   // pipeline key. Warmup never presents an incomplete destination on the canvas.
   const warmupTarget = new RenderTarget(4, 4, { type: HalfFloatType, samples: renderer.samples, colorSpace: LinearSRGBColorSpace });
@@ -258,7 +267,15 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       sun.shadow.camera.far = 300;
     }
     if (city) {
-      cityPresentation = createCityPresentation(city.blueprint, city.acceptedCourses,city.replacedLandmarks,city.core?city.urban:undefined);
+      cityPresentation = createCityPresentation(city.blueprint, city.acceptedCourses,city.replacedLandmarks,city.core?city.urban:undefined,city.citadel);
+      if(city.citadel&&!blockout){
+        releaseSkylineAsset=assetReferences.acquire(['citadel.skyline']);
+        const signal=new AbortController().signal;
+        const skyline=await loadCitadelSkyline(signal,new PreparationScheduler(signal),skylineScope);
+        skyline.root.position.set(city.citadel.position.x,city.citadel.position.y,city.citadel.position.z);
+        skyline.root.name='citadel.skyline';skyline.root.traverse(o=>{if(o instanceof Mesh){o.name=`citadel.skyline.${o.name}`;o.castShadow=true;o.receiveShadow=true;}});
+        cityPresentation.setCitadelSkyline(skyline.root);
+      }
       scene.add(cityPresentation.group);
     }
 
@@ -274,7 +291,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
       mesh.name = box.id;
       mesh.position.set(box.position.x, box.position.y, box.position.z);
       mesh.scale.set(box.size.x, box.size.y, box.size.z);
-      mesh.rotation.set(box.rotationX ?? 0, box.rotationY ?? 0, 0);
+      mesh.rotation.set(box.rotationX ?? 0, box.rotationY ?? 0, box.rotationZ ?? 0);
       mesh.receiveShadow = true;
       mesh.castShadow = box.collides && Math.max(box.size.x, box.size.z) < 40;
       scene.add(mesh);
@@ -318,7 +335,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
     scene.add(fixture.object);
     const locals = rural && !streaming && !blockout ? createNpcPresentation(district ? DISTRICT_POPULATION_DEFINITIONS : NPC_DEFINITIONS) : null;
     if (locals) scene.add(locals.group);
-    if (rural && !blockout) livingEnvironment = createEnvironmentPresentation(scene, sun, fill, course, districtPresentation?.facts.roofEnvelopes);
+    if (rural && !blockout) livingEnvironment = createEnvironmentPresentation(scene, sun, fill, course, districtPresentation?.facts.roofEnvelopes,city?.upper?city.blueprint:undefined);
     const facts = {
       threeRevision: REVISION,
       requestedBackend: forceWebGL ? 'WebGL2 (explicit fallback test)' : 'WebGPU preferred',
@@ -532,6 +549,8 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
             });
             transition.event('warmup-plan', { meshes: meshes.length, representatives: representatives.length, submissionsPerQueueWait });
             const visible = new Map(meshes.map(mesh => [mesh, mesh.visible]));
+            const warmupInventory={submissions:0,drawCalls:0,triangles:0,maximumDrawCalls:0,maximumTriangles:0,
+              isolatedResidentMeshes:!!city?.upper,scope:'Offscreen shadow/main submission counters, not GPU time or visible-world geometry reduction.'};
             for (const [index, mesh] of representatives.entries()) {
               if (index % submissionsPerQueueWait === 0) await scheduler.yieldFrame();
               const warmupCamera = warmupCameras[index % submissionsPerQueueWait]!;
@@ -542,10 +561,19 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
                   for (const object of meshes) object.visible = false;
                   // NPC child meshes need their mesh ancestors in the render tree.
                   for (let object: Object3D | null = mesh; object && object !== presentation.group; object = object.parent) object.visible = true;
-                  scene.add(presentation.group);
-                  warmupCamera.copy(camera);
-                  renderer.setRenderTarget(warmupTarget);
-                  transition.span('renderer-shadow-submit', () => renderer.render(scene, warmupCamera));
+                  const submit=()=>{
+                    scene.add(presentation.group);warmupCamera.copy(camera);renderer.setRenderTarget(warmupTarget);
+                    const calls=renderer.info.render.drawCalls,triangles=renderer.info.render.triangles;
+                    transition.span('renderer-shadow-submit', () => renderer.render(scene, warmupCamera));
+                    const submittedCalls=renderer.info.render.drawCalls-calls,submittedTriangles=renderer.info.render.triangles-triangles;
+                    warmupInventory.submissions++;warmupInventory.drawCalls+=submittedCalls;warmupInventory.triangles+=submittedTriangles;
+                    warmupInventory.maximumDrawCalls=Math.max(warmupInventory.maximumDrawCalls,submittedCalls);
+                    warmupInventory.maximumTriangles=Math.max(warmupInventory.maximumTriangles,submittedTriangles);
+                  };
+                  // Hide only the already-warm scene before adding the new
+                  // destination. Exact scene/light/target identities and all
+                  // destination passes remain; restore before any await.
+                  if(city?.upper)withResidentMeshesHidden(scene,submit);else submit();
                 } finally {
                   renderer.setRenderTarget(oldTarget);
                   visible.forEach((value, object) => { object.visible = value; });
@@ -562,6 +590,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
               else transition.span('renderer-gl-flush', () => backend.gl?.flush());
               throwIfAborted(signal);
             }
+            transition.event('warmup-submission-inventory',warmupInventory);
           }
           finally { culling.forEach((value, object) => {
             object.frustumCulled = value; scheduledNodeObjects.delete(object);
@@ -652,9 +681,9 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
         for (const [id, presentation] of areaPresentations) { livingEnvironment?.detachArea(id); presentation.dispose(); }
         areaPresentations.clear(); activeAreas.clear();
         pipelineCache?.dispose();
-        preparationCache.dispose(); warmupTarget.dispose();
         livingEnvironment?.dispose();
         cityPresentation?.dispose();
+        releaseSkyline();preparationCache.dispose(); warmupTarget.dispose();
         disposeScene(scene);
         void renderer.dispose().catch(error => {
           facts.errors.push(`Renderer disposal failed: ${String(error)}`);
@@ -667,6 +696,7 @@ export async function createGameRenderer(canvas: HTMLCanvasElement, course: Cour
     restoreScheduledNodeBuilds?.(); restoreScheduledNodeBuilds = null;
     livingEnvironment?.dispose();
     cityPresentation?.dispose();
+    releaseSkyline();preparationCache.dispose();
     disposeScene(scene);
     pipelineCache?.dispose();
     const cleanupErrors: string[] = [];

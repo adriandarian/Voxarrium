@@ -108,6 +108,7 @@ export class TailTelemetry {
     return this.transitions.begin(areaId, requestId, detail);
   }
   discardExportedTransitions() { this.transitions.discardExportedCompleted(); }
+  settledTransitions(excludedIds: ReadonlySet<string>) { return this.transitions.settledSnapshot(excludedIds); }
 
   event(name: string, detail?: unknown) {
     if (!this.active) return;
@@ -233,9 +234,33 @@ export class TailTelemetry {
     this.resetAtMs = this.now();
   }
 
-  snapshot() {
+  private consumeObserverRecords() {
     // Observers can deliver after the long rAF gap. Join retained observations when exporting.
     for (const observer of this.observers) this.consume(observer.takeRecords());
+  }
+
+  /** Mutable live checks do not need copies of historical request rows or
+   * every retained gap. Preserve the same aggregate and largest-gap evidence. */
+  liveSnapshot() {
+    this.consumeObserverRecords();
+    const gap = this.gaps.snapshot().reduce<FrameGap | null>((peak, candidate) =>
+      !peak || candidate.intervalMs > peak.intervalMs ? candidate : peak, null);
+    const retained = gap ? [...new Set([...this.records.snapshot(), ...this.important.snapshot()])]
+      .sort((a, b) => a.startMs - b.startMs) : [];
+    return {
+      maxIntervalMs: this.maxIntervalMs, spans: structuredClone(this.aggregates),
+      dropped: { records: this.records.dropped, importantRecords: this.important.dropped, frameGaps: this.gaps.dropped },
+      recentPeakGap: gap ? structuredClone(this.snapshotGap(gap, retained)) : null,
+    };
+  }
+
+  private snapshotGap(gap: FrameGap, retained: TailRecord[]) {
+    return { ...gap, overlappingRecords: retained.filter(record => record.startMs <= gap.callbackStartMs &&
+      record.startMs + record.durationMs >= gap.startMs).slice(-32) };
+  }
+
+  snapshot() {
+    this.consumeObserverRecords();
     const records = this.records.snapshot();
     const importantRecords = this.important.snapshot();
     const retained = [...new Set([...records, ...importantRecords])].sort((a, b) => a.startMs - b.startMs);
@@ -248,9 +273,7 @@ export class TailTelemetry {
       dropped: { records: this.records.dropped, importantRecords: this.important.dropped, frameGaps: this.gaps.dropped },
       spans: structuredClone(this.aggregates), records: structuredClone(records), importantRecords: structuredClone(importantRecords),
       transitions: this.transitions.snapshot(),
-      frameGaps: structuredClone(this.gaps.snapshot().map(gap => ({ ...gap,
-        overlappingRecords: retained.filter(record => record.startMs <= gap.callbackStartMs && record.startMs + record.durationMs >= gap.startMs).slice(-32),
-      }))),
+      frameGaps: structuredClone(this.gaps.snapshot().map(gap => this.snapshotGap(gap, retained))),
       limitations: [
         'All durations are CPU/browser wall time; async spans include waiting. Nested spans overlap and must not be summed.',
         'rAF timestamp age is a browser dispatch signal, not presentation or GPU execution time.',

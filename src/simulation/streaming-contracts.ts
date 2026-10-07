@@ -1,6 +1,7 @@
 import type { CourseSpec, Vec3 } from './types';
 import type { CityDistrictId } from './city-contracts';
 import type { UrbanDistrict } from './urban-contracts';
+import type { CitadelSpec } from './citadel-contracts';
 
 /** M5 is exactly three authored areas; one area is one lifecycle chunk. */
 export type AreaId = CityDistrictId;
@@ -15,8 +16,11 @@ export interface WorldArea {
   neighbors?: readonly AreaId[];
   streamingPriority?: number;
   urban?: UrbanDistrict;
+  citadel?: CitadelSpec;
   /** M8 connected road departures guide prediction at shared fork pivots. */
   preloadApproaches?: readonly { neighbor: AreaId; points: readonly Vec3[] }[];
+  /** M9 rounded observed costs arbitrate ambiguous connected forks, not readiness guarantees. */
+  coldPreparationSeconds?: number;
 }
 /** Adapter owns render resources, physics proxies and environment hooks together.
  * load must prepare off-scene resources; activate installs collision before
@@ -29,6 +33,9 @@ export interface AreaHandle {
   unload(): void;
 }
 export interface StreamingAdapter {
+  /** Observe every admitted request before deferred preparation, including a
+   * same-tick cancellation. The returned cleanup runs when that transport settles. */
+  requested?(area: WorldArea, signal: AbortSignal): void | (() => void);
   load(area: WorldArea, signal: AbortSignal, progress: (phase: PreparationPhase) => void): Promise<AreaHandle>;
 }
 export type PreparationPhase = 'preparing' | 'warming';

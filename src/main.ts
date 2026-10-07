@@ -46,9 +46,10 @@ const params = new URLSearchParams(location.search);
 async function boot() {
   const rural = params.get('scene') !== 'm1';
   const district = rural && params.get('scene') !== 'm2';
-  const core=params.get('scene')==='m8';
+  const upper=params.get('scene')==='m9';
+  const core=params.get('scene')==='m8'||upper;
   const production=params.get('scene')==='m7'||core;
-  const cityWorld = params.get('scene') === 'm6' || production ? createCityWorld(core?'core':production) : null;
+  const cityWorld = params.get('scene') === 'm6' || production ? createCityWorld(upper?'upper':core?'core':production) : null;
   const npcNavigation=createNpcNavigation(cityWorld?.urban.map(u=>u.npcs));
   const urbanEntrances=cityWorld?.entrances??[];
   const streamedWorld = cityWorld ?? (district && params.get('scene') !== 'm4' ? createStreamingWorld() : null);
@@ -100,6 +101,14 @@ async function boot() {
     document.querySelector('.course-features')!.innerHTML='<span>Connected neighborhoods</span><span>Garden & civic streets</span><span>Working waterfront</span>';
     document.title='Voxarrium · The city core';canvas.setAttribute('aria-label','Voxarrium playable connected city core');
   }
+  if(upper){
+    document.querySelector('.chapter')!.textContent='ABOVE THE RIVER';
+    element('scene-label').textContent='NOBLE COURTS / ACADEMY / UPPER CITY / CITADEL';
+    element('menu-title').textContent='The towers above.';
+    document.querySelector('.intro')!.textContent='Climb through the noble courts and academy gardens to the citadel, then follow the high bridges back to the river.';
+    document.querySelector('.course-features')!.innerHTML='<span>Terraced streets</span><span>Citadel courts</span><span>High river crossings</span>';
+    document.title='Voxarrium · The upper city';canvas.setAttribute('aria-label','Voxarrium playable upper city and citadel');
+  }
   const state = createState(course);
   const livingUi = createLivingUi();
   const audioSettings = { ...DEFAULT_AUDIO };
@@ -127,12 +136,19 @@ async function boot() {
   let residencyKey = '';
   let requestId = 0;
   const streaming = streamedWorld ? createStreamingController(streamedWorld.areas, {
-    async load(area, signal, progress) {
+    requested(area, signal) {
       const transition = tail.beginTransition(area.id, ++requestId, { position: { ...state.player.position }, runSpeed: 5.4 });
       transitions.set(area.id, transition);
       transition.event('request-received');
-      const cancelled = () => transition.end('cancelled');
+      const cancelled = () => {
+        transition.end('cancelled');
+        if (transitions.get(area.id) === transition) transitions.delete(area.id);
+      };
       signal.addEventListener('abort', cancelled, { once: true });
+      return () => signal.removeEventListener('abort', cancelled);
+    },
+    async load(area, signal, progress) {
+      const transition = transitions.get(area.id)!;
       let presentation: Awaited<ReturnType<typeof renderer.prepareArea>> | undefined;
       let collision: Awaited<ReturnType<typeof physics.prepareArea>> | undefined;
       try {
@@ -140,7 +156,6 @@ async function boot() {
         presentation = await renderer.prepareArea(area, signal, rig.camera, state, transition, progress);
         collision = await transition.asyncSpan('collider-creation', () => physics.prepareArea(area.id, area.course, signal, work => transition.work(work)));
         transition.event('ready');
-        signal.removeEventListener('abort', cancelled);
         let released = false;
         return {
           activate() {
@@ -155,7 +170,6 @@ async function boot() {
           },
         };
       } catch (error) {
-        signal.removeEventListener('abort', cancelled);
         collision?.unload(); presentation?.unload();
         transition.end(signal.aborted ? 'cancelled' : 'failed', { error: String(error) });
         if (transitions.get(area.id) === transition) transitions.delete(area.id);
@@ -474,23 +488,27 @@ async function boot() {
   overlay();
   frameId = requestAnimationFrame(frame);
 
-  const harness = {
-    position: () => ({ ...state.player.position }),
-    steer(yaw: number, pitch = -0.09) { state.camera.yaw = yaw; state.camera.pitch = pitch; },
-    snapshot: () => ({
+  const mutableSnapshot = () => ({
       state: structuredClone(state), facts: structuredClone(renderer.facts),
       render: renderer.stats(), timing: timings.snapshot(),
-      tail: tail.snapshot(),
       streaming: streaming?.snapshot() ?? null, physics: physics.stats(),
       npcTiers: npcTierCounts(state.population, state.npcResidency),
       audio: audio.snapshot(), settings: { reducedMotion, audio: { ...audioSettings } },
       camera: { position: rig.camera.position.toArray(), quaternion: rig.camera.quaternion.toArray(), fov: rig.camera.fov, aspect: rig.camera.aspect },
+      pointerLocked: document.pointerLockElement === canvas,
+  });
+  const harness = {
+    position: () => ({ ...state.player.position }),
+    steer(yaw: number, pitch = -0.09) { state.camera.yaw = yaw; state.camera.pitch = pitch; },
+    liveSnapshot: () => ({ ...mutableSnapshot(), tail: tail.liveSnapshot() }),
+    settledTransitions: (excludedIds: ReadonlySet<string>) => tail.settledTransitions(excludedIds),
+    snapshot: () => ({
+      ...mutableSnapshot(), tail: tail.snapshot(),
       bookmarks: structuredClone(course.bookmarks),
       city: cityWorld ? { districts: structuredClone(cityWorld.blueprint.districts), cameras: structuredClone(cityWorld.blueprint.cameras),
         route: structuredClone(cityWorld.route), coreIds:cityWorld.coreIds, connections: structuredClone(cityWorld.blueprint.connections), assumptions: [...cityWorld.blueprint.assumptions],
-        urban:cityWorld.urban.map(u=>({id:u.id,namespace:u.buildings[0]!.id.split('.')[0]!,identity:u.identity,route:u.route,views:u.views,eagle:u.eagle,entrances:cityWorld.entrances.filter(e=>u.buildings.some(b=>b.id===e.buildingId)),
+        urban:cityWorld.urban.map(u=>({id:u.id,namespace:u.buildings[0]?.id.split('.')[0]??'m9',identity:u.identity,route:u.route,views:u.views,eagle:u.eagle,entrances:cityWorld.entrances.filter(e=>u.buildings.some(b=>b.id===e.buildingId)),
           repetition:import.meta.env.DEV?diagnoseUrbanRepetition(u):null})) } : null,
-      pointerLocked: document.pointerLockElement === canvas,
     }),
     freeze(value = true) { manual = value; clock.reset(); previousPosition = { ...state.player.position }; },
     pause: setPaused,

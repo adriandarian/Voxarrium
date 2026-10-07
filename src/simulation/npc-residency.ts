@@ -11,8 +11,8 @@ export interface NpcResidency {
 }
 export const createNpcResidency = (): NpcResidency => ({ version: 1, entries: {} });
 export const npcArea = (id: string): AreaId => {
-  for(const area of ['central-market','lower-canal','civic-terrace','garden-terrace','south-gate'] as const)
-    if(id.startsWith(`m7.${area}.`)||id.startsWith(`m8.${area}.`))return area;
+  for(const area of ['central-market','lower-canal','civic-terrace','garden-terrace','south-gate','noble-quarter','temple-quarter','upper-city','citadel'] as const)
+    if(id.startsWith(`m7.${area}.`)||id.startsWith(`m8.${area}.`)||id.startsWith(`m9.${area}.`))return area;
   return id.startsWith('district.')?'river-market':'rural';
 };
 

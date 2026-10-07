@@ -18,6 +18,7 @@ import type { PreparationWorkEvent } from './preparation-scheduler';
 import type { PreparationCache, PreparationResources } from './preparation-cache';
 import type { TransitionHandle } from '../diagnostics/transition';
 import { createUrbanPresentation } from './urban';
+import { createCitadelPresentation } from './citadel';
 
 export interface AreaPreparationOptions {
   cache?: PreparationCache;
@@ -96,7 +97,7 @@ export async function createAreaPresentation(area: WorldArea, signal: AbortSigna
       const mesh = new Mesh(boxGeometry, material); mesh.name = box.id;
       mesh.position.set(box.position.x, box.position.y, box.position.z);
       mesh.scale.set(box.size.x, box.size.y, box.size.z);
-      mesh.rotation.set(box.rotationX ?? 0, box.rotationY ?? 0, 0);
+      mesh.rotation.set(box.rotationX ?? 0, box.rotationY ?? 0, box.rotationZ ?? 0);
       mesh.receiveShadow = true; mesh.castShadow = box.collides && Math.max(box.size.x, box.size.z) < 40;
       group.add(mesh); yield 'area.static-box';
     }
@@ -145,8 +146,9 @@ export async function createAreaPresentation(area: WorldArea, signal: AbortSigna
     const market = area.id === 'river-market' && !blockout
       ? await tail.asyncSpan('streaming.marketConstruction', () => createDistrictPresentation(area.course, signal, scheduler, scope, marketTarget)) : null;
     const urbanTarget=new Group();
-    if(area.urban && !blockout)group.add(urbanTarget);
-    const urban=area.urban && !blockout?await tail.asyncSpan('streaming.urbanConstruction',()=>createUrbanPresentation(area.urban!,signal,scheduler,scope,urbanTarget)):null;
+    if(area.urban && !area.citadel && !blockout)group.add(urbanTarget);
+    const urban=area.urban && !area.citadel && !blockout?await tail.asyncSpan('streaming.urbanConstruction',()=>createUrbanPresentation(area.urban!,signal,scheduler,scope,urbanTarget)):null;
+    const citadel=area.citadel && !blockout?await createCitadelPresentation(area.citadel,signal,scheduler,scope,group):null;
     throwIfAborted(signal);
     const definitions = area.id === 'rural' ? NPC_DEFINITIONS : area.id === 'river-market'
       ? DISTRICT_POPULATION_DEFINITIONS.filter(npc => area.npcIds.includes(npc.id)) : area.urban?.npcs.definitions ?? [];
@@ -159,8 +161,8 @@ export async function createAreaPresentation(area: WorldArea, signal: AbortSigna
     }
     options.transition?.event('object-construction-complete', { scheduler: scheduler.snapshot(), cache: options.cache?.snapshot() });
     return {
-      group, dispose, schedulerStats: scheduler.snapshot(), cacheStats: () => options.cache?.snapshot() ?? null, roofEnvelopes: urban?.facts.roofEnvelopes ?? market?.facts.roofEnvelopes ?? [],
-      facts: { areaId: area.id, ruralAssets, market: market?.facts ?? null, urban:urban?.facts??null,npcIds: [...area.npcIds],
+      group, dispose, schedulerStats: scheduler.snapshot(), cacheStats: () => options.cache?.snapshot() ?? null, roofEnvelopes: citadel?.roofEnvelopes ?? urban?.facts.roofEnvelopes ?? market?.facts.roofEnvelopes ?? [],
+      facts: { areaId: area.id, ruralAssets, market: market?.facts ?? null, urban:urban?.facts??null,citadel:citadel?.facts??null,npcIds: [...area.npcIds],
         shell: area.id === 'neighbor-shell' ? 'Bounded transition shell; no M6 polish, new NPCs or gameplay.' : null },
       update(state: GameState, reduced: boolean) {
         const environment = state.environment;
@@ -172,6 +174,7 @@ export async function createAreaPresentation(area: WorldArea, signal: AbortSigna
         market?.update(waterTime, environment?.wind, environment?.rain);
         if (environment) market?.updateEnvironment(environment);
         if (environment) urban?.updateEnvironment(environment);
+        if (environment) citadel?.updateEnvironment(environment);
       },
       npcStats: () => npcs?.stats() ?? null,
     };

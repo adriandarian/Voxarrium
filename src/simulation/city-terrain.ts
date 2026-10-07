@@ -1,10 +1,35 @@
 import type { CourseSpec } from './types';
+import type { CityBlueprint } from './city-contracts';
+import { cityRoadSurfaces } from './city-blueprint';
 type Surface = NonNullable<CourseSpec['surfaces']>[number];
+
+/** M9 completes the bank-street foundation as well as terrace faces.
+ * A bridge is a suspended deck, never the neighboring ground used to truncate
+ * a retaining wall. Short segments resolve narrow landings at waterfront joins.
+ * The approved top surfaces, road widths/elevations and water graph are untouched. */
+export function cityUpperRetainingSurface(blueprint: CityBlueprint): Surface {
+  const streets=cityRoadSurfaces(blueprint.roads.filter(road=>road.kind!=='bridge'));
+  // Other approved roads can overhang lower traversable streets (notably the
+  // level-50 forecourt above the monumental ascent). Do not wall off that space.
+  const foundations=streets.filter(s=>s.id.startsWith('city.road.east-bank-retaining-street.'));
+  return cityRetainingSurface([...blueprint.terrain,...foundations],streets,1);
+}
+
+/** Stone shoulders occupy the existing 0.2 m clearance cut beside each deck.
+ * They sit below its accepted surface, so slopes/landings retain precedence.
+ * Stairs keep their original smooth ascent and individually authored treads. */
+export function cityUpperRoadCoping(blueprint: CityBlueprint): Surface {
+  const source=cityRoadSurfaces(blueprint.roads.filter(road=>road.kind!=='stairs').map(road=>({...road,
+    width:road.width+.4,points:road.points.map(p=>({...p,y:p.y-.03}))})));
+  const result:Surface={id:'city.circulation.edge-coping',vertices:[],indices:[],color:0xa89c7d};
+  for(const s of source){const offset=result.vertices.length/3;result.vertices.push(...s.vertices);result.indices.push(...s.indices.map(i=>i+offset));}
+  return result;
+}
 
 /** Shared visual/collision retaining geometry. A wall stops at the adjacent
  * street or intermediate terrace rather than descending through it to -3m.
  * Spatial triangle lookup also handles partial edges at clipped terrace joins. */
-export function cityRetainingSurface(surfaces: readonly Surface[], streets: readonly Surface[] = []): Surface {
+export function cityRetainingSurface(surfaces: readonly Surface[], streets: readonly Surface[] = [], maxSegmentLength = 20): Surface {
   type Edge = { a: number[]; b: number[] };
   type Triangle = { a:number[]; b:number[]; c:number[] };
   const edges = new Map<string, Edge[]>(), cells=new Map<string,Triangle[]>();
@@ -50,7 +75,7 @@ export function cityRetainingSurface(surfaces: readonly Surface[], streets: read
     const a=edge.a,b=edge.b,dx=b[0]!-a[0]!,dz=b[2]!-a[2]!,length=Math.hypot(dx,dz);
     if(length<1e-5)continue;
     // Positive-Y triangle winding places the outside on the left of an edge.
-    const nx=-dz/length*.35,nz=dx/length*.35,count=Math.max(1,Math.ceil(length/20));
+    const nx=-dz/length*.35,nz=dx/length*.35,count=Math.max(1,Math.ceil(length/maxSegmentLength));
     const at=(t:number)=>[a[0]!+dx*t,a[1]!+(b[1]!-a[1]!)*t,a[2]!+dz*t];
     for(let i=0;i<count;i++){
       const start=at(i/count),end=at((i+1)/count);

@@ -11,6 +11,8 @@ import { DISTRICT_LAMPS } from '../simulation/district-art';
 import { createRuralCourse } from '../simulation/rural';
 import type { EnvironmentColor, EnvironmentState } from '../simulation/environment';
 import type { CourseSpec, Vec3 } from '../simulation/types';
+import type { CityBlueprint } from '../simulation/city-contracts';
+import { urbanFloorAt } from '../simulation/urban-grammar';
 
 type WindKind = 'tree' | 'plant' | 'shrub';
 type Replacement = { source: MeshStandardMaterial; material: MeshStandardMaterial | MeshStandardNodeMaterial; darkening: number };
@@ -34,8 +36,8 @@ function sample(index: number, salt: number) { return fraction(Math.sin(index * 
 
 /** Presentation only. The approved source positions, indices and instance matrices stay untouched. */
 export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLight, fill: HemisphereLight,
-  course: CourseSpec = createRuralCourse(), districtRoofs: { min: number[]; max: number[] }[] = []) {
-  const streaming = course.id === 'm5-streaming-proof' || course.id === 'm6-city-blueprint';
+  course: CourseSpec = createRuralCourse(), districtRoofs: { min: number[]; max: number[] }[] = [],city?:CityBlueprint) {
+  const streaming = course.id === 'm5-streaming-proof' || course.id === 'm6-city-blueprint' || !!city;
   const district = course.id === 'm4-market-district' || streaming;
   const group = new Group();
   group.name = 'living.environment';
@@ -100,11 +102,12 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
       if (!(object instanceof Mesh)) return;
       // The modular kit owns its wetness/emissive response and supplies individual
       // roof bounds; treating its aggregate instance bounds as a roof would hide rain.
-      if (object.name.startsWith('district.') && !windKind(object.name)) return;
+      if ((object.name.startsWith('district.') && !windKind(object.name)) ||
+        object.name.startsWith('citadel.hero.') || object.name.startsWith('citadel.court.')) return;
       const sourceMaterials = Array.isArray(object.material) ? object.material : [object.material];
       // Actual imported roof bounds include the cottage and shed overhangs. A
       // conservative top envelope prevents rain appearing beneath a sloped roof.
-      if (!object.name.startsWith('district.') && (sourceMaterials.some(material => /^(terracotta|teal_)/.test(material.name)) || /(?:roof|shelter)/i.test(object.name))) {
+      if (!object.name.startsWith('district.') && !object.name.startsWith('citadel.') && (sourceMaterials.some(material => /^(terracotta|teal_)/.test(material.name)) || /(?:roof|shelter)/i.test(object.name))) {
         const bounds = new Box3().setFromObject(object, true);
         if (!bounds.isEmpty()) { bounds.min.x -= 0.25; bounds.max.x += 0.25; bounds.min.z -= 0.25; bounds.max.z += 0.25; ownerRoofs.push(bounds); }
       }
@@ -113,6 +116,7 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
       // Only the accepted rural scene is adapted; diagnostic avatar/labels and
       // later-created NPC materials remain independently owned by their systems.
       if (!kind && !/^(terrain\.|path\.|stairs\.|garden\.|crop\.|rural\.|blockout\.)/.test(object.name) &&
+        !object.name.startsWith('citadel.skyline.') &&
         !sourceMaterials.some(material => /^(plaster|timber|door_oak|bridge_oak|terracotta|teal_|stone)/.test(material.name))) return;
       const changed = sourceMaterials.map(material => material instanceof MeshStandardMaterial && material.roughness >= 0.4 ? replace(material, kind) : material);
       if (changed.every((material, i) => material === sourceMaterials[i])) return;
@@ -166,9 +170,32 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
   group.add(rain); scene.add(group);
 
   const ground = course.surfaces!.filter(surface => surface.id.endsWith('.top'));
+  // The fitted citadel return is also present in resident skyline geometry.
+  // Clip rain to its exact upward faces; a flat roof envelope would erase
+  // rain over the lower exposed ramp. Its two triangles remain bounded here.
+  const gradedGround=(course.surfaces??[]).filter(surface=>surface.id==='citadel.return-apron').flatMap(surface=>{
+    const triangles:number[][][]=[];
+    for(let i=0;i<surface.indices.length;i+=3){
+      const triangle=surface.indices.slice(i,i+3).map(n=>surface.vertices.slice(n*3,n*3+3));
+      const [a,b,c]=triangle;
+      const normalY=(b![2]!-a![2]!)*(c![0]!-a![0]!)-(b![0]!-a![0]!)*(c![2]!-a![2]!);
+      if(normalY>1e-8)triangles.push(triangle);
+    }
+    return triangles;
+  });
   const rainObstacles = course.boxes.filter(box => /^(?:district\.)?(?:stairs\.|bridge\..*deck\.|garden\.bed\.)/.test(box.id));
   function groundHeight(x: number, z: number) {
-    let height = -1.1;
+    // The macro blueprint excludes the preserved Rural/River courses. Use its
+    // upper-city floor where present, then retain the accepted terrain lookup.
+    let macroFloor=city?urbanFloorAt(city,x,z):null;
+    for(const [a,b,c] of gradedGround){
+      const d=(b![2]!-c![2]!)*(a![0]!-c![0]!)+(c![0]!-b![0]!)*(a![2]!-c![2]!);
+      const u=((b![2]!-c![2]!)*(x-c![0]!)+(c![0]!-b![0]!)*(z-c![2]!))/d;
+      const v=((c![2]!-a![2]!)*(x-c![0]!)+(a![0]!-c![0]!)*(z-c![2]!))/d;
+      if(u>=0&&v>=0&&u+v<=1){const y=u*a![1]!+v*b![1]!+(1-u-v)*c![1]!;macroFloor=Math.max(macroFloor??-Infinity,y);}
+    }
+    if(macroFloor!==null)return macroFloor+.04;
+    let height = city?-1.16:-1.1;
     for (const surface of ground) {
       if (surface.vertices[1]! <= height) continue;
       let inside = false;
@@ -218,7 +245,7 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
     const cloudTime = reduced ? Math.floor(state.time * 5) / 5 : state.time;
     if (cloudTime !== lastCloudTime) {
       for (const [index, cloud] of cloudCenters.entries()) {
-        transform.position.set(cloud.x + (district ? 50 : 0) + Math.sin(cloudTime * 0.035 + cloud.phase) * (2 + state.wind * 3), cloud.y, cloud.z);
+        transform.position.set((city?cloud.x*2.7+150:cloud.x + (district ? 50 : 0)) + Math.sin(cloudTime * 0.035 + cloud.phase) * (2 + state.wind * 3), city?cloud.y+90:cloud.y, city?cloud.z*3.5:cloud.z);
         transform.rotation.set(0, 0, 0); transform.scale.set(cloud.sx, cloud.sy, cloud.sz); transform.updateMatrix();
         clouds.setMatrixAt(index, transform.matrix);
       }
@@ -230,19 +257,20 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
     // World-fixed column anchors prevent the rain from sliding with every small
     // player movement. CPU buffers update at simulation cadence, never wall time.
     const anchorX = Math.round(player.x / 4) * 4, anchorZ = Math.round(player.z / 4) * 4;
-    const rainKey = `${rainTime}:${anchorX}:${anchorZ}:${reduced}:${state.wind}:${state.rain}`;
+    const ceiling=city?Math.round(player.y/4)*4+RAIN_CEILING:RAIN_CEILING;
+    const rainKey = `${rainTime}:${anchorX}:${anchorZ}:${ceiling}:${reduced}:${state.wind}:${state.rain}`;
     if (rainKey !== lastRainKey) {
       rainCount = 0; shelterClipped = 0; outOfBounds = 0;
       const limit = reduced ? REDUCED_RAIN_DROPS : RAIN_DROPS;
       if (rain.visible) for (let index = 0; index < limit; index++) {
         const angle = sample(index, 20) * Math.PI * 2, radius = Math.sqrt(sample(index, 21)) * RAIN_RADIUS;
         const x = anchorX + Math.cos(angle) * radius, z = anchorZ + Math.sin(angle) * radius;
-        if (x <= -47.7 || x >= (streaming ? 217.7 : district ? 145.7 : 47.7) || Math.abs(z) >= 47.7) { outOfBounds++; continue; }
+        if (city?(x<=-160||x>=385||z<=-660||z>=48):(x <= -47.7 || x >= (streaming ? 217.7 : district ? 145.7 : 47.7) || Math.abs(z) >= 47.7)) { outOfBounds++; continue; }
         let bottom = groundHeight(x, z);
         for (const roof of roofEnvelopes) if (x >= roof.min.x && x <= roof.max.x && z >= roof.min.z && z <= roof.max.z) {
-          bottom = Math.max(bottom, roof.max.y + 0.12); shelterClipped++; break;
+            bottom = Math.max(bottom, roof.max.y + 0.12); shelterClipped++;if(!city)break;
         }
-        const height = RAIN_CEILING - bottom;
+        const height = ceiling - bottom;
         if (height <= 0.5) { shelterClipped++; continue; }
         const y = bottom + fraction(sample(index, 22) - rainTime * (7.2 + sample(index, 23) * 2) / height) * height;
         const length = Math.min(0.38 + sample(index, 24) * 0.25, y - bottom);
@@ -262,9 +290,9 @@ export function createEnvironmentPresentation(scene: Scene, sun: DirectionalLigh
       return { weather, timeOfDay, animationTime: environmentTime, reduced, windBatches, windInstances,
         windShader: 'TSL positionNode; local height anchor; one gust in reduced mode, two harmonics at full quality',
         surfaceMaterials: replacements.size, cloudLobes: clouds.count, rainDrops: rainCount,
-        rainCapacity: RAIN_DROPS, rainReducedCapacity: REDUCED_RAIN_DROPS,
+        rainCapacity: RAIN_DROPS, rainReducedCapacity: REDUCED_RAIN_DROPS, gradedRainGroundTriangles:gradedGround.length,
         rainColumnsClippedByShelter: shelterClipped, rainColumnsSkippedOutsideBounds: outOfBounds,
-        rainGroundBounds: district ? { minX: -48, maxX: streaming ? 218 : 146, minZ: -48, maxZ: 48 } : RURAL.bounds,
+        rainGroundBounds: city?{minX:-160,maxX:385,minZ:-660,maxZ:48}:district ? { minX: -48, maxX: streaming ? 218 : 146, minZ: -48, maxZ: 48 } : RURAL.bounds,
         localLights: 1 + districtLamps.length, shadowCastingLocalLights: 0,
         roofEnvelopes: roofEnvelopes.map(bounds => ({ min: bounds.min.toArray(), max: bounds.max.toArray() })),
         areaHooks: [...roofOwners.keys()].filter(id => id !== 'initial'), activeAreaHooks: [...loadedAreas],

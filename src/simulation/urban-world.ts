@@ -7,10 +7,11 @@ import type { UrbanDistrict } from './urban-contracts';
 import type { BoxSpec, CourseSpec } from './types';
 import { createCoreDistricts } from './city-core-districts';
 import { urbanNamespace } from './urban-grammar';
+import { createUpperCityDistricts } from './upper-city';
 
-export function createUrbanDistricts(blueprint:CityBlueprint,core=false):UrbanDistrict[]{
+export function createUrbanDistricts(blueprint:CityBlueprint,core=false,upper=false):UrbanDistrict[]{
   const roads=cityRoadSurfaces(blueprint.roads),retaining=cityRetainingSurface(blueprint.terrain,roads);
-  return [createCentralMarket(blueprint),createLowerCanal(blueprint),...(core?createCoreDistricts(blueprint):[])].map(district=>({
+  return [createCentralMarket(blueprint),createLowerCanal(blueprint),...(core?createCoreDistricts(blueprint):[]),...(upper?createUpperCityDistricts(blueprint):[])].map(district=>({
     ...district,pavingSurfaces:[...blueprint.terrain.filter(s=>district.id!=='garden-terrace'&&s.id.startsWith(`city.terrain.${district.id}`)),
       ...cityRoadSurfaces(blueprint.roads.filter(r=>r.districts.includes(district.id))),...district.surfaces],
     retainingSurfaces:(()=>{
@@ -42,6 +43,7 @@ return [front,{...front,id:`${b.id}.rear-entrance`,yaw:b.yaw+Math.PI,
 export function urbanCourse(district:UrbanDistrict,seed:number):CourseSpec{
   const namespace=urbanNamespace(district.id);
   const boxes:BoxSpec[]=[];
+  boxes.push(...district.structures??[]);
   for(const b of district.buildings){
     const height=b.floors*b.floorHeight;
     boxes.push({id:`${b.id}.collider`,position:{...b.position,y:b.position.y+height/2},size:{x:b.width,y:height,z:b.depth},
