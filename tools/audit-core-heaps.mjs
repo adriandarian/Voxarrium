@@ -1,7 +1,7 @@
-import {readFileSync,writeFileSync,statSync} from 'node:fs';
+import {readFileSync,writeFileSync,statSync,mkdirSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {resolve} from 'node:path';
+import {resolve,dirname} from 'node:path';
 import assert from 'node:assert/strict';
 
 // Offline only: one bounded graph per subprocess, after traversal measurement.
@@ -40,6 +40,7 @@ if(process.argv[2]==='--worker'){
     method:'Offline V8 graph constructor/native-wrapper counts and summed shallow sizes. One input graph per subprocess, 512 MiB input and 2048 MiB old-space caps. Startup differs from equivalent returns.',
     limits:'Shallow sizes are not retained sizes. Constructor names can be shared or anonymous. Counts alone do not establish leaks, total heap stability, GPU allocations or VRAM. No retainer paths or cross-snapshot object identities are inferred.',
     snapshots:snapshots.map(({classes,...summary})=>summary),selected:comparison,largestPositiveReturnDeltas:growth};
-  const output=resolve('artifacts/m8/checks/heap-ownership-summary.json');writeFileSync(output,JSON.stringify(report,null,2)+'\n');
+  const output=resolve(process.env.VOXARRIUM_HEAP_AUDIT_OUTPUT??'artifacts/m8/checks/heap-ownership-summary.json');
+  mkdirSync(dirname(output),{recursive:true});writeFileSync(output,JSON.stringify(report,null,2)+'\n');
   console.log(JSON.stringify({output,snapshots:report.snapshots,selected:comparison}));
 }

@@ -4,19 +4,25 @@ import { createStreamingWorld } from './streaming-world';
 import { areaDistance } from './streaming-contracts';
 import type { AreaId, WorldArea } from './streaming-contracts';
 import type { BoxSpec, CourseSpec, Vec3 } from './types';
-import { cityRetainingSurface } from './city-terrain';
+import { cityRetainingSurface, cityUpperRetainingSurface, cityUpperRoadCoping } from './city-terrain';
 import { cityBridgeSpans } from './city-navigation';
 import { createUrbanDistricts, urbanCourse, urbanEntrances } from './urban-world';
 import type { UrbanDistrict } from './urban-contracts';
 import { cityCoreRoute, CITY_CORE_IDS, CITY_CORE_PREPARATION_LEAD_SECONDS, CITY_CORE_COLD_SECONDS, CITY_CORE_PROXY_APPROACH_METERS } from './city-core';
 import { urbanNamespace } from './urban-grammar';
+import { createCitadel } from './citadel';
+import { UPPER_REPLACED_LANDMARKS } from './upper-city';
+import { citadelActivity, upperCityRoute, UPPER_CITY_IDS, UPPER_CITY_COLD_SECONDS } from './upper-city-integration';
 
 /** Original accepted area courses are anchored without transforms or remodeling. */
-export function createCityWorld(production:boolean|'core'=false) {
+export function createCityWorld(production:boolean|'core'|'upper'=false) {
   const blueprint = createCityBlueprint();
-  const core=production==='core';
-  const urban=production?createUrbanDistricts(blueprint,core):[];
-  const replacedLandmarks=production?['city.landmark.market-belfry',...(core?['city.landmark.civic-hall','city.landmark.south-gate-tower']:[])]:[];
+  const upper=production==='upper',core=production==='core'||upper;
+  const citadel=upper?createCitadel(blueprint):null;
+  const urban=production?createUrbanDistricts(blueprint,core,upper):[];
+  if(citadel)urban.push(citadelActivity(citadel));
+  const replacedLandmarks=production?['city.landmark.market-belfry',...(core?['city.landmark.civic-hall','city.landmark.south-gate-tower']:[]),
+    ...(citadel?[...citadel.replacedLandmarks,...UPPER_REPLACED_LANDMARKS]:[])]:[];
   const entrances=urban.flatMap(urbanEntrances);
   const accepted = createStreamingWorld();
   const areas: WorldArea[] = blueprint.districts.map(district => {
@@ -25,10 +31,12 @@ export function createCityWorld(production:boolean|'core'=false) {
     const xs = district.footprint.map(point => point.x), zs = district.footprint.map(point => point.z);
     return {
       id: district.id, bounds: existing?.bounds ?? { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) },
-      course: existing?.course ?? (content?urbanCourse(content,blueprint.seed):{ id: `m6.${district.id}`, seed: blueprint.seed, bounds: 850,
+      course: existing?.course ?? (district.id==='citadel'&&citadel?citadel.course:content?urbanCourse(content,blueprint.seed):{ id: `m6.${district.id}`, seed: blueprint.seed, bounds: 850,
         spawn: { ...district.center, y: district.center.y + .04 }, boxes: blueprint.massing[district.id], surfaces: [], labels: [], bookmarks: {} }),
-      assetIds: existing?.assetIds ?? (content?['district.kit']:[]), npcIds: existing?.npcIds ?? content?.npcs.definitions.map(n=>n.id) ?? [],
+      assetIds: existing?.assetIds ?? (district.id==='citadel'&&citadel?['citadel.hero']:content?['district.kit']:[]), npcIds: existing?.npcIds ?? content?.npcs.definitions.map(n=>n.id) ?? [],
       ...(content?{urban:content}:{}),
+      ...(district.id==='citadel'&&citadel?{citadel}:{}),
+      ...(upper&&UPPER_CITY_COLD_SECONDS[district.id]!==undefined?{coldPreparationSeconds:UPPER_CITY_COLD_SECONDS[district.id]}:{}),
       ...(core?{preloadApproaches:blueprint.connections.filter(c=>c.from===district.id||c.to===district.id)
         .map(c=>({neighbor:c.from===district.id?c.to:c.from,points:c.from===district.id?c.points:[...c.points].reverse()}))}:{}),
       footprint: district.footprint, neighbors: district.neighbors, streamingPriority: district.streamingPriority,
@@ -42,20 +50,24 @@ export function createCityWorld(production:boolean|'core'=false) {
         x:middle.x+Math.cos(yaw)*side*(span.width/2-.12),y:middle.y+.55,z:middle.z-Math.sin(yaw)*side*(span.width/2-.12)},
         size:{x:.24,y:1.1,z:length},rotationY:yaw,color:0xb5aa8e,collides:true,visible:false}));
     })], labels: [], bookmarks: {},
-    surfaces: [...accepted.residentCourse.surfaces!, ...blueprint.terrain, cityRetainingSurface(blueprint.terrain,cityRoadSurfaces(blueprint.roads)), ...cityRoadSurfaces(blueprint.roads)] };
+    surfaces: [...accepted.residentCourse.surfaces!, ...blueprint.terrain,
+      upper?cityUpperRetainingSurface(blueprint):cityRetainingSurface(blueprint.terrain,cityRoadSurfaces(blueprint.roads)),
+      ...(upper?[cityUpperRoadCoping(blueprint)]:[]),
+      ...cityRoadSurfaces(blueprint.roads)] };
   const bookmarks = { ...accepted.course.bookmarks };
   for(const area of areas)Object.assign(bookmarks,area.course.bookmarks);
+  if(citadel)for(const [name,view] of Object.entries(citadel.course.bookmarks))bookmarks[`m9.citadel.${name}`]=view;
   for (const district of blueprint.districts) bookmarks[`city.${district.id}`] = {
     position: { ...district.center, y: district.center.y + .04 }, yaw: 0, pitch: .06,
   };
-  const course: CourseSpec = { ...accepted.course, id: core?'m8-city-core':production?'m7-urban-districts':blueprint.id, bounds: 850,
+  const course: CourseSpec = { ...accepted.course, id: upper?'m9-upper-city':core?'m8-city-core':production?'m7-urban-districts':blueprint.id, bounds: 850,
     boxes: [...residentCourse.boxes, ...areas.flatMap(area => area.course.boxes)],
     surfaces: [...residentCourse.surfaces!, ...areas.flatMap(area => area.course.surfaces ?? [])],
     labels: [], bookmarks };
   if(production)blueprint.cameras.push(...urban.map(u=>({id:`${urbanNamespace(u.id)}-${u.id}`,...u.eagle})));
   if(core)blueprint.cameras.push({id:'city-core',position:{x:-160,y:410,z:200},target:{x:145,y:14,z:-190},fov:48});
-  return { blueprint, areas, residentCourse, course, route: core?cityCoreRoute(blueprint,urban):blueprint.route,urban,entrances,replacedLandmarks,
-    coreIds:core?[...CITY_CORE_IDS]:[],core,
+  return { blueprint, areas, residentCourse, course, route: upper?upperCityRoute(blueprint,urban):core?cityCoreRoute(blueprint,urban):blueprint.route,urban,entrances,replacedLandmarks,
+    coreIds:upper?[...UPPER_CITY_IDS]:core?[...CITY_CORE_IDS]:[],core,upper,citadel,
     acceptedCourses: accepted.areas.map(area => area.course) };
 }
 
@@ -114,6 +126,22 @@ export function cityDemand(areas: readonly WorldArea[], position: Vec3, velocity
     Math.hypot(position.x-establishedDeparture.points[0]!.x,position.z-establishedDeparture.points[0]!.z)<=12&&
     neighbors.some(a=>a!==established&&departure(a)&&Math.hypot(departure(a)!.points[0]!.x-establishedDeparture.points[0]!.x,
       departure(a)!.points[0]!.z-establishedDeparture.points[0]!.z)<2))return [nearest.id,established.id];
+  // M9's measured Garden return canceled a cold Gate while braking at a bend
+  // of its actual connector. Keep that departure along the supported road,
+  // including low-speed turns; reversing or approaching another polygon wins.
+  // This is a demand latch, not an extra residency lease or readiness wait.
+  if(nearest.coldPreparationSeconds!==undefined&&previousDemand?.[0]===nearest.id&&established&&establishedDeparture&&
+    !neighbors.some(a=>a!==established&&areaDistance(a,position)<=2)){
+    for(let i=1;i<establishedDeparture.points.length;i++){
+      const a=establishedDeparture.points[i-1]!,b=establishedDeparture.points[i]!;
+      const dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);if(!length)continue;
+      const t=((position.x-a.x)*dx+(position.z-a.z)*dz)/(length*length);
+      if(t<0||t>1)continue;
+      const distance=Math.hypot(position.x-a.x-dx*t,position.z-a.z-dz*t);
+      const alignment=speed<.1?1:(velocity.x*dx+velocity.z*dz)/(speed*length);
+      if(distance<=3&&alignment>=-.1)return [nearest.id,established.id];
+    }
+  }
   // Keep the outgoing neighbor until the whole capsule has cleared its portal.
   // Otherwise a new reverse guard can appear ahead of a just-crossed player.
   neighbors.sort((a, b) => {
@@ -160,9 +188,13 @@ export function cityDemand(areas: readonly WorldArea[], position: Vec3, velocity
         // Approaching a shared junction from a local lane does not disclose the
         // eventual turn. Prepare the branch with the shorter remaining lead;
         // a farther branch still has time after the departure becomes decisive.
-        const urgencyA=expensiveA*(CITY_CORE_COLD_SECONDS[a.id]??lead)-areaDistance(a,pivotA)/5.4;
-        const urgencyB=expensiveB*(CITY_CORE_COLD_SECONDS[b.id]??lead)-areaDistance(b,pivotB)/5.4;
-        const urgent=distance>12&&alignmentA>=(establishedA ? -.65 : -.2)&&alignmentB>=(establishedB ? -.65 : -.2)&&Math.abs(urgencyA-urgencyB)>=.5;
+        const urgencyA=expensiveA*(a.coldPreparationSeconds??CITY_CORE_COLD_SECONDS[a.id]??lead)-areaDistance(a,pivotA)/5.4;
+        const urgencyB=expensiveB*(b.coldPreparationSeconds??CITY_CORE_COLD_SECONDS[b.id]??lead)-areaDistance(b,pivotB)/5.4;
+        // An incoming bridge can face partly away from the eventual street at
+        // a bend. M9's measured costly branch needs preparation before the turn;
+        // decisive departure still wins inside the twelve-metre junction.
+        const minimumAlignment=(area:WorldArea,established:boolean)=>established||area.coldPreparationSeconds!==undefined?-.65:-.2;
+        const urgent=distance>12&&alignmentA>=minimumAlignment(a,establishedA)&&alignmentB>=minimumAlignment(b,establishedB)&&Math.abs(urgencyA-urgencyB)>=.5;
         forkOrder=urgent?urgencyB-urgencyA:plausibleA&&plausibleB&&expensiveA!==expensiveB
           ? expensiveB-expensiveA : alignmentB-alignmentA;
         authoredDeparture=urgent||distance<=6||Math.abs(alignmentA-alignmentB)>=.35||plausibleA&&plausibleB&&expensiveA!==expensiveB;

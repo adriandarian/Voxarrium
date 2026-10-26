@@ -16,9 +16,10 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
+    {name:'upper-browser',testMatch:'**/upper-browser.spec.ts',use:{channel:process.env.VOXARRIUM_BROWSER??'chrome',headless:true}},
     {name:'core-browser',testMatch:'**/core-browser.spec.ts',use:{channel:process.env.VOXARRIUM_BROWSER??'chrome',headless:process.env.VOXARRIUM_HEADED!=='1'}},
     {name:'urban-browser',testMatch:'**/urban-browser.spec.ts',use:{channel:process.env.VOXARRIUM_BROWSER??'chrome',headless:process.env.VOXARRIUM_HEADED!=='1'}},
-    { name: 'simulation', testMatch: /(?:simulation|clock|renderer|renderer-bindings|rural|rural-assets|environment|npcs|living|district|district-assets|district-npcs|tail|streaming|residency|preparation|city|city-render|city-streaming|city-convergence|central-market|lower-canal|urban|core)\.spec\.ts/ },
+    { name: 'simulation', testMatch: /(?:simulation|clock|renderer|renderer-bindings|rural|rural-assets|environment|npcs|living|district|district-assets|district-npcs|tail|streaming|residency|preparation|warmup-visibility|city|city-render|city-streaming|city-convergence|central-market|lower-canal|urban|core|citadel|upper-city|upper-integration)\.spec\.ts/ },
     { name: 'browser', testMatch: '**/browser.spec.ts', use: {
       channel: process.env.VOXARRIUM_BROWSER ?? 'chrome',
       headless: process.env.VOXARRIUM_HEADED !== '1',

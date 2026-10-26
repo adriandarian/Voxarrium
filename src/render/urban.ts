@@ -11,12 +11,14 @@ import type { EnvironmentState } from '../simulation/environment';
 import { ecologyRegistrationJobs } from './rural-ecology';
 import { urbanPavingTexture } from './urban-paving';
 import type { UrbanPavingKind } from './urban-paving';
+import { upperStructureJobs } from './upper-structures';
 
 /** Reuses the accepted GLB kit and M5.1 scheduler/cache/ownership, without another world system. */
 export async function createUrbanPresentation(urban:UrbanDistrict,signal:AbortSignal,scheduler:PreparationScheduler,
   scope:PreparationResources,target:Group) {
   const loaded=await loadDistrictKit(signal,scheduler,scope);
   const architecture=await scheduler.run(`urban.${urban.id}.architecture`,districtArchitectureJobs(loaded.root,scope,target,urban));
+  if(urban.structures?.length)await scheduler.run(`urban.${urban.id}.structures`,upperStructureJobs(urban.structures,scope,target));
   const replacements=new Map<MeshStandardMaterial,MeshStandardNodeMaterial>();
   await scheduler.run(`urban.${urban.id}.pigment`,(function*(){
     for(const object of target.children){

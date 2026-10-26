@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { BoxGeometry, MeshStandardMaterial } from 'three';
 import { AssetReferences, ResourceReferences } from '../src/assets/resource-references';
+import { TransitionTelemetry } from '../src/diagnostics/transition';
 import { createPhysics } from '../src/physics/physics';
 import { createDistrictCourse } from '../src/simulation/district';
 import { createRuralCourse } from '../src/simulation/rural';
@@ -231,6 +232,62 @@ test('cancellation before the preparation microtask skips obsolete adapter work'
   expect(loads).toBe(1);
   expect(streaming.ready('rural')).toBe(true);
   streaming.dispose();
+});
+
+test('request telemetry includes pre-microtask cancellation, distinct reentry and exactly-once cleanup', async () => {
+  let now = 0, requests = 0, preparations = 0;
+  const ledger = new TransitionTelemetry({ enabled: true, now: () => now, timeOrigin: 0 });
+  const cleanupIds: string[] = [], handles = new Map<AbortSignal, ReturnType<TransitionTelemetry['begin']>>();
+  const streaming = createStreamingController(testAreas(), {
+    requested(area, signal) {
+      const request = ledger.begin(area.id, ++requests); handles.set(signal, request);
+      const cancel = () => request.end('cancelled');
+      signal.addEventListener('abort', cancel, { once: true });
+      return () => { cleanupIds.push(request.id); signal.removeEventListener('abort', cancel); handles.delete(signal); };
+    },
+    async load(_area, signal) {
+      preparations++;
+      const request = handles.get(signal)!; request.event('ready');
+      return { activate() { request.event('activation-complete'); }, deactivate() {}, unload() { request.end('unloaded'); } };
+    },
+  });
+  streaming.update(position(5), 0);
+  expect(ledger.snapshot().reports).toHaveLength(1); expect(preparations).toBe(0);
+  now = 1.7; streaming.update(position(-60), 0); await flushMicrotasks();
+  expect(preparations).toBe(0); expect(cleanupIds).toHaveLength(1);
+  expect(ledger.snapshot().reports[0]).toMatchObject({ outcome: 'cancelled', startedAtMs: 0, endedAtMs: 1.7,
+    readyAtMs: null, pendingSpans: 0, completeChronology: true });
+  expect(ledger.snapshot().reports[0].records.map(r => r.name)).toEqual(['request-received', 'cancelled']);
+  now = 10; streaming.update(position(5), 0); await streaming.settled();
+  const reports = ledger.snapshot().reports;
+  expect(reports).toHaveLength(streaming.snapshot().counts.loads);
+  expect(reports.map(r => r.requestId)).toEqual([1, 2]); expect(new Set(reports.map(r => r.id)).size).toBe(2);
+  expect(preparations).toBe(1); expect(cleanupIds).toEqual(reports.map(r => r.id)); expect(handles.size).toBe(0);
+  expect(streaming.snapshot().counts).toMatchObject({ loads: 2, cancellations: 1, failures: 0, lateReleases: 0 });
+  streaming.dispose(); streaming.dispose();
+  expect(ledger.snapshot().reports.map(r => r.outcome)).toEqual(['cancelled', 'unloaded']);
+  expect(cleanupIds).toHaveLength(2);
+});
+
+test('request observer faults remain handled load failures and cleanup faults are visible', async () => {
+  let preparations = 0;
+  const failure = createStreamingController(testAreas(), {
+    requested() { throw new Error('request observer failed'); },
+    async load() { preparations++; return handle('rural', []); },
+  });
+  failure.update(position(5), 0); await failure.settled();
+  expect(preparations).toBe(0);
+  expect(failure.snapshot().counts).toMatchObject({ loads: 1, failures: 1 });
+  expect(failure.snapshot().errors[0]).toMatchObject({ type: 'load-error', message: 'Error: request observer failed' });
+  failure.update(position(5), 1); await failure.settled(); expect(failure.snapshot().counts.loads).toBe(1);
+  failure.dispose();
+  const cleanup = createStreamingController(testAreas(), {
+    requested() { return () => { throw new Error('request cleanup failed'); }; },
+    async load() { return handle('rural', []); },
+  });
+  cleanup.update(position(5), 0); await cleanup.settled();
+  expect(cleanup.snapshot().errors[0]).toMatchObject({ type: 'adapter-error', message: 'Error: request cleanup failed' });
+  expect(cleanup.ready('rural')).toBe(true); cleanup.dispose();
 });
 
 test('failed loads expose errors without automatic retry loops and retry after departure', async () => {

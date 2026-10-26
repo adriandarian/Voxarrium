@@ -1,5 +1,5 @@
 /** Install a capture-only, bounded plain-data export queue in the test page.
- * Completed reports already came from the ordinary snapshot; no live game or
+ * Completed reports already came from detached telemetry snapshots; no live game or
  * renderer object is retained. Readbacks never omit/truncate chronology rows. */
 export function installTransitionCapture(target=globalThis){
   const pending=new Map(),encoder=new TextEncoder();

@@ -83,6 +83,7 @@ export class TransitionTelemetry {
   private drainedLifecycles = 0;
   private disposed = false;
   private readonly activationWindowMs = 2000;
+  private lastFrameToMs = -Infinity;
 
   constructor(private readonly options: TransitionOptions) {
     this.maxCompleted = options.maxCompleted ?? 48;
@@ -203,6 +204,7 @@ export class TransitionTelemetry {
 
   frame(fromMs: number, toMs: number) {
     if (!this.options.enabled || this.disposed || !Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs) return;
+    this.lastFrameToMs = toMs;
     const interval = toMs - fromMs;
     for (const lifecycle of [...this.active.values(), ...this.completed]) {
       if (toMs < lifecycle.startedAtMs || fromMs > (lifecycle.endedAtMs ?? Infinity) + this.activationWindowMs) continue;
@@ -215,7 +217,19 @@ export class TransitionTelemetry {
   }
 
   snapshot() {
-    const reports = [...this.completed, ...this.active.values()].sort((a, b) => a.startedAtMs - b.startedAtMs).map(lifecycle => {
+    return this.snapshotLifecycles([...this.completed, ...this.active.values()]);
+  }
+
+  /** Copy each settled request once for capture, without copying the previous
+   * ledger or releasing any live telemetry. A delayed frame may still overlap
+   * the window after wall time passes it, so require a processed rAF beyond it. */
+  settledSnapshot(excludedIds: ReadonlySet<string>) {
+    return this.snapshotLifecycles(this.completed.filter(lifecycle => lifecycle.pendingSpans === 0 &&
+      !excludedIds.has(lifecycle.id) && this.lastFrameToMs > lifecycle.endedAtMs! + this.activationWindowMs));
+  }
+
+  private snapshotLifecycles(lifecycles: Lifecycle[]) {
+    const reports = lifecycles.sort((a, b) => a.startedAtMs - b.startedAtMs).map(lifecycle => {
       const { nextSequence: _sequence, nextSpan: _span, ...report } = lifecycle;
       return { ...report, completeChronology: lifecycle.droppedRecords === 0,
         requestToReadyMs: lifecycle.readyAtMs === null ? null : lifecycle.readyAtMs - lifecycle.startedAtMs,
@@ -230,7 +244,8 @@ export class TransitionTelemetry {
     return structuredClone({ enabled: this.options.enabled, timeOrigin: this.options.timeOrigin, reports,
       capacity: { active: this.maxActive, completed: this.maxCompleted, recordsPerTransition: this.maxRecords },
       drainedLifecycles: this.drainedLifecycles,
-      dropped: { completedLifecycles: this.evictedCompleted, rejectedRequests: this.rejectedRequests, records: reports.reduce((total, report) => total + report.droppedRecords, 0) },
+      dropped: { completedLifecycles: this.evictedCompleted, rejectedRequests: this.rejectedRequests,
+        records: [...this.completed, ...this.active.values()].reduce((total, report) => total + report.droppedRecords, 0) },
       activationWindowMs: this.activationWindowMs,
       limitations: [
         'Chronology records request-owned CPU/browser wall spans. Async spans include waiting; nested spans overlap.',

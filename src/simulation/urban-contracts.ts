@@ -2,12 +2,14 @@ import type { DistrictBuilding, DistrictStreet } from './district-layout';
 import type { DistrictDressing, FacadeProfile } from './district-art';
 import type { DistrictModuleId } from '../assets/district';
 import type { NpcDefinition } from './npcs';
-import type { Vec3, CourseSpec } from './types';
+import type { Vec3, CourseSpec, BoxSpec } from './types';
 import type { CityDistrictId } from './city-contracts';
 
-export type ProductionDistrictId = 'central-market' | 'lower-canal' | 'civic-terrace' | 'garden-terrace' | 'south-gate';
+export type ProductionDistrictId = 'central-market' | 'lower-canal' | 'civic-terrace' | 'garden-terrace' | 'south-gate'
+  | 'noble-quarter' | 'temple-quarter' | 'upper-city' | 'citadel';
 export type UrbanRecipe = 'merchant-house' | 'exchange-house' | 'corner-inn' | 'hall'
-  | 'canal-house' | 'workshop-house' | 'storehouse' | 'water-guild' | 'civic-house' | 'garden-house' | 'gate-house';
+  | 'canal-house' | 'workshop-house' | 'storehouse' | 'water-guild' | 'civic-house' | 'garden-house' | 'gate-house'
+  | 'noble-house' | 'academy-house' | 'upper-house';
 export interface UrbanBuilding extends DistrictBuilding {
   recipe: UrbanRecipe;
   facade: FacadeProfile;
@@ -49,6 +51,8 @@ export interface UrbanDistrict {
   /** Additional local paths, never replacements for accepted M6.1 roads. */
   streets: DistrictStreet[];
   surfaces: NonNullable<CourseSpec['surfaces']>;
+  /** Deliberate M9 structural transitions; simplified collision shares placement. */
+  structures?: BoxSpec[];
   /** Resident macro tops/roads supplied by integration; render veneers only. */
   pavingSurfaces?: NonNullable<CourseSpec['surfaces']>;
   retainingSurfaces?:NonNullable<CourseSpec['surfaces']>;

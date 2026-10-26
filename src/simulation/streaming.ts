@@ -170,8 +170,13 @@ export function createStreamingController(areas: readonly WorldArea[], adapter: 
     entry.error = undefined;
     counts.loads++;
     record(entry, 'load-start');
+    let requestCleanup: void | (() => void);
+    let requestError: { reason: unknown } | undefined;
+    try { requestCleanup = adapter.requested?.(entry.area, abort.signal); }
+    catch (reason) { requestError = { reason }; }
     // The microtask also turns synchronous adapter exceptions into handled rejections.
     const pending = Promise.resolve().then(() => {
+      if (requestError) throw requestError.reason;
       if (abort.signal.aborted) throw new DOMException('Area preparation was canceled.', 'AbortError');
       entry.state = 'preparing';
       return adapter.load(entry.area, abort.signal, phase => {
@@ -193,6 +198,7 @@ export function createStreamingController(areas: readonly WorldArea[], adapter: 
       entry.state = 'failed';
       record(entry, 'load-error', { durationMs: performance.now() - start, message: entry.error });
     }).finally(() => {
+      try { requestCleanup?.(); } catch (error) { adapterError(entry, error); }
       if (entry.epoch === epoch) {
         entry.abort = undefined;
         entry.pending = undefined;

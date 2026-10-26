@@ -45,9 +45,10 @@ export async function createPhysics(course: CourseSpec): Promise<Physics> {
     if (!box.collides) continue;
     const sx = Math.sin((box.rotationX ?? 0) / 2), cx = Math.cos((box.rotationX ?? 0) / 2);
     const sy = Math.sin((box.rotationY ?? 0) / 2), cy = Math.cos((box.rotationY ?? 0) / 2);
+    const sz = Math.sin((box.rotationZ ?? 0) / 2), cz = Math.cos((box.rotationZ ?? 0) / 2);
     colliders.push(world.createCollider(RAPIER.ColliderDesc.cuboid(box.size.x / 2, box.size.y / 2, box.size.z / 2)
       .setTranslation(box.position.x, box.position.y, box.position.z)
-      .setRotation({ x: sx * cy, y: cx * sy, z: sx * sy, w: cx * cy })));
+      .setRotation({ x: sx*cy*cz+cx*sy*sz, y: cx*sy*cz-sx*cy*sz, z: cx*cy*sz+sx*sy*cz, w: cx*cy*cz-sx*sy*sz })));
     }
     areas.set(id, colliders);
     world.step(); // Populate broad phase before handoff camera/player queries.
@@ -152,9 +153,10 @@ export async function createPhysics(course: CourseSpec): Promise<Physics> {
           if (disposed) throw new DOMException('Physics disposed', 'AbortError');
           const sx = Math.sin((box.rotationX ?? 0) / 2), cx = Math.cos((box.rotationX ?? 0) / 2);
           const sy = Math.sin((box.rotationY ?? 0) / 2), cy = Math.cos((box.rotationY ?? 0) / 2);
+          const sz = Math.sin((box.rotationZ ?? 0) / 2), cz = Math.cos((box.rotationZ ?? 0) / 2);
           const proxy = world.createCollider(RAPIER.ColliderDesc.cuboid(box.size.x / 2, box.size.y / 2, box.size.z / 2)
             .setTranslation(box.position.x, box.position.y, box.position.z)
-            .setRotation({ x: sx * cy, y: cx * sy, z: sx * sy, w: cx * cy }));
+            .setRotation({ x: sx*cy*cz+cx*sy*sz, y: cx*sy*cz-sx*cy*sz, z: cx*cy*sz+sx*sy*cz, w: cx*cy*cz-sx*sy*sz }));
           proxy.setEnabled(false); colliders.push(proxy);
         });
         signal.throwIfAborted();

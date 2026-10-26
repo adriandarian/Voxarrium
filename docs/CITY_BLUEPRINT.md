@@ -1,5 +1,9 @@
 # M6.1 city blueprint
 
+## Current M9 overlay
+
+[M9](prompts/09-upper-city-skyline.md) adds Noble Quarter, Temple Quarter, Upper City and a dedicated Blender Citadel to the preserved M8 core. Four production families share the accepted graph, staged two-lease residency and original top surfaces. Hero and support architecture replace only their corresponding landmark proxies at accepted anchors. Selected inhabited retaining edges and bank/bridge platforms add detail; derived east-bank street foundations repair visible support gaps without changing roads, terraces or water records. West Bank and Orchard remain future production work. Completion evidence and review authority are recorded in STATUS and [GOVERNANCE](GOVERNANCE.md).
+
 ## Current M8 overlay
 
 [M8](CITY_CORE.md) promotes Civic Terrace, Garden Terrace and South Gate through the existing production grammar and keeps the macro records below unchanged. Together with River Market, Central Market, Lower Canal and the accepted Workshop Forecourt connector, they form the seven-ward core. Current owner authority is [GOVERNANCE](GOVERNANCE.md); the following M7 review-gate description retains its historical scope.

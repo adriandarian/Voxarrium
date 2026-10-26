@@ -4,6 +4,9 @@ import type { ProductionDistrictId, UrbanBuilding, UrbanRecipe } from './urban-c
 import type { Vec3 } from './types';
 
 const recipes = {
+  'noble-house': { archetype:'townhouse', floors:3, floorHeight:3.6, facade:'tall', roof:'mansard', bays:4, corner:'pilaster', shopfront:'arcade', balcony:true, awning:false },
+  'academy-house': { archetype:'civic', floors:3, floorHeight:3.9, facade:'civic', roof:'hip', bays:4, corner:'stone', shopfront:'arcade', balcony:false, awning:false },
+  'upper-house': { archetype:'townhouse', floors:3, floorHeight:3.2, facade:'paired', roof:'hip', bays:3, corner:'pilaster', shopfront:'single', balcony:true, awning:false },
   'civic-house': { archetype:'townhouse', floors:4, floorHeight:3.05, facade:'tall', roof:'mansard', bays:3, corner:'pilaster', shopfront:'wide', balcony:true, awning:true },
   'garden-house': { archetype:'residential', floors:2, floorHeight:2.65, facade:'cottage', roof:'hip', bays:2, corner:'timber', shopfront:'single', balcony:false, awning:true },
   'gate-house': { archetype:'workshop', floors:2, floorHeight:3.1, facade:'trade', roof:'gable', bays:3, corner:'stone', shopfront:'service', balcony:false, awning:true },
@@ -17,6 +20,10 @@ const recipes = {
   'water-guild': { archetype:'civic', floors:2, floorHeight:3.3, facade:'paired', roof:'gable', bays:3, corner:'stone', shopfront:'service', balcony:true, awning:false },
 } as const;
 export const URBAN_RULES = {
+  'noble-quarter': [['noble-house',8],['upper-house',2]],
+  'temple-quarter': [['academy-house',8],['noble-house',1]],
+  'upper-city': [['upper-house',7],['noble-house',3]],
+  'citadel': [['academy-house',1]],
   'central-market': [['merchant-house',6],['exchange-house',4],['corner-inn',2]],
   'lower-canal': [['canal-house',5],['workshop-house',4],['storehouse',2]],
   'civic-terrace': [['civic-house',7],['corner-inn',2],['exchange-house',2]],
@@ -24,7 +31,8 @@ export const URBAN_RULES = {
   'south-gate': [['gate-house',6],['storehouse',3],['corner-inn',2]],
 } as const;
 export function urbanHash(id:string) { let hash=2166136261;for(const c of id)hash=Math.imul(hash^c.charCodeAt(0),16777619);return hash>>>0; }
-export const urbanNamespace=(id:ProductionDistrictId)=>id==='central-market'||id==='lower-canal'?'m7':'m8';
+export const urbanNamespace=(id:ProductionDistrictId)=>id==='central-market'||id==='lower-canal'?'m7':
+  id==='noble-quarter'||id==='temple-quarter'||id==='upper-city'||id==='citadel'?'m9':'m8';
 
 /** A stable parcel chooses from a district's coherent recipes. Hero recipes are authored. */
 export function urbanBuilding(district:ProductionDistrictId,id:string,x:number,z:number,width:number,depth:number,
@@ -34,7 +42,10 @@ export function urbanBuilding(district:ProductionDistrictId,id:string,x:number,z
   let selected:UrbanRecipe=rules[0][0];
   for(const [name,weight] of rules){if(choice<weight){selected=name;break;}choice-=weight;}
   const name=recipe??selected,r=recipes[name],v=(hash+variant)>>>0;
-  const palette=district==='central-market'?[0xe0ceaa,0xd2b892,0xe9dbba,0xcabc9f]:district==='civic-terrace'?[0xe0d7bd,0xcac2a8,0xe9dfc7,0xcdbfa5]:district==='garden-terrace'?[0xd7c6a2,0xcbba92,0xe0d1b0,0xc8c0a0]:[0xcbbba0,0xd5c9ad,0xbfae91,0xddcfb2];
+  const palette=district==='noble-quarter'?[0xe3d6b5,0xd5c6a5,0xebdfc4,0xd9cdb4]:
+    district==='temple-quarter'?[0xd8d9c8,0xc7ccba,0xe3e2d0,0xd2d3bf]:
+    district==='upper-city'?[0xded0ac,0xd0c6af,0xe4d8b9,0xcac0a4]:
+    district==='central-market'?[0xe0ceaa,0xd2b892,0xe9dbba,0xcabc9f]:district==='civic-terrace'?[0xe0d7bd,0xcac2a8,0xe9dfc7,0xcdbfa5]:district==='garden-terrace'?[0xd7c6a2,0xcbba92,0xe0d1b0,0xc8c0a0]:[0xcbbba0,0xd5c9ad,0xbfae91,0xddcfb2];
   const clay=[0xab5937,0x99502f,0xb96b41,0x874733,0x9d6042];
   return {id:`${urbanNamespace(district)}.${district}.${id}`,position:{x,y,z},width,depth,yaw,recipe:name,...r,
     floorHeight:r.floorHeight+(v%3-1)*.12,roofHeight:name==='hall'?4.4:name==='water-guild'?3.1:1.9+width*.06,

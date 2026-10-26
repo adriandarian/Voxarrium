@@ -41,6 +41,7 @@ export interface BoxSpec {
   color: number;
   rotationX?: number;
   rotationY?: number;
+  rotationZ?: number;
   collides: boolean;
   /** Collision-only proxy (e.g. imported GLB) when false. */
   visible?: boolean;

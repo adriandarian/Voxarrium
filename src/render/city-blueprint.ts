@@ -4,10 +4,13 @@ import {
   MeshStandardMaterial, Object3D, Sprite, SpriteMaterial, SRGBColorSpace, Texture,
 } from 'three';
 import type { CityBlueprint, CityRoad } from '../simulation/city-contracts';
-import { cityRetainingSurface } from '../simulation/city-terrain';
+import { cityRetainingSurface, cityUpperRetainingSurface, cityUpperRoadCoping } from '../simulation/city-terrain';
 import { cityRoadSurfaces } from '../simulation/city-blueprint';
 import type { BoxSpec, CourseSpec, GameState, Vec3 } from '../simulation/types';
 import type { UrbanDistrict } from '../simulation/urban-contracts';
+import type { CitadelSpec } from '../simulation/citadel-contracts';
+import { CITADEL_LAMPS } from '../simulation/citadel';
+import { PointLight } from 'three';
 
 export type CityDebugLayer = 'none' | 'districts' | 'roads' | 'waterways' | 'bridges' | 'elevation' | 'streaming';
 type Surface = NonNullable<CourseSpec['surfaces']>[number];
@@ -69,6 +72,21 @@ function ribbon(id: string, points: readonly Vec3[], width: number, color: numbe
   return { id, vertices, indices, color };
 }
 
+/** Match the terrain's strip-and-node water cutouts. These submerged decorative
+ * banks close bend/landing gaps; the channel width and water surface stay fixed. */
+function bankBed(id: string, points: readonly Vec3[], width: number): Surface {
+  const result:Surface={id,vertices:[],indices:[],color:0x998f6c};
+  const quad=(corners:Vec3[])=>{const k=result.vertices.length/3;result.vertices.push(...corners.flatMap(p=>[p.x,p.y+.015,p.z]));
+    result.indices.push(k,k+2,k+1,k,k+3,k+2);};
+  for(let i=1;i<points.length;i++){
+    const a=points[i-1]!,b=points[i]!,dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz),nx=-dz/length*width/2,nz=dx/length*width/2;
+    quad([{...a,x:a.x+nx,z:a.z+nz},{...a,x:a.x-nx,z:a.z-nz},{...b,x:b.x-nx,z:b.z-nz},{...b,x:b.x+nx,z:b.z+nz}]);
+  }
+  for(const p of points){const h=width/2;quad([{...p,x:p.x-h,z:p.z-h},{...p,x:p.x+h,z:p.z-h},
+    {...p,x:p.x+h,z:p.z+h},{...p,x:p.x-h,z:p.z+h}]);}
+  return result;
+}
+
 const roadColor = (road: CityRoad) => road.kind === 'bridge' ? 0xd2bb94 : road.kind === 'stairs' ? 0xe3cfaa
   : road.kind === 'alley' ? 0xb5a07d : road.kind === 'secondary' ? 0xc9b794 : 0xe4d2ae;
 const districtColors = [0xf3c15d, 0x69d4c8, 0xc09be6, 0x83ba66, 0xe79567, 0x6da7e0, 0xd3d479];
@@ -86,9 +104,13 @@ function hipGeometry() {
 }
 
 /** Resident terrain/landmarks and overview-only density proxies. The caller guards debug access. */
-export function createCityPresentation(sourceBlueprint: CityBlueprint, acceptedCourses: CourseSpec[],replacedLandmarks:readonly string[]=[],urban:readonly UrbanDistrict[]=[]) {
+export function createCityPresentation(sourceBlueprint: CityBlueprint, acceptedCourses: CourseSpec[],replacedLandmarks:readonly string[]=[],urban:readonly UrbanDistrict[]=[],citadel?:CitadelSpec|null) {
   const blueprint=replacedLandmarks.length?{...sourceBlueprint,landmarks:sourceBlueprint.landmarks.filter(l=>!replacedLandmarks.includes(l.id))}:sourceBlueprint;
   const group = new Group(); group.name = 'city.blueprint.resident';
+  // Fixed shader light count; only intensity changes with authoritative time/residency.
+  const heroLights=citadel?CITADEL_LAMPS.map(([x,y,z],index)=>{
+    const light=new PointLight(0xffbf70,0,13,2);light.position.set(x,y,z);light.name=`city.citadel.lamp.${index}`;light.castShadow=false;group.add(light);return light;
+  }):[];
   const overview = new Group(); overview.name = 'city.blueprint.overview-only'; overview.visible = false; group.add(overview);
   const debug = new Group(); debug.name = 'city.blueprint.debug'; group.add(debug);
   const resources = new Set<Disposable>();
@@ -116,7 +138,7 @@ export function createCityPresentation(sourceBlueprint: CityBlueprint, acceptedC
     specs.forEach((spec, i) => {
       transform.position.set(spec.position.x, spec.position.y, spec.position.z);
       transform.scale.set(spec.size.x, spec.size.y, spec.size.z);
-      transform.rotation.set(spec.rotationX ?? 0, spec.rotationY ?? 0, 0); transform.updateMatrix();
+      transform.rotation.set(spec.rotationX ?? 0, spec.rotationY ?? 0, spec.rotationZ ?? 0); transform.updateMatrix();
       mesh.setMatrixAt(i, transform.matrix); mesh.setColorAt(i, new Color(spec.color));
     });
     mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
@@ -125,14 +147,20 @@ export function createCityPresentation(sourceBlueprint: CityBlueprint, acceptedC
   }
   const top = data(); blueprint.terrain.forEach(surface => append(top, surface));
   addSurface('city.terrain.tops', top);
-  const retaining=data();append(retaining,cityRetainingSurface(blueprint.terrain,cityRoadSurfaces(blueprint.roads)));
+  const retaining=data();append(retaining,citadel?cityUpperRetainingSurface(blueprint):
+    cityRetainingSurface(blueprint.terrain,cityRoadSurfaces(blueprint.roads)));
   addSurface('city.terrain.retaining-sides', retaining, group, sides);
   const water = data(), banks = data();
   blueprint.waterways.forEach(channel => {
-    append(banks, ribbon(`${channel.id}.banks`, channel.points, channel.width + 2.2, 0x998f6c, .015));
+    append(banks, citadel?bankBed(`${channel.id}.banks`,channel.points,channel.width+2.2):
+      ribbon(`${channel.id}.banks`, channel.points, channel.width + 2.2, 0x998f6c, .015));
     append(water, ribbon(channel.id, channel.points, channel.width, 0x278f95, .045));
   });
   addSurface('city.water.bank-ribbons', banks); addSurface('city.water.connected-ribbons', water);
+  // Like the streamed paving veneer, the coping finish sits just above its
+  // physical support. Its top is 5 mm below the paving, closing grazing views
+  // through the clearance cut without changing the approved road grade.
+  if(citadel){const coping=data();append(coping,cityUpperRoadCoping(blueprint),undefined,.07);addSurface('city.circulation.edge-coping',coping);}
   const roads = data();
   blueprint.roads.forEach(road => cityRoadSurfaces([road]).forEach(surface => append(roads, surface, roadColor(road), .025)));
   addSurface('city.circulation.roads-stairs-ramps', roads);
@@ -204,6 +232,12 @@ export function createCityPresentation(sourceBlueprint: CityBlueprint, acceptedC
   for (const district of blueprint.districts) {
     const target = new Group(); target.name = `city.overview.${district.id}`; overview.add(target); districtOverview.set(district.id, target);
     const production=urban.find(u=>u.id===district.id);
+    if(district.id==='citadel'&&citadel){
+      const roofs=citadel.silhouettes.filter(b=>/roof|cap/.test(b.id)),bodies=citadel.silhouettes.filter(b=>!/roof|cap/.test(b.id));
+      boxes('city.overview.citadel.architecture',bodies,target);
+      boxes('city.overview.citadel.roofs',roofs,target,own(hipGeometry()));
+      massingInstances+=citadel.silhouettes.length;continue;
+    }
     const masses = production?production.buildings.map(b=>({id:`${b.id}.overview-body`,position:{...b.position,y:b.position.y+b.floors*b.floorHeight/2},
       size:{x:b.width,y:b.floors*b.floorHeight,z:b.depth},rotationY:b.yaw,color:b.plaster,collides:false})):blueprint.massing[district.id] ?? [];
     boxes(`city.overview.massing.${district.id}`, masses, target); massingInstances += masses.length;
@@ -275,9 +309,15 @@ export function createCityPresentation(sourceBlueprint: CityBlueprint, acceptedC
   }
   return {
     group,
+    setCitadelSkyline(root:import('three').Object3D) {
+      const target=districtOverview.get('citadel');if(!citadel||!target)throw new Error('Citadel skyline requires M9 resident context.');
+      target.clear();target.add(root);
+    },
     update(state: GameState, activeIds: readonly string[]) {
       if (released) return;
       const artView=state.camera.mode === 'eagle-eye' || state.camera.mode === 'free';
+      const warmth=state.environment?Math.max(0,Math.min(1,(1.85-state.environment.lighting.fillIntensity)/.67)):0;
+      heroLights.forEach(light=>{light.intensity=activeIds.includes('citadel')?warmth*9:0;});
       overview.visible = artView || urban.length>0;
       for (const [id, target] of districtOverview) target.visible = !activeIds.includes(id) && (artView||urban.some(d=>d.id===id));
     },
