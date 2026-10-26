@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Voxarrium: a streamed third- and first-person city exploration game in Three.js.",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.12.0 <23"
   },
   "scripts": {
     "dev": "vite",

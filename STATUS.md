@@ -1,5 +1,21 @@
 # Voxarrium status
 
+## PR #22 conflict resolution (2026-10-26)
+
+Merged current `main` (`25df6cc`) into the deployment branch, retaining the complete M9 runtime, scripts and handoff alongside the deployment configuration. README and STATUS conflicts preserve both sets of documentation. The deployment observations below are historical results from 2026-10-04; hosted state was not rechecked during conflict resolution.
+
+Conflict-resolution validation passed `npm ci`, `npm run check`, `npm run build`, `npm run doctor`, `npm run references:verify`, all 12 `node --test tests/bootstrap.test.mjs` checks and `git diff --check origin/main`. The build retains its large-chunk advisory. The merge diff against the older PR head reports pre-existing trailing blank lines in three incoming M9 files; those files are unchanged from main. Runtime source/assets and dependency versions match main; full simulation/browser suites, screenshots and hosted deployment checks were not rerun.
+
+## Vercel deployment follow-up (2026-10-04)
+
+The owner authorized remote deployment and automatic updates from merged PRs. The existing Hobby project `adrian-darians-projects/voxarrium` is now linked to GitHub `adriandarian/Voxarrium`, production branch `main`. Vercel reports the merged M8 commit `efee826fb4002c5aacf1af43244edd129a0dd6f1` as `READY` in production at [the live M8 core](https://voxarrium.vercel.app/?scene=m8). The stable domain follows successful `main` builds; other branches receive previews. The bare domain still selects the existing M5 comparison corridor.
+
+Deployment settings are recorded in [DEPLOYMENT](docs/DEPLOYMENT.md) and `vercel.json`: locked install with `npm ci`, Vite build with `npm run build`, output `dist`, and Node.js 22.x for future builds. Package/lockfile engine metadata bounds Node to the tested 22.x line; dependency versions and integrity records are unchanged. The initial remote build predates these source configuration changes. M8 implementation and review status below are preserved.
+
+Deployment preparation passed `npm run build`, `npm run check`, `npm run doctor`, `npm run references:verify`, all 12 `node --test tests/bootstrap.test.mjs` checks, and `git diff --check`. Initial build/typecheck attempts lacked worktree dependencies; installing with `npm ci` resolved them. Vercel's initial remote build and production domain assignment passed. Full simulation/browser suites, hosted gameplay/GPU tests, screenshots and performance measurements were not rerun for this deployment task. The existing large-bundle advisory remains. No paid plan, repository access change or PR merge was performed.
+
+The configuration branch push at `3ebca3e` automatically created preview `dpl_DbLSLTSMYhAEaxsztC7ZXNARZwcJ`, also `READY`. Remote logs confirm Node 22.x, `npm ci`, and a successful matching production bundle. [PR #22](https://github.com/adriandarian/Voxarrium/pull/22) records the source configuration and remains open; automatic Git deployment is already enabled in Vercel.
+
 ## Completed M9 — objective gates pass
 
 M9's objective gates pass on `milestone/m9-upper-city-skyline`, based on merged M8 `efee826fb4002c5aacf1af43244edd129a0dd6f1`. Initial clean-tree, M8 ancestry and absent-prompt checks passed; intentionally skipped `cf0e80a` was not applied. The [M9 prompt](docs/prompts/09-upper-city-skyline.md) preserves the owner objective and deferred human-review policy. [M9 validation](docs/M9_VALIDATION.md) records the complete final evidence and limits. The result is ready for repository integration. After its local commit and clean-tree check, preparation only of `milestone/m10-whole-city` and the issue #18 prompt is authorized. M10 implementation has not begun and must wait for M9 integration according to repository workflow.

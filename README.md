@@ -4,6 +4,8 @@ A living fantasy city for **third-person exploration**, with an optional first-p
 
 ## Start here
 
+**Play the live city core: [voxarrium.vercel.app/?scene=m8](https://voxarrium.vercel.app/?scene=m8).** Vercel is connected to this repository with `main` as its production branch. Merged PRs to `main` automatically rebuild the production site; other branches receive preview deployments. See [deployment settings and verification](docs/DEPLOYMENT.md).
+
 **M9 adds the upper city and authored citadel at [/?scene=m9](http://127.0.0.1:5173/?scene=m9).** Noble Quarter, Temple Quarter and Upper City use distinct court/civic architecture, selected inhabited terrace edges and bridge landing structures. The citadel is deliberate Blender architecture with layered towers, roofs, gates, courtyards and arcades, plus an authored resident skyline. All 224 persistent locals share the existing weather, time, spatial audio and bounded two-area streaming lifecycle. Actual validation and the current milestone gate are in [STATUS](STATUS.md); human art review remains deferred through M10 under [the owner decision](docs/GOVERNANCE.md).
 
 `npm run capture:m9` validates the integrated route on initialized WebGPU and explicit WebGL2 and captures playable and art/debug views. With the development server running, `npm run stress:upper` measures three actual-input full core/upper circuits in headless native Chrome; `VOXARRIUM_WEATHER=clear` selects clear/day, while the default is rain/dusk. Recordings and fixed-step inspection captures remain separate from cadence measurements. See [CITADEL](docs/CITADEL.md), [UPPER_CITY](docs/UPPER_CITY.md) and [M9 prompt](docs/prompts/09-upper-city-skyline.md).
@@ -37,7 +39,7 @@ npm run doctor
 npm run references:verify
 ```
 
-Node.js 22.12+ is the project minimum. Browser tests use installed Google Chrome by default, without downloading another browser. Set `VOXARRIUM_BROWSER=msedge` to use installed Edge; Edge has not been validated for this milestone. Keep automated checks headless (`VOXARRIUM_HEADED=0`) under the owner's current preference. A visible run requires an explicit owner request; historical headed evidence remains preserved. `npm run preview` serves the built runtime at http://127.0.0.1:4173/. Nothing is deployed publicly.
+Use Node.js 22.12+ within the 22.x release line, matching the Vercel build setting. Browser tests use installed Google Chrome by default, without downloading another browser. Set `VOXARRIUM_BROWSER=msedge` to use installed Edge; Edge has not been validated for this milestone. Keep automated checks headless (`VOXARRIUM_HEADED=0`) under the owner's current preference. A visible run requires an explicit owner request; historical headed evidence remains preserved. `npm run preview` serves the built runtime at http://127.0.0.1:4173/.
 
 Tests and capture states/screenshots live under ignored `artifacts/`. See `docs/TESTING.md` for the exact procedure and evidence limits. `doctor` records local tooling under `.local/`; it does not test gameplay. The committed calibration GLB makes normal startup independent of Blender. `npm run blender:fixture` re-exports to `.local/assets/` for pipeline work; see `docs/ASSET_PIPELINE.md` before replacing the vendored fixture.
 
@@ -65,4 +67,4 @@ Verification checks PNG signatures, byte counts, dimensions, and SHA-256 checksu
 - `tools/`: dependency-free setup checks and Blender calibration.
 - `.agents/skills/`: small project-specific Codex workflows.
 
-No Jev, external model API, cloud service, automatic deployment, or paid asset dependency is configured. Existing account usage limits still apply to Codex. No license has been selected for this project or the supplied reference artwork.
+Vercel hosts the static production build and automatically deploys GitHub updates. No Jev, external model API, or paid asset dependency is configured. Existing account usage limits still apply to Codex. No license has been selected for this project or the supplied reference artwork.
